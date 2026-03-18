@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AAAging — Studienkalender | Universität Wien</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@300;400;600&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ub:#003F7F; --ubd:#002A57; --ubm:#1A5FA8; --ubl:#E8EFF7; --ubp:#F0F5FB;
+  --ur:#C8102E;
+  --w:#FFFFFF; --g1:#F5F5F5; --g2:#EBEBEB; --g3:#CCCCCC; --g4:#999; --g5:#666; --g6:#333; --bk:#1A1A1A;
+  --r:4px; --rl:6px; --sh:0 1px 4px rgba(0,63,127,.1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
+
+/* ── LOGIN SCREEN ── */
+#login-screen {
+  display:flex; min-height:100vh; flex-direction:column;
+}
+.login-top { background:var(--ubd); height:6px; }
+.login-hdr {
+  background:var(--ub); padding:0 2rem;
+  display:flex; align-items:center; gap:14px; height:64px;
+}
+.login-hdr-name { font-family:'Source Serif 4',serif; font-size:19px; font-weight:600; color:#fff; }
+.login-hdr-sub  { font-size:10px; color:rgba(255,255,255,.6); text-transform:uppercase; letter-spacing:.08em; margin-top:1px; }
+.login-nav-bar  { background:var(--ubd); height:3px; border-bottom:3px solid var(--ur); }
+
+.login-body {
+  flex:1; display:flex; align-items:center; justify-content:center;
+  padding:2rem 1rem;
+  background: linear-gradient(160deg, var(--ubp) 0%, var(--g1) 60%);
+}
+
+.login-card {
+  background:#fff; border:1px solid var(--g2); border-radius:var(--rl);
+  box-shadow:0 8px 32px rgba(0,42,87,.15); width:100%; max-width:400px;
+  overflow:hidden;
+}
+
+.login-card-hdr {
+  background:var(--ub); padding:20px 24px;
+  display:flex; flex-direction:column; gap:4px;
+}
+
+.login-card-title {
+  font-family:'Source Serif 4',serif; font-size:20px; font-weight:600; color:#fff;
+}
+.login-card-sub { font-size:12px; color:rgba(255,255,255,.65); }
+
+.login-card-body { padding:24px; }
+
+.lf-group { margin-bottom:16px; }
+.lf-label {
+  display:block; font-size:11px; font-weight:700; color:var(--g6);
+  margin-bottom:5px; text-transform:uppercase; letter-spacing:.06em;
+}
+.lf-input {
+  width:100%; padding:9px 12px; border-radius:var(--r);
+  border:1px solid var(--g3); font-size:14px;
+  font-family:'Source Sans 3',sans-serif; color:var(--bk);
+  background:#fff; outline:none; transition:border-color .15s;
+}
+.lf-input:focus { border-color:var(--ub); box-shadow:0 0 0 3px var(--ubl); }
+.lf-input::placeholder { color:var(--g4); }
+
+.login-btn {
+  width:100%; padding:10px; border-radius:var(--r);
+  background:var(--ub); color:#fff; border:none;
+  font-size:14px; font-weight:700; font-family:'Source Sans 3',sans-serif;
+  cursor:pointer; transition:background .15s; letter-spacing:.02em;
+  margin-top:4px;
+}
+.login-btn:hover { background:var(--ubd); }
+.login-btn:disabled { opacity:.6; cursor:not-allowed; }
+
+.login-err {
+  background:#FDF2F4; border:1px solid #E8BFBF; border-radius:var(--r);
+  padding:9px 12px; font-size:12.5px; color:var(--ur);
+  margin-bottom:14px; display:none;
+}
+
+.login-footer {
+  padding:14px 24px; border-top:1px solid var(--g2);
+  background:var(--g1); font-size:11.5px; color:var(--g5); text-align:center;
+}
+
+/* ── APP ── */
+#app-screen { display:none; }
+
+.utop{background:var(--ubd);height:6px}
+.uhdr{background:var(--ub)}
+.uhdr-i{max-width:1300px;margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;min-height:60px;gap:12px}
+.ulogo{display:flex;align-items:center;gap:12px}
+.useal{width:40px;height:40px;flex-shrink:0}
+.uname{font-family:'Source Serif 4',serif;font-size:19px;font-weight:600;color:#fff;letter-spacing:.01em}
+.utag{font-size:10px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.08em;margin-top:1px}
+
+.hdr-right { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.user-pill {
+  display:flex; align-items:center; gap:6px;
+  padding:4px 11px; background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.18); border-radius:99px;
+}
+.user-icon { font-size:13px; }
+.user-email { font-size:11px; color:rgba(255,255,255,.85); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.logout-btn {
+  padding:4px 11px; border-radius:99px;
+  background:rgba(200,16,46,.25); border:1px solid rgba(200,16,46,.4);
+  color:#fff; font-size:11px; font-weight:600; cursor:pointer; transition:all .15s;
+  font-family:'Source Sans 3',sans-serif;
+}
+.logout-btn:hover { background:rgba(200,16,46,.45); }
+
+.sync-pill{display:flex;align-items:center;gap:6px;padding:4px 11px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:99px}
+.sdot{width:7px;height:7px;border-radius:50%;background:#F0C040}
+.slbl{font-size:11px;color:rgba(255,255,255,.8)}
+
+.unav{background:var(--ubd);border-bottom:3px solid var(--ur)}
+.unav-i{max-width:1300px;margin:0 auto;padding:0 1.5rem;display:flex}
+.ntab{padding:10px 17px;font-size:13px;font-weight:600;color:rgba(255,255,255,.7);background:transparent;border:none;border-bottom:3px solid transparent;margin-bottom:-3px;cursor:pointer;transition:all .15s;font-family:'Source Sans 3',sans-serif;letter-spacing:.02em;white-space:nowrap}
+.ntab:hover{color:#fff;background:rgba(255,255,255,.05)}
+.ntab.on{color:#fff;border-bottom-color:#fff;background:rgba(255,255,255,.08)}
+
+.ubc{background:#fff;border-bottom:1px solid var(--g2)}
+.ubc-i{max-width:1300px;margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;gap:6px;height:34px;font-size:11.5px;color:var(--g4)}
+.bc-c{color:var(--ub);font-weight:600}
+
+.main{max-width:1300px;margin:0 auto;padding:1.5rem}
+.panel{display:none}.panel.on{display:block}
+
+.phdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:10px;border-bottom:2px solid var(--ub);padding-bottom:.875rem}
+.ptitle{font-family:'Source Serif 4',serif;font-size:22px;font-weight:600;color:var(--ub)}
+.psub{font-size:12px;color:var(--g5);margin-top:2px}
+
+.btn{padding:6px 14px;border-radius:var(--r);border:1px solid var(--g3);font-size:12.5px;font-family:'Source Sans 3',sans-serif;cursor:pointer;background:#fff;color:var(--g6);transition:all .15s}
+.btn:hover{background:var(--g1)}
+.btn-p{background:var(--ub);color:#fff;border-color:var(--ub);font-weight:600}
+.btn-p:hover{background:var(--ubd)}
+.btn-d{color:var(--ur);border-color:#E8C0C8;background:#FDF2F4}
+.btn-d:hover{background:#F8DCDC}
+.btn-xs{padding:3px 8px;font-size:11px}
+.btn-sm{padding:5px 12px;font-size:12px}
+
+.wtbar{display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;flex-wrap:wrap;background:#fff;border:1px solid var(--g2);border-left:4px solid var(--ub);border-radius:var(--r);padding:10px 14px;box-shadow:var(--sh)}
+.arr{width:31px;height:31px;border:1px solid var(--g3);border-radius:var(--r);background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ub);font-size:14px;font-weight:700;transition:all .15s}
+.arr:hover{background:var(--ubl);border-color:var(--ub)}
+.wbadge{background:var(--ub);color:#fff;font-size:12px;font-weight:700;padding:5px 13px;border-radius:var(--r);cursor:pointer;letter-spacing:.04em;white-space:nowrap}
+.wbadge:hover{background:var(--ubd)}
+.wrange{font-size:12px;color:var(--g5)}
+.wfill{margin-left:auto;font-size:12px;color:var(--g5)}
+
+.dgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:start}
+@media(max-width:1100px){.dgrid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:580px){.dgrid{grid-template-columns:1fr}}
+
+.dcol{display:flex;flex-direction:column;gap:6px}
+.dayhdr-top{border-radius:var(--r) var(--r) 0 0;padding:10px 12px;background:var(--ub)}
+.dayhdr-top.t12{background:var(--ubd)}
+.dname{font-family:'Source Serif 4',serif;font-size:14px;font-weight:600;color:#fff}
+.drow{display:flex;align-items:center;justify-content:space-between;margin-top:3px}
+.ddate{font-size:10.5px;color:rgba(255,255,255,.65)}
+.dphase{font-size:9.5px;font-weight:700;letter-spacing:.08em;background:rgba(255,255,255,.2);color:#fff;padding:1px 6px;border-radius:99px;border:1px solid rgba(255,255,255,.25)}
+.dfill{height:3px;background:rgba(255,255,255,.2);border-radius:0;overflow:hidden;margin-top:6px}
+.dfill-bar{height:100%;background:rgba(255,255,255,.75);transition:width .4s}
+
+.sc{background:#fff;border:1px solid var(--g2);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);transition:border-color .15s}
+.sc:hover{border-color:var(--ubm)}
+.sc.occ{border-left:3px solid var(--ub)}
+.sc-top{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:var(--ubp);border-bottom:1px solid var(--g2)}
+.sc-num{font-size:10.5px;font-weight:700;color:var(--ub);text-transform:uppercase;letter-spacing:.05em}
+.sc-time{font-family:monospace;font-size:11px;color:var(--g5);font-weight:700}
+.sc-body{padding:7px 10px}
+.prow{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:6px}
+.pbadge{font-family:monospace;font-size:11px;font-weight:700;background:#E8F2E8;color:#1A4A1A;border:1px solid #A8CCA8;border-radius:3px;padding:2px 6px}
+.lbadge{font-family:monospace;font-size:11px;background:var(--ubl);color:var(--ub);border:1px solid #A0C0E0;border-radius:3px;padding:2px 6px}
+.nop{font-size:11px;color:var(--g4);font-style:italic}
+.chips{display:flex;flex-wrap:wrap;gap:3px}
+.chip{display:inline-block;padding:2px 6px;border-radius:3px;font-size:9.5px;font-weight:700;border:1px solid;white-space:nowrap;letter-spacing:.02em}
+.ct{font-weight:400;font-size:9px;opacity:.75}
+.cblut{background:#FDF2F4;border-color:#E8BFBF;color:#7A1C1C}
+.cbia{background:#EEF3FC;border-color:#B8CCEC;color:#153569}
+.cmikro{background:#FBF5E6;border-color:#E0CA88;color:#5C4400}
+.ciso{background:#F3EFF9;border-color:#C4B4E4;color:#2E1A60}
+.crbans{background:#EAF5F2;border-color:#90D4C4;color:#0A4A3A}
+.crecall{background:#FEF6EC;border-color:#F0CCA0;color:#3D2200}
+.cfb{background:#EDF7ED;border-color:#A0CCA0;color:#1A3A1A}
+.cfrueh{background:#FFF8EC;border-color:#EED890;color:#4A3800}
+
+.stats{display:flex;gap:10px;margin-bottom:1.25rem;flex-wrap:wrap}
+.stat{background:#fff;border:1px solid var(--g2);border-top:3px solid var(--ub);border-radius:var(--r);padding:11px 16px;min-width:105px;box-shadow:var(--sh)}
+.sv{font-family:'Source Serif 4',serif;font-size:26px;font-weight:600;color:var(--ub);line-height:1;margin-bottom:2px}
+.sl{font-size:10px;color:var(--g5);text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+
+.tc{background:#fff;border:1px solid var(--g2);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
+.tt{width:100%;border-collapse:collapse;font-size:13px}
+.tt th{text-align:left;padding:8px 12px;font-size:10px;font-weight:700;color:#fff;background:var(--ub);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;border-right:1px solid rgba(255,255,255,.12)}
+.tt th:last-child{border-right:none}
+.tt td{padding:9px 12px;border-bottom:1px solid var(--g2);vertical-align:middle}
+.tt tr:last-child td{border-bottom:none}
+.tt tr:hover td{background:var(--ubp)}
+.te{text-align:center;padding:2.5rem;color:var(--g4);font-size:13px;font-style:italic}
+
+.ov{display:none;position:fixed;inset:0;background:rgba(0,42,87,.5);z-index:500;align-items:center;justify-content:center;padding:1rem}
+.ov.open{display:flex}
+.modal{background:#fff;border-radius:var(--rl);border:1px solid var(--g2);width:100%;max-width:480px;box-shadow:0 12px 40px rgba(0,42,87,.25);animation:mIn .18s ease}
+@keyframes mIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.mhdr{background:var(--ub);padding:13px 18px;display:flex;align-items:center;justify-content:space-between;border-radius:var(--rl) var(--rl) 0 0}
+.mtitle{font-family:'Source Serif 4',serif;font-size:16px;font-weight:600;color:#fff}
+.mclose{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);border-radius:3px;font-size:18px;color:#fff;cursor:pointer;width:27px;height:27px;display:flex;align-items:center;justify-content:center}
+.mclose:hover{background:rgba(255,255,255,.28)}
+.mbody{padding:18px}
+.fg{margin-bottom:13px}
+.fl{display:block;font-size:10.5px;font-weight:700;color:var(--g6);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em}
+.fi{width:100%;padding:7px 10px;border-radius:var(--r);border:1px solid var(--g3);font-size:13px;font-family:'Source Sans 3',sans-serif;color:var(--bk);background:#fff;outline:none;transition:border-color .15s}
+.fi:focus{border-color:var(--ub);box-shadow:0 0 0 3px var(--ubl)}
+.fi::placeholder{color:var(--g4)}
+.fh{font-size:10.5px;color:var(--g4);margin-top:3px}
+.mftr{display:flex;gap:7px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--g2);background:var(--g1);border-radius:0 0 var(--rl) var(--rl)}
+
+.wjov{display:none;position:fixed;inset:0;background:rgba(0,42,87,.5);z-index:400;align-items:flex-start;justify-content:center;padding:70px 1rem 1rem}
+.wjov.open{display:flex}
+.wjbox{background:#fff;border-radius:var(--rl);border:1px solid var(--g2);width:100%;max-width:370px;overflow:hidden;box-shadow:0 12px 40px rgba(0,42,87,.25)}
+.wjhdr{background:var(--ub);padding:11px 15px;font-family:'Source Serif 4',serif;font-size:15px;font-weight:600;color:#fff}
+.wjlist{max-height:360px;overflow-y:auto;padding:5px}
+.wji{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:var(--r);cursor:pointer;font-size:12.5px;transition:all .1s;border:1px solid transparent}
+.wji:hover{background:var(--ubp);border-color:var(--g2)}
+.wji.cur{background:var(--ubl);border-color:var(--ub);color:var(--ub);font-weight:600}
+.wjkw{font-size:11px;color:var(--g4);font-weight:700}
+.wji.cur .wjkw,.wji.has .wjkw{color:var(--ub)}
+.wjftr{padding:9px 13px;border-top:1px solid var(--g2);background:var(--g1);text-align:right}
+
+.owk{background:#fff;border:1px solid var(--g2);border-radius:var(--r);overflow:hidden;margin-bottom:12px;box-shadow:var(--sh)}
+.owkhdr{background:var(--ub);padding:8px 13px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.owkttl{font-family:'Source Serif 4',serif;font-size:13.5px;font-weight:600;color:#fff}
+
+.toast{position:fixed;bottom:18px;right:18px;background:var(--ub);color:#fff;padding:9px 16px;border-radius:var(--r);font-size:13px;font-weight:600;z-index:1000;box-shadow:0 4px 16px rgba(0,42,87,.25);transform:translateY(80px);opacity:0;transition:all .25s;pointer-events:none;border-left:4px solid rgba(255,255,255,.3)}
+.toast.show{transform:none;opacity:1}
+.toast.err{background:var(--ur)}
+
+/* Loading spinner */
+#loading-screen{display:flex;position:fixed;inset:0;background:var(--ub);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+.spinner{width:36px;height:36px;border:3px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-txt{color:rgba(255,255,255,.8);font-size:13px;letter-spacing:.04em}
+
+@media(max-width:600px){.uhdr-i,.unav-i,.ubc-i,.main{padding-left:1rem;padding-right:1rem}.user-email{max-width:100px}}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="loading-txt">Universität Wien · AAAging</div>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen" style="display:none">
+  <div class="login-top"></div>
+  <div class="login-hdr">
+    <svg width="40" height="40" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="50" cy="50" r="47" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
+      <circle cx="50" cy="50" r="37" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.25)" stroke-width="1"/>
+      <path d="M31 44 L36 28 L43 39 L50 24 L57 39 L64 28 L69 44 Z" fill="rgba(255,255,255,.9)"/>
+      <path d="M29 46 L29 66 Q29 75 50 81 Q71 75 71 66 L71 46 Z" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
+      <text x="50" y="71" text-anchor="middle" font-family="Georgia,serif" font-size="21" font-weight="bold" fill="rgba(255,255,255,.92)">U</text>
+    </svg>
+    <div>
+      <div class="login-hdr-name">Universität Wien</div>
+      <div class="login-hdr-sub">AAAging Studie · Messkalender</div>
+    </div>
+  </div>
+  <div class="login-nav-bar"></div>
+  <div class="login-body">
+    <div class="login-card">
+      <div class="login-card-hdr">
+        <div class="login-card-title">Anmelden</div>
+        <div class="login-card-sub">Zugang nur für autorisierte Studienmitarbeiter/innen</div>
+      </div>
+      <div class="login-card-body">
+        <div class="login-err" id="login-err"></div>
+        <div class="lf-group">
+          <label class="lf-label">E-Mail-Adresse</label>
+          <input class="lf-input" type="email" id="linp-email" placeholder="vorname.nachname@univie.ac.at" autocomplete="email">
+        </div>
+        <div class="lf-group">
+          <label class="lf-label">Passwort</label>
+          <input class="lf-input" type="password" id="linp-pw" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <button class="login-btn" id="login-btn" onclick="doLogin()">Anmelden</button>
+      </div>
+      <div class="login-footer">
+        Zugang anfragen: Studienleitung AAAging · Universität Wien
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-screen" style="display:none">
+  <div class="utop"></div>
+  <header class="uhdr">
+    <div class="uhdr-i">
+      <div class="ulogo">
+        <svg class="useal" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="47" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
+          <circle cx="50" cy="50" r="37" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.25)" stroke-width="1"/>
+          <path d="M31 44 L36 28 L43 39 L50 24 L57 39 L64 28 L69 44 Z" fill="rgba(255,255,255,.9)"/>
+          <path d="M29 46 L29 66 Q29 75 50 81 Q71 75 71 66 L71 46 Z" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
+          <text x="50" y="71" text-anchor="middle" font-family="Georgia,serif" font-size="21" font-weight="bold" fill="rgba(255,255,255,.92)">U</text>
+        </svg>
+        <div>
+          <div class="uname">Universität Wien</div>
+          <div class="utag">AAAging Studie · Messkalender</div>
+        </div>
+      </div>
+      <div class="hdr-right">
+        <div class="sync-pill">
+          <span class="sdot" id="sdot"></span>
+          <span class="slbl" id="slbl">Verbinde…</span>
+        </div>
+        <div class="user-pill">
+          <span class="user-icon">👤</span>
+          <span class="user-email" id="user-email"></span>
+        </div>
+        <button class="logout-btn" onclick="doLogout()">Abmelden</button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="unav">
+    <div class="unav-i">
+      <button class="ntab on"  onclick="goTab('kalender',this)">Kalender</button>
+      <button class="ntab"     onclick="goTab('probanden',this)">Probanden</button>
+      <button class="ntab"     onclick="goTab('uebersicht',this)">Wochenübersicht</button>
+    </div>
+  </nav>
+
+  <div class="ubc">
+    <div class="ubc-i">
+      <span>Universität Wien</span><span>›</span>
+      <span>AAAging Studie</span><span>›</span>
+      <span class="bc-c" id="bcc">Messkalender</span>
+    </div>
+  </div>
+
+  <main class="main">
+
+    <!-- KALENDER -->
+    <div id="tab-kalender" class="panel on">
+      <div class="phdr">
+        <div>
+          <div class="ptitle">Messkalender</div>
+          <div class="psub">T1.1 Montag &amp; Dienstag · T1.2 Mittwoch &amp; Donnerstag · je 8 Slots pro Tag</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="goToday()">Aktuelle Woche</button>
+          <button class="btn btn-sm" onclick="openWJ()">Woche wählen ▾</button>
+        </div>
+      </div>
+      <div class="wtbar">
+        <div style="display:flex;gap:3px">
+          <button class="arr" onclick="chW(-1)">&#8592;</button>
+          <button class="arr" onclick="chW(1)">&#8594;</button>
+        </div>
+        <span class="wbadge" id="wbadge" onclick="openWJ()">KW —</span>
+        <span class="wrange" id="wrange"></span>
+        <span class="wfill" id="wfill"></span>
+      </div>
+      <div class="dgrid" id="dgrid"></div>
+    </div>
+
+    <!-- PROBANDEN -->
+    <div id="tab-probanden" class="panel">
+      <div class="phdr">
+        <div>
+          <div class="ptitle">Probandenverwaltung</div>
+          <div class="psub">Anlegen · Bearbeiten · Löschen · CSV-Export</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="exportCSV()">Export CSV</button>
+          <button class="btn btn-sm btn-p" onclick="openAdd()">+ Proband anlegen</button>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="sv" id="st">0</div><div class="sl">Gesamt</div></div>
+        <div class="stat"><div class="sv" id="sw">0</div><div class="sl">Wochen</div></div>
+        <div class="stat"><div class="sv" id="sf">0</div><div class="sl">Freie Slots</div></div>
+      </div>
+      <div class="tc">
+        <table class="tt">
+          <thead><tr>
+            <th>P-ID</th><th>Laufnr.</th><th>KW</th>
+            <th>T1.1 Tag</th><th>T1.1 Slot</th>
+            <th>T1.2 Tag</th><th>T1.2 Slot</th>
+            <th>Aktionen</th>
+          </tr></thead>
+          <tbody id="ptbody"><tr><td colspan="8" class="te">Noch keine Probanden angelegt.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ÜBERSICHT -->
+    <div id="tab-uebersicht" class="panel">
+      <div class="phdr">
+        <div>
+          <div class="ptitle">Wochenübersicht</div>
+          <div class="psub">Alle Studienwochen · Belegungsstatus</div>
+        </div>
+      </div>
+      <div id="ovcontent"></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- WEEK JUMP -->
+<div class="wjov" id="wjov" onclick="if(event.target===this)closeWJ()">
+  <div class="wjbox">
+    <div class="wjhdr">Studienwoche auswählen</div>
+    <div class="wjlist" id="wjlist"></div>
+    <div class="wjftr"><button class="btn btn-sm" onclick="closeWJ()">Schließen</button></div>
+  </div>
+</div>
+
+<!-- PROBAND MODAL -->
+<div class="ov" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="mhdr">
+      <span class="mtitle" id="mtitle">Proband anlegen</span>
+      <button class="mclose" onclick="closeModal()">×</button>
+    </div>
+    <div class="mbody">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="fg">
+          <label class="fl">Probanden-ID</label>
+          <input class="fi" id="ipid" placeholder="P001" maxlength="10">
+          <div class="fh">Format: P001, P002 …</div>
+        </div>
+        <div class="fg">
+          <label class="fl">Laufnummer</label>
+          <input class="fi" id="ilnr" placeholder="L005" maxlength="10">
+          <div class="fh">Format: L001 – L126</div>
+        </div>
+      </div>
+      <div class="fg">
+        <label class="fl">Studienwoche</label>
+        <select class="fi" id="iweek" onchange="updSlots()"></select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="fg">
+          <label class="fl">T1.1 — Tag</label>
+          <select class="fi" id="iday11" onchange="updSlots()">
+            <option value="Montag">Montag</option>
+            <option value="Dienstag">Dienstag</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">T1.1 — Slot</label>
+          <select class="fi" id="is11"></select>
+          <div class="fh" id="hs11"></div>
+        </div>
+        <div class="fg">
+          <label class="fl">T1.2 — Tag</label>
+          <select class="fi" id="iday12" onchange="updSlots()">
+            <option value="Mittwoch">Mittwoch</option>
+            <option value="Donnerstag">Donnerstag</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">T1.2 — Slot</label>
+          <select class="fi" id="is12"></select>
+          <div class="fh" id="hs12"></div>
+        </div>
+      </div>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-sm" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-sm btn-p" onclick="saveP()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+// ══════════════════════════════════════════════
+//  FIREBASE CONFIG — hier deine Werte eintragen
+// ══════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey:            "AIzaSyDOKPa1HpH_IflxTNT87pxduJ1BXvSPTvg",
+  authDomain:        "aaaging-7f8d0.firebaseapp.com",
+  projectId:         "aaaging-7f8d0",
+  storageBucket:     "aaaging-7f8d0.firebasestorage.app",
+  messagingSenderId: "486308967778",
+  appId:             "1:486308967778:web:e02ee5005845307a4f283b"
+};
+// ══════════════════════════════════════════════
+
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import {
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import {
+  getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+// ── STUDY CONFIG ─────────────────────────────
+const START   = new Date('2026-03-16');
+const N_WEEKS = 20;
+
+// ── SLOT DEFINITIONS ─────────────────────────
+const am = (h,m,a)=>{ const t=h*60+m+a; return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`; };
+
+const T11 = Array.from({length:8},(_,i)=>{
+  const sn=i+1;
+  const starts=['08:00','08:00','08:15','08:15','08:30','08:30','08:45','08:45'];
+  const bs=starts[i]; const [bH,bM]=bs.split(':').map(Number);
+  const isFirst=sn<=4;
+  return { slot:sn, blutStart:bs, measures: isFirst ? [
+    {label:'Blutabnahme',cls:'cblut',t:bs},
+    {label:'BIA',cls:'cbia',t:am(bH,bM,15)},
+    {label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30)},
+    {label:'Frühstück',cls:'cfrueh',t:am(bH,bM,45)},
+    {label:'24h Recall',cls:'crecall',t:am(bH,bM,60)},
+    {label:'Fragebogen',cls:'cfb',t:am(bH,bM,120)},
+  ] : [
+    {label:'Blutabnahme',cls:'cblut',t:bs},
+    {label:'BIA',cls:'cbia',t:am(bH,bM,15)},
+    {label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30)},
+    {label:'Frühstück',cls:'cfrueh',t:am(bH,bM,45)},
+    {label:'Fragebogen',cls:'cfb',t:am(bH,bM,60)},
+    {label:'24h Recall',cls:'crecall',t:am(bH,bM,90)},
+  ]};
+});
+
+const T12 = Array.from({length:8},(_,i)=>{
+  const sn=i+1, sm=7*60+45+i*60;
+  const sH=Math.floor(sm/60), sMm=sm%60;
+  const iso=`${String(sH).padStart(2,'0')}:${String(sMm).padStart(2,'0')}`;
+  return { slot:sn, blutStart:iso, measures:[
+    {label:'Isokinetik',cls:'ciso',t:iso},
+    {label:'RBANS',cls:'crbans',t:am(sH,sMm,105)},
+    {label:'24h Recall',cls:'crecall',t:am(sH,sMm,150)},
+  ]};
+});
+
+window._T11=T11; window._T12=T12;
+
+// ── DATE UTILS ───────────────────────────────
+const wMon = w=>{const d=new Date(START);d.setDate(d.getDate()+w*7);return d;};
+const fD   = d=>d.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'});
+const fDs  = d=>d.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'});
+const wDay = (w,off)=>{const d=new Date(wMon(w));d.setDate(d.getDate()+off);return d;};
+function kw(d){
+  const t=new Date(d);t.setHours(0,0,0,0);t.setDate(t.getDate()+3-(t.getDay()||7));
+  const y1=new Date(t.getFullYear(),0,4);
+  return 1+Math.round(((t-y1)/86400000-3+(y1.getDay()||7))/7);
+}
+
+// ── STATE ────────────────────────────────────
+let P={}, cW=0, eId=null, db=null, auth=null, unsubDB=null;
+
+const bySlot11=(w,day,slot)=>Object.values(P).find(p=>p.week===w&&p.day11===day&&p.slot11===slot)||null;
+const bySlot12=(w,day,slot)=>Object.values(P).find(p=>p.week===w&&p.day12===day&&p.slot12===slot)||null;
+
+// ── FIREBASE INIT ────────────────────────────
+let app, configOk = firebaseConfig.apiKey !== 'DEIN_API_KEY';
+
+if (configOk) {
+  app  = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db   = getFirestore(app);
+
+  // Auth state listener — controls which screen is shown
+  onAuthStateChanged(auth, user => {
+    document.getElementById('loading-screen').style.display = 'none';
+    if (user) {
+      document.getElementById('login-screen').style.display  = 'none';
+      document.getElementById('app-screen').style.display    = 'block';
+      document.getElementById('user-email').textContent      = user.email;
+      setSync(true);
+      startDB();
+    } else {
+      document.getElementById('app-screen').style.display   = 'none';
+      document.getElementById('login-screen').style.display = 'flex';
+      if (unsubDB) { unsubDB(); unsubDB=null; }
+      P = {};
+    }
+  });
+} else {
+  // No Firebase config — show notice on login screen
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('login-screen').style.display   = 'flex';
+  document.getElementById('login-err').style.display      = 'block';
+  document.getElementById('login-err').textContent        =
+    'Firebase noch nicht konfiguriert. Bitte firebaseConfig im Quellcode eintragen.';
+  document.getElementById('login-btn').disabled = true;
+}
+
+function startDB() {
+  const q = query(collection(db,'probanden'), orderBy('created','asc'));
+  unsubDB = onSnapshot(q, snap => {
+    P = {};
+    snap.forEach(d => { P[d.id] = {...d.data(), _id:d.id}; });
+    renderAll();
+  }, () => setSync(false, 'Verbindungsfehler'));
+}
+
+// ── AUTH ACTIONS ─────────────────────────────
+window.doLogin = async () => {
+  const email = document.getElementById('linp-email').value.trim();
+  const pw    = document.getElementById('linp-pw').value;
+  const errEl = document.getElementById('login-err');
+  const btn   = document.getElementById('login-btn');
+  errEl.style.display = 'none';
+  if (!email || !pw) { errEl.textContent='Bitte E-Mail und Passwort eingeben.'; errEl.style.display='block'; return; }
+  btn.disabled = true; btn.textContent = 'Anmelden…';
+  try {
+    await signInWithEmailAndPassword(auth, email, pw);
+  } catch(e) {
+    const msgs = {
+      'auth/user-not-found':    'E-Mail-Adresse nicht gefunden.',
+      'auth/wrong-password':    'Falsches Passwort.',
+      'auth/invalid-email':     'Ungültige E-Mail-Adresse.',
+      'auth/invalid-credential':'E-Mail oder Passwort falsch.',
+      'auth/too-many-requests': 'Zu viele Versuche. Bitte später erneut versuchen.',
+    };
+    errEl.textContent = msgs[e.code] || 'Anmeldung fehlgeschlagen: ' + e.message;
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Anmelden';
+  }
+};
+
+window.doLogout = async () => {
+  await signOut(auth);
+  toast('Erfolgreich abgemeldet');
+};
+
+// Enter key on login
+document.getElementById('linp-pw').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+document.getElementById('linp-email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('linp-pw').focus();
+});
+
+// ── RENDER ───────────────────────────────────
+function renderWeek(){
+  const mo=wMon(cW), thu=wDay(cW,3), k=kw(mo);
+  document.getElementById('wbadge').textContent=`KW ${k} · ${mo.getFullYear()}`;
+  document.getElementById('wrange').textContent=`${fD(mo)} – ${fD(thu)}`;
+
+  const days=[
+    {label:'Montag',   phase:'t11',slots:T11,dayOff:0,isT12:false},
+    {label:'Dienstag', phase:'t11',slots:T11,dayOff:1,isT12:false},
+    {label:'Mittwoch', phase:'t12',slots:T12,dayOff:2,isT12:true},
+    {label:'Donnerstag',phase:'t12',slots:T12,dayOff:3,isT12:true},
+  ];
+
+  let filled=0;
+  days.forEach(d=>d.slots.forEach(s=>{
+    const p=d.phase==='t11'?bySlot11(cW,d.label,s.slot):bySlot12(cW,d.label,s.slot);
+    if(p) filled++;
+  }));
+  document.getElementById('wfill').textContent=`${filled} / 32 Slots belegt`;
+
+  const grid=document.getElementById('dgrid');
+  grid.innerHTML=days.map(d=>{
+    const date=wDay(cW,d.dayOff);
+    const getter=d.phase==='t11'?bySlot11:bySlot12;
+    const dayFilled=d.slots.filter(s=>getter(cW,d.label,s.slot)).length;
+    const pct=Math.round(dayFilled/8*100);
+
+    const cards=d.slots.map(s=>{
+      const p=getter(cW,d.label,s.slot);
+      const proHtml=p
+        ?`<div class="prow">
+            <span class="pbadge">${p.pid}</span>
+            <span class="lbadge">${p.lnr}</span>
+            <button class="btn btn-xs" onclick="openEdit('${p._id||p.pid}')" title="Bearbeiten">✎</button>
+            <button class="btn btn-xs btn-d" onclick="delP('${p._id||p.pid}')" title="Entfernen">✕</button>
+          </div>`
+        :`<div class="prow">
+            <span class="nop">Nicht belegt</span>
+            <button class="btn btn-xs btn-p" onclick="openAddSlot(${cW},'${d.phase}','${d.label}',${s.slot})">+ Zuweisen</button>
+          </div>`;
+
+      const chips=s.measures.map(m=>
+        `<span class="chip ${m.cls}">${m.label} <span class="ct">${m.t}</span></span>`
+      ).join('');
+
+      return `<div class="sc ${p?'occ':''}">
+        <div class="sc-top">
+          <span class="sc-num">Slot ${s.slot}</span>
+          <span class="sc-time">${s.blutStart}</span>
+        </div>
+        <div class="sc-body">${proHtml}<div class="chips">${chips}</div></div>
+      </div>`;
+    }).join('');
+
+    return `<div class="dcol">
+      <div class="dayhdr-top ${d.isT12?'t12':''}">
+        <div class="dname">${d.label}</div>
+        <div class="drow">
+          <span class="ddate">${fD(date)} · ${dayFilled}/8</span>
+          <span class="dphase">${d.isT12?'T1.2':'T1.1'}</span>
+        </div>
+        <div class="dfill"><div class="dfill-bar" style="width:${pct}%"></div></div>
+      </div>
+      ${cards}
+    </div>`;
+  }).join('');
+}
+
+function renderTable(){
+  const tbody=document.getElementById('ptbody');
+  const ps=Object.values(P);
+  if(!ps.length){tbody.innerHTML='<tr><td colspan="8" class="te">Noch keine Probanden angelegt.</td></tr>';return;}
+  ps.sort((a,b)=>a.lnr.localeCompare(b.lnr));
+  tbody.innerHTML=ps.map(p=>{
+    const mo=wMon(p.week),k=kw(mo);
+    const s11=T11.find(x=>x.slot===p.slot11), s12=T12.find(x=>x.slot===p.slot12);
+    return `<tr>
+      <td><span class="pbadge">${p.pid}</span></td>
+      <td><span class="lbadge">${p.lnr}</span></td>
+      <td style="font-family:monospace;font-size:12px;font-weight:700;color:var(--ub)">KW ${k}</td>
+      <td style="font-size:12.5px">${p.day11||'—'}</td>
+      <td style="font-family:monospace;font-size:12px">Slot ${p.slot11} · ${s11?.blutStart||''}h</td>
+      <td style="font-size:12.5px">${p.day12||'—'}</td>
+      <td style="font-family:monospace;font-size:12px">Slot ${p.slot12} · ${s12?.blutStart||''}h</td>
+      <td>
+        <div style="display:flex;gap:5px">
+          <button class="btn btn-xs" onclick="openEdit('${p._id||p.pid}')">Bearbeiten</button>
+          <button class="btn btn-xs btn-d" onclick="delP('${p._id||p.pid}')">Löschen</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderOv(){
+  const ps=Object.values(P);
+  let html='';
+  const days11=['Montag','Dienstag'], days12=['Mittwoch','Donnerstag'];
+  for(let w=0;w<N_WEEKS;w++){
+    const mo=wMon(w),k=kw(mo),thu=wDay(w,3);
+    let filled=0;
+    days11.forEach(day=>T11.forEach(s=>{if(bySlot11(w,day,s.slot))filled++;}));
+    days12.forEach(day=>T12.forEach(s=>{if(bySlot12(w,day,s.slot))filled++;}));
+    const rows=[
+      ...days11.flatMap(day=>T11.map(s=>{
+        const p=bySlot11(w,day,s.slot);
+        const badge=p?`<span class="pbadge">${p.pid}</span> <span class="lbadge">${p.lnr}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
+        return `<tr><td style="font-size:11px;color:var(--g5)">T1.1 · ${day}</td><td style="font-size:11px;color:var(--g5)">Slot ${s.slot}</td><td style="font-family:monospace;font-size:11px;color:var(--g5)">${s.blutStart}</td><td>${badge}</td><td>${p?`<button class="btn btn-xs btn-d" onclick="delP('${p._id||p.pid}')">Entf.</button>`:`<button class="btn btn-xs btn-p" onclick="openAddSlot(${w},'t11','${day}',${s.slot})">+</button>`}</td></tr>`;
+      })),
+      ...days12.flatMap(day=>T12.map(s=>{
+        const p=bySlot12(w,day,s.slot);
+        const badge=p?`<span class="pbadge">${p.pid}</span> <span class="lbadge">${p.lnr}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
+        return `<tr><td style="font-size:11px;color:var(--g5)">T1.2 · ${day}</td><td style="font-size:11px;color:var(--g5)">Slot ${s.slot}</td><td style="font-family:monospace;font-size:11px;color:var(--g5)">${s.blutStart}</td><td>${badge}</td><td>${p?`<button class="btn btn-xs btn-d" onclick="delP('${p._id||p.pid}')">Entf.</button>`:`<button class="btn btn-xs btn-p" onclick="openAddSlot(${w},'t12','${day}',${s.slot})">+</button>`}</td></tr>`;
+      }))
+    ].join('');
+    html+=`<div class="owk">
+      <div class="owkhdr">
+        <span class="owkttl">KW ${k} · ${mo.getFullYear()} &nbsp;·&nbsp; ${fDs(mo)} – ${fD(thu)}</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:11px;color:rgba(255,255,255,.7)">${filled}/32 Slots</span>
+          <button class="btn btn-xs" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" onclick="cW=${w};renderWeek();goTab('kalender',document.querySelector('.ntab'))">Öffnen</button>
+        </div>
+      </div>
+      <table class="tt"><thead><tr><th>Tag</th><th>Slot</th><th>Start</th><th>Proband</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+  }
+  document.getElementById('ovcontent').innerHTML=html;
+}
+
+function updStats(){
+  const ps=Object.values(P);
+  document.getElementById('st').textContent=ps.length;
+  document.getElementById('sw').textContent=new Set(ps.map(p=>p.week)).size;
+  document.getElementById('sf').textContent=N_WEEKS*32-ps.length*2;
+}
+
+function renderAll(){ renderWeek(); renderTable(); renderOv(); updStats(); buildWJList(); }
+
+// ── MODAL ────────────────────────────────────
+function buildWeekSel(){
+  document.getElementById('iweek').innerHTML=Array.from({length:N_WEEKS},(_,w)=>{
+    const mo=wMon(w),k=kw(mo);
+    return `<option value="${w}">KW ${k} · ${fD(mo)}</option>`;
+  }).join('');
+}
+
+window.updSlots=()=>{
+  const w=parseInt(document.getElementById('iweek').value);
+  const day11=document.getElementById('iday11').value;
+  const day12=document.getElementById('iday12').value;
+  const occ11=new Set(Object.values(P).filter(p=>p.week===w&&p.day11===day11&&(!eId||(p._id||p.pid)!==eId)).map(p=>p.slot11));
+  document.getElementById('is11').innerHTML=T11.map(s=>{
+    const tk=occ11.has(s.slot);
+    return `<option value="${s.slot}" ${tk?'disabled':''}>Slot ${s.slot} · ${s.blutStart} Uhr${tk?' — belegt':''}</option>`;
+  }).join('');
+  document.getElementById('hs11').textContent=`${8-occ11.size} von 8 frei`;
+  const occ12=new Set(Object.values(P).filter(p=>p.week===w&&p.day12===day12&&(!eId||(p._id||p.pid)!==eId)).map(p=>p.slot12));
+  document.getElementById('is12').innerHTML=T12.map(s=>{
+    const tk=occ12.has(s.slot);
+    return `<option value="${s.slot}" ${tk?'disabled':''}>Slot ${s.slot} · ${s.blutStart} Uhr${tk?' — belegt':''}</option>`;
+  }).join('');
+  document.getElementById('hs12').textContent=`${8-occ12.size} von 8 frei`;
+};
+
+window.openAdd=()=>{
+  eId=null;
+  document.getElementById('mtitle').textContent='Proband anlegen';
+  document.getElementById('ipid').value=''; document.getElementById('ilnr').value='';
+  buildWeekSel(); document.getElementById('iweek').value=cW;
+  document.getElementById('iday11').value='Montag'; document.getElementById('iday12').value='Mittwoch';
+  updSlots(); document.getElementById('modal').classList.add('open');
+};
+
+window.openAddSlot=(w,phase,day,slot)=>{
+  eId=null;
+  document.getElementById('mtitle').textContent='Proband zuweisen';
+  document.getElementById('ipid').value=''; document.getElementById('ilnr').value='';
+  buildWeekSel(); document.getElementById('iweek').value=w;
+  if(phase==='t11') document.getElementById('iday11').value=day;
+  else              document.getElementById('iday12').value=day;
+  updSlots();
+  if(phase==='t11') document.getElementById('is11').value=slot;
+  else              document.getElementById('is12').value=slot;
+  document.getElementById('modal').classList.add('open');
+};
+
+window.openEdit=id=>{
+  const p=Object.values(P).find(x=>(x._id||x.pid)===id); if(!p) return;
+  eId=id;
+  document.getElementById('mtitle').textContent='Proband bearbeiten';
+  document.getElementById('ipid').value=p.pid; document.getElementById('ilnr').value=p.lnr;
+  buildWeekSel(); document.getElementById('iweek').value=p.week;
+  document.getElementById('iday11').value=p.day11||'Montag';
+  document.getElementById('iday12').value=p.day12||'Mittwoch';
+  updSlots();
+  document.getElementById('is11').value=p.slot11; document.getElementById('is12').value=p.slot12;
+  document.getElementById('modal').classList.add('open');
+};
+
+window.closeModal=()=>{ document.getElementById('modal').classList.remove('open'); eId=null; };
+
+window.saveP=async()=>{
+  const pid=document.getElementById('ipid').value.trim().toUpperCase();
+  const lnr=document.getElementById('ilnr').value.trim().toUpperCase();
+  const week=parseInt(document.getElementById('iweek').value);
+  const day11=document.getElementById('iday11').value;
+  const day12=document.getElementById('iday12').value;
+  const slot11=parseInt(document.getElementById('is11').value);
+  const slot12=parseInt(document.getElementById('is12').value);
+  if(!pid||!lnr){toast('P-ID und Laufnummer sind Pflichtfelder',true);return;}
+  if(!/^P\d{1,4}$/.test(pid)){toast('Format Probanden-ID: P001, P002 …',true);return;}
+  if(!/^L\d{1,4}$/.test(lnr)){toast('Format Laufnummer: L001, L002 …',true);return;}
+  const dup=Object.values(P).find(p=>(p._id||p.pid)!==eId&&(p.pid===pid||p.lnr===lnr));
+  if(dup){toast((dup.pid===pid?'P-ID':'Laufnummer')+' bereits vergeben',true);return;}
+  const data={pid,lnr,week,day11,slot11,day12,slot12,updated:Date.now()};
+  try{
+    if(eId){const p=Object.values(P).find(x=>(x._id||x.pid)===eId);await updateDoc(doc(db,'probanden',p._id),data);}
+    else{await addDoc(collection(db,'probanden'),{...data,created:Date.now()});}
+  }catch(e){toast('Fehler: '+e.message,true);return;}
+  closeModal(); toast(eId?'Proband aktualisiert':'Proband erfolgreich angelegt');
+};
+
+window.delP=async id=>{
+  if(!confirm('Proband wirklich entfernen?')) return;
+  try{
+    const p=Object.values(P).find(x=>(x._id||x.pid)===id);
+    if(p) await deleteDoc(doc(db,'probanden',p._id));
+    toast('Proband entfernt');
+  }catch(e){toast('Fehler: '+e.message,true);}
+};
+
+// ── WEEK JUMP ────────────────────────────────
+function buildWJList(){
+  const ps=Object.values(P);
+  document.getElementById('wjlist').innerHTML=Array.from({length:N_WEEKS},(_,w)=>{
+    const mo=wMon(w),k=kw(mo),cnt=ps.filter(p=>p.week===w).length;
+    return `<div class="wji ${w===cW?'cur':''} ${cnt?'has':''}" onclick="selW(${w})">
+      <span>${fD(mo)} — ${fD(wDay(w,3))}</span>
+      <span class="wjkw">KW ${k}${cnt?` · ${cnt}P`:''}</span>
+    </div>`;
+  }).join('');
+}
+window.openWJ=()=>{ buildWJList(); document.getElementById('wjov').classList.add('open'); };
+window.closeWJ=()=>document.getElementById('wjov').classList.remove('open');
+window.selW=w=>{ cW=w; renderWeek(); closeWJ(); };
+
+// ── EXPORT ───────────────────────────────────
+window.exportCSV=()=>{
+  const ps=Object.values(P);
+  if(!ps.length){toast('Keine Probanden vorhanden',true);return;}
+  const h=['P-ID','Laufnr.','KW','Jahr','T1.1 Tag','T1.1 Slot','T1.1 Start','T1.2 Tag','T1.2 Slot','T1.2 Start'];
+  const rows=ps.sort((a,b)=>a.lnr.localeCompare(b.lnr)).map(p=>{
+    const mo=wMon(p.week),k=kw(mo);
+    const s11=T11.find(x=>x.slot===p.slot11),s12=T12.find(x=>x.slot===p.slot12);
+    return [p.pid,p.lnr,k,mo.getFullYear(),p.day11,`Slot ${p.slot11}`,s11?.blutStart||'',p.day12,`Slot ${p.slot12}`,s12?.blutStart||''];
+  });
+  const csv=[h,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download='aaaging_probanden.csv'; a.click();
+  toast('CSV exportiert');
+};
+
+// ── HELPERS ──────────────────────────────────
+function setSync(ok,lbl){
+  document.getElementById('sdot').style.background=ok?'#4CAF80':'#F0C040';
+  document.getElementById('slbl').textContent=lbl||(ok?'Synchronisiert':'Getrennt');
+}
+function toast(msg,err=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast'+(err?' err':'');
+  setTimeout(()=>t.classList.add('show'),10);
+  setTimeout(()=>t.classList.remove('show'),3200);
+}
+window.chW=n=>{ cW=Math.max(0,Math.min(N_WEEKS-1,cW+n)); renderWeek(); };
+window.goToday=()=>{
+  const d=Math.floor((new Date()-START)/(7*86400000));
+  cW=Math.max(0,Math.min(N_WEEKS-1,d)); renderWeek();
+};
+</script>
+
+<script>
+function goTab(name,btn){
+  document.querySelectorAll('.ntab').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+  document.getElementById('tab-'+name).classList.add('on');
+  const L={kalender:'Messkalender',probanden:'Probandenverwaltung',uebersicht:'Wochenübersicht'};
+  document.getElementById('bcc').textContent=L[name]||name;
+}
+</script>
+</body>
+</html>
