@@ -380,6 +380,10 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <div><div class="ptitle">Probandenverwaltung</div><div class="psub">Alle Termine pro Proband · T0 · T1 · T2 · T3 · 24h Recalls</div></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-sm" onclick="exportCSV()">Export CSV</button>
+          <label class="btn btn-sm" style="cursor:pointer" title="CSV mit Spalten P-ID und Laufnummer">
+            ↑ Import CSV
+            <input type="file" accept=".csv" style="display:none" onchange="importCSV(this)">
+          </label>
           <button class="btn btn-sm btn-p" id="add-proband-btn" onclick="openAddProband()">+ Proband anlegen</button>
         </div>
       </div>
@@ -447,6 +451,24 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
           <div style="background:var(--ubd);padding:14px 16px"><div style="font-family:'Source Serif 4',serif;font-size:16px;font-weight:600;color:#fff">24h Recall Export</div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Alle Recall-Termine</div></div>
           <div style="padding:16px"><div style="font-size:12.5px;color:var(--g5);margin-bottom:14px">Proband · Datum · Uhrzeit · Notiz</div>
           <button class="btn btn-sm" style="background:var(--ubd);color:#fff;border-color:var(--ubd)" onclick="exportRecalls()">↓ Recalls herunterladen (CSV)</button></div>
+        </div>
+      </div>
+
+      <!-- IMPORT -->
+      <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-bottom:1.5rem">
+        <div style="background:#1A4A1A;padding:14px 16px"><div style="font-family:'Source Serif 4',serif;font-size:16px;font-weight:600;color:#fff">Probanden importieren (CSV)</div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Neue Probanden aus CSV hinzufügen — bestehende bleiben unverändert</div></div>
+        <div style="padding:16px">
+          <div style="font-size:12.5px;color:var(--g5);margin-bottom:10px;line-height:1.7">
+            Die CSV-Datei muss mindestens zwei Spalten enthalten: <code style="font-family:monospace;font-size:11.5px;background:var(--g1);padding:1px 5px;border-radius:3px">P-ID</code> und <code style="font-family:monospace;font-size:11.5px;background:var(--g1);padding:1px 5px;border-radius:3px">Laufnr.</code> — alle anderen Spalten werden ignoriert. Trennzeichen: Komma oder Semikolon.
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <label class="btn btn-sm" style="cursor:pointer;background:#1A4A1A;color:#fff;border-color:#1A4A1A">
+              ↑ CSV-Datei auswählen
+              <input type="file" accept=".csv" style="display:none" onchange="importCSV(this)">
+            </label>
+            <button class="btn btn-sm" onclick="downloadImportTemplate()">Vorlage herunterladen</button>
+          </div>
+          <div id="import-result" style="margin-top:12px"></div>
         </div>
       </div>
       <div style="background:#F0F5FB;border:1px solid #AECABC;border-radius:var(--r);padding:12px 15px;font-size:12.5px;color:var(--ub);line-height:1.65">
@@ -1254,6 +1276,77 @@ window.exportProbanden = () => {
 };
 
 window.exportCSV = window.exportProbanden;
+
+// ── IMPORT ────────────────────────
+window.downloadImportTemplate = () => {
+  const csv = '"P-ID","Laufnr."\n"P001","L001"\n"P002","L002"\n"P003","L003"';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download = 'AAAging_Import_Vorlage.csv'; a.click();
+  toast('Vorlage heruntergeladen ✓');
+};
+
+window.importCSV = async (input) => {
+  if(!isAdmin()){toast('Keine Berechtigung',true);return;}
+  const file = input.files[0]; if(!file) return;
+  const text = await file.text();
+  const resultEl = document.getElementById('import-result');
+
+  // Parse CSV — support comma and semicolon
+  const lines = text.trim().split(/\r?\n/);
+  if(lines.length < 2){ resultEl.innerHTML=errBox('CSV leer oder ungültig.'); return; }
+
+  // Detect separator
+  const sep = lines[0].includes(';') ? ';' : ',';
+
+  // Parse header — find P-ID and Laufnr. columns
+  const parseRow = row => row.split(sep).map(v=>v.trim().replace(/^["']|["']$/g,''));
+  const header = parseRow(lines[0]).map(h=>h.toLowerCase());
+  const pidCol  = header.findIndex(h=>h.includes('p-id')||h.includes('pid')||h==='p_id');
+  const lnrCol  = header.findIndex(h=>h.includes('laufnr')||h.includes('laufnummer')||h==='lnr');
+
+  if(pidCol<0||lnrCol<0){
+    resultEl.innerHTML=errBox('Spalten "P-ID" und "Laufnr." nicht gefunden. Bitte Vorlage verwenden.');
+    return;
+  }
+
+  const rows = lines.slice(1).map(parseRow).filter(r=>r[pidCol]&&r[lnrCol]);
+  if(!rows.length){ resultEl.innerHTML=errBox('Keine gültigen Zeilen gefunden.'); return; }
+
+  // Check existing
+  const existingPIDs = new Set(Object.values(P).map(p=>p.pid.toUpperCase()));
+  const existingLNRs = new Set(Object.values(P).map(p=>p.lnr.toUpperCase()));
+
+  let added=0, skipped=[], errors=[];
+  for(const row of rows) {
+    const pid = row[pidCol].toUpperCase().trim();
+    const lnr = row[lnrCol].toUpperCase().trim();
+    if(!pid||!lnr){errors.push(`Leere Zeile übersprungen`);continue;}
+    if(!/^P\d{1,4}$/.test(pid)){errors.push(`${pid}: ungültiges Format (erwartet P001)`);continue;}
+    if(!/^L\d{1,4}$/.test(lnr)){errors.push(`${lnr}: ungültiges Format (erwartet L001)`);continue;}
+    if(existingPIDs.has(pid)||existingLNRs.has(lnr)){
+      skipped.push(`${pid} / ${lnr} — bereits vorhanden`);continue;
+    }
+    try {
+      await addDoc(collection(db,'probanden'),{pid,lnr,created:Date.now(),updated:Date.now()});
+      existingPIDs.add(pid); existingLNRs.add(lnr); added++;
+    } catch(e){errors.push(`${pid}: Fehler beim Speichern`);}
+  }
+
+  // Show result
+  let html=`<div style="background:#EDF7ED;border:1px solid #A0CCA0;border-radius:var(--r);padding:12px 14px;font-size:13px;color:#1A3A1A">
+    <strong style="font-weight:700;display:block;margin-bottom:6px">✓ Import abgeschlossen</strong>
+    <div>${added} Proband${added!==1?'en':''} neu hinzugefügt</div>
+    ${skipped.length?`<div style="margin-top:4px;color:var(--g5);font-size:12px">${skipped.length} übersprungen (bereits vorhanden)</div>`:''}
+  </div>`;
+  if(errors.length) html+=`<div style="background:#FDF2F4;border:1px solid #E8BFBF;border-radius:var(--r);padding:10px 14px;margin-top:8px;font-size:12px;color:var(--ur)"><strong>Fehler:</strong><ul style="padding-left:16px;margin-top:4px">${errors.map(e=>`<li>${e}</li>`).join('')}</ul></div>`;
+  resultEl.innerHTML=html;
+  input.value=''; // reset file input
+  if(added>0) toast(`${added} Probanden importiert ✓`);
+};
+
+function errBox(msg){return `<div style="background:#FDF2F4;border:1px solid #E8BFBF;border-radius:var(--r);padding:10px 14px;font-size:13px;color:var(--ur)">${msg}</div>`;}
+
 
 window.exportRecalls = () => {
   const rs=Object.values(RECALLS).sort((a,b)=>a.date.localeCompare(b.date));
