@@ -718,7 +718,7 @@ import {
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
-  getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy
+  getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, setDoc, getDoc
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ── STUDY CONFIG ─────────────────────────────
@@ -805,8 +805,7 @@ if (configOk) {
 
       // Load role from Firestore users collection
       try {
-        const { getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-        const userDoc = await getDoc(doc(db, 'user', user.uid));
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
         userRole = userDoc.exists() ? (userDoc.data().role || 'readonly') : 'readonly';
       } catch(e) {
         userRole = 'readonly'; // safe default
@@ -859,10 +858,13 @@ function startDB() {
     renderTaskTab();
   });
 
-  // Listen to assignments
+  // Listen to assignments — indexed by key field
   onSnapshot(collection(db,'assignments'), snap => {
     ASSIGN = {};
-    snap.forEach(d => { ASSIGN[d.id] = {...d.data(), _id:d.id}; });
+    snap.forEach(d => {
+      const data = d.data();
+      ASSIGN[data.key] = {...data, _id:d.id};
+    });
     renderWeek();
     renderTaskTab();
   });
@@ -1236,12 +1238,9 @@ window.saveAssign = async () => {
   const person = document.getElementById('i-assign-person').value;
   const note   = document.getElementById('i-assign-note').value.trim();
   try {
-    const existing = ASSIGN[assignKey];
-    if (existing) {
-      await updateDoc(doc(db, 'assignments', existing._id), { person, note, updated: Date.now() });
-    } else {
-      await addDoc(collection(db, 'assignments'), { key: assignKey, person, note, created: Date.now() });
-    }
+    const safeKey = assignKey.replace(/[^a-zA-Z0-9_]/g, '_');
+    const ref = doc(db, 'assignments', safeKey);
+    await setDoc(ref, { key: assignKey, person, note, updated: Date.now() });
     closeAssignModal();
     toast('Zuweisung gespeichert ✓');
   } catch(e) { toast('Fehler: ' + e.message, true); }
@@ -1475,4 +1474,3 @@ function goTab(name,btn){
 </script>
 </body>
 </html>
-
