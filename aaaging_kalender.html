@@ -5,17 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AAAging — Studienkalender | Universität Wien</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@300;400;600&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@300;400;600&family=Source+Sans+3:wght@300;400;600;700&family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --ub:#003F7F; --ubd:#002A57; --ubm:#1A5FA8; --ubl:#E8EFF7; --ubp:#F0F5FB;
+  --ub:#2A5EA1; --ubd:#1E4A80; --ubm:#4A7EC1; --ubl:#E8EFF7; --ubp:#F0F5FB;
   --ur:#C8102E;
-  --w:#FFF; --g1:#F5F5F5; --g2:#EBEBEB; --g3:#CCC; --g4:#999; --g5:#666; --g6:#333; --bk:#1A1A1A;
-  --t0c:#5C3E00; --t0bg:#FBF5E6; --t0bd:#E0CA88;
-  --t1c:#003F7F; --t1bg:#E8EFF7; --t1bd:#A0C0E0;
-  --t2c:#0A4A3A; --t2bg:#EAF5F2; --t2bd:#90D4C4;
-  --t3c:#2E1A60; --t3bg:#F3EFF9; --t3bd:#C4B4E4;
-  --r:4px; --rl:6px; --sh:0 1px 4px rgba(0,63,127,.1);
+  --w:#FFF; --g1:#f3f1f1; --g2:#E8E6E6; --g3:#CCC; --g4:#999; --g5:#666; --g6:#414141; --bk:#414141;
+  --t0c:#6B7A2A; --t0bg:#F2F4E8; --t0bd:#C2CB8F;
+  --t1c:#2A5EA1; --t1bg:#E8EFF7; --t1bd:#A0C0E0;
+  --t2c:#188A7D; --t2bg:#E4F5F2; --t2bd:#90D4C4;
+  --t3c:#5D5DBB; --t3bg:#EEEEF8; --t3bd:#C0C0E0;
+  --r:4px; --rl:6px; --sh:0 1px 4px rgba(42,94,161,.1);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
@@ -131,17 +131,17 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 .meas-row:last-child{border-bottom:none}
 .chip{display:inline-block;padding:2px 6px;border-radius:3px;font-size:9.5px;font-weight:700;border:1px solid;white-space:nowrap;letter-spacing:.02em}
 .ct{font-weight:400;font-size:9px;opacity:.75}
-.cblut{background:#FDF2F4;border-color:#E8BFBF;color:#7A1C1C}
-.cbia{background:#EEF3FC;border-color:#B8CCEC;color:#153569}
-.cmikro{background:#FBF5E6;border-color:#E0CA88;color:#5C4400}
-.ciso{background:#F3EFF9;border-color:#C4B4E4;color:#2E1A60}
-.crbans{background:#EAF5F2;border-color:#90D4C4;color:#0A4A3A}
-.crecall{background:#FEF6EC;border-color:#F0CCA0;color:#3D2200}
-.cfb{background:#EDF7ED;border-color:#A0CCA0;color:#1A3A1A}
-.cfrueh{background:#FFF8EC;border-color:#EED890;color:#4A3800}
-.ceinschl{background:#F5F0FA;border-color:#C4B4E4;color:#2E1A60}
-.cmms{background:#E8F5F2;border-color:#90D4C4;color:#0A4A3A}
-.csport{background:#FEF6EC;border-color:#F0CCA0;color:#3D2200}
+.cblut{background:#FEF3EC;border-color:#F4C09A;color:#B85010}
+.cbia{background:#EEF3FC;border-color:#B8CCEC;color:#2A5EA1}
+.cmikro{background:#F2F4E8;border-color:#C2CB8F;color:#6B7A2A}
+.ciso{background:#EEEEF8;border-color:#C0C0E0;color:#5D5DBB}
+.crbans{background:#E4F5F2;border-color:#90D4C4;color:#188A7D}
+.crecall{background:#FEF3EC;border-color:#F4C09A;color:#B85010}
+.cfb{background:#E4F5F2;border-color:#90D4C4;color:#188A7D}
+.cfrueh{background:#F0EEEE;border-color:#C8C4C4;color:#666666}
+.ceinschl{background:#EEEEF8;border-color:#C0C0E0;color:#5D5DBB}
+.cmms{background:#E8F4FC;border-color:#A8DFF5;color:#1A6A8A}
+.csport{background:#FEF3EC;border-color:#F4C09A;color:#B85010}
 .assign-btn{background:none;border:none;cursor:pointer;font-size:10px;color:var(--ub);text-decoration:underline;padding:0;font-family:'Source Sans 3',sans-serif}
 .assign-btn:hover{color:var(--ubd)}
 .team-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:600;background:var(--ubl);color:var(--ub);border:1px solid #A0C0E0;white-space:nowrap}
@@ -645,12 +645,12 @@ const T0 = T0_STARTS.map((bs,i) => {
   const isOdd = sn%2===1;
   return { slot:sn, blutStart:bs, measures: isOdd ? [
     {label:'Einschlussuntersuchung',cls:'ceinschl',t:bs},
-    {label:'Frühstück',cls:'cfrueh',t:am(bH,bM,60)},
+    {label:'Frühstück',cls:'cfrueh',t:am(bH,bM,60),noAssign:true},
     {label:'Isokinetik/Sportmotorik',cls:'ciso',t:am(bH,bM,75)},
     {label:'MMS',cls:'cmms',t:am(bH,bM,150)},
   ] : [
     {label:'Einschlussuntersuchung',cls:'ceinschl',t:bs},
-    {label:'Frühstück',cls:'cfrueh',t:am(bH,bM,60)},
+    {label:'Frühstück',cls:'cfrueh',t:am(bH,bM,60),noAssign:true},
     {label:'MMS',cls:'cmms',t:am(bH,bM,75)},
     {label:'Isokinetik/Sportmotorik',cls:'ciso',t:am(bH,bM,120)},
   ]};
@@ -662,12 +662,12 @@ const T11 = T11_STARTS.map((bs,i) => {
   const sn=i+1; const [bH,bM]=bs.split(':').map(Number);
   const day = sn<=4?'Montag':'Dienstag'; const isFirst=sn<=4;
   return { slot:sn, day, blutStart:bs, measures: isFirst ? [
-    {label:'Blutabnahme',cls:'cblut',t:bs},{label:'BIA',cls:'cbia',t:am(bH,bM,15)},
-    {label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30)},{label:'Frühstück',cls:'cfrueh',t:am(bH,bM,45)},
+    {label:'Blutabnahme',cls:'cblut',t:bs,persons:2},{label:'BIA',cls:'cbia',t:am(bH,bM,15)},
+    {label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30)},{label:'Frühstück',cls:'cfrueh',t:am(bH,bM,45),noAssign:true},
     {label:'24h Recall',cls:'crecall',t:am(bH,bM,60)},{label:'Fragebogen',cls:'cfb',t:am(bH,bM,120)},
   ] : [
-    {label:'Blutabnahme',cls:'cblut',t:bs},{label:'BIA',cls:'cbia',t:am(bH,bM,15)},
-    {label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30)},{label:'Frühstück',cls:'cfrueh',t:am(bH,bM,45)},
+    {label:'Blutabnahme',cls:'cblut',t:bs,persons:2},{label:'BIA',cls:'cbia',t:am(bH,bM,15)},
+    {label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30)},{label:'Frühstück',cls:'cfrueh',t:am(bH,bM,45),noAssign:true},
     {label:'Fragebogen',cls:'cfb',t:am(bH,bM,60)},{label:'24h Recall',cls:'crecall',t:am(bH,bM,90)},
   ]};
 });
@@ -867,11 +867,29 @@ function renderWeek() {
 
       const measRows=s.measures.map(m=>{
         const aKey=`${cW}_${curTermin}_${d.label}_${s.slot}_${m.label}`.replace(/[^a-zA-Z0-9_]/g,'_');
+        const aKey2=`${cW}_${curTermin}_${d.label}_${s.slot}_${m.label}_2`.replace(/[^a-zA-Z0-9_]/g,'_');
         const a=ASSIGN[aKey]; const pName=a?.person?(TEAM[a.person]?.name||a.person):null;
+        const a2=m.persons===2?ASSIGN[aKey2]:null; const pName2=a2?.person?(TEAM[a2.person]?.name||a2.person):null;
+
+        // Frühstück: no assign button, grey italic label
+        if(m.noAssign) return `<div class="meas-row" style="opacity:.65">
+          <span class="chip ${m.cls}" style="min-width:0;flex-shrink:0;font-style:italic">${m.label} <span class="ct">${m.t}</span></span>
+        </div>`;
+
+        // Normal or 2-person
+        const assignSection = !isSperred&&isAdmin()
+          ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+              <button class="assign-btn" onclick="openAssignModal('${aKey}','${m.label}','${d.label} Slot ${s.slot}')">${pName?`<span class="team-chip">${pName}</span>`:'+ P1'}</button>
+              ${m.persons===2?`<button class="assign-btn" onclick="openAssignModal('${aKey2}','${m.label} (2)','${d.label} Slot ${s.slot}')">${pName2?`<span class="team-chip">${pName2}</span>`:'+ P2'}</button>`:''}</div>`
+          : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+              ${pName?`<span class="team-chip">${pName}</span>`:''}
+              ${m.persons===2&&pName2?`<span class="team-chip">${pName2}</span>`:''}
+             </div>`;
+
         return `<div class="meas-row">
           <span class="chip ${m.cls}" style="min-width:0;flex-shrink:0">${m.label} <span class="ct">${m.t}</span></span>
           <span style="flex:1"></span>
-          ${!isSperred&&isAdmin()?`<button class="assign-btn" onclick="openAssignModal('${aKey}','${m.label}','${d.label} Slot ${s.slot}')">${pName?`<span class="team-chip">${pName}</span>`:'+ zuweisen'}</button>`:(pName?`<span class="team-chip">${pName}</span>`:'')}
+          ${assignSection}
         </div>`;
       }).join('');
 
