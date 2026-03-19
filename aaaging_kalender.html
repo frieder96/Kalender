@@ -136,6 +136,24 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 .ntab{padding:10px 17px;font-size:13px;font-weight:600;color:rgba(255,255,255,.7);background:transparent;border:none;border-bottom:3px solid transparent;margin-bottom:-3px;cursor:pointer;transition:all .15s;font-family:'Source Sans 3',sans-serif;letter-spacing:.02em;white-space:nowrap}
 .ntab:hover{color:#fff;background:rgba(255,255,255,.05)}
 .ntab.on{color:#fff;border-bottom-color:#fff;background:rgba(255,255,255,.08)}
+.team-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:600;background:var(--ubl);color:var(--ub);border:1px solid #A0C0E0;white-space:nowrap}
+.team-chip.empty{background:var(--g1);color:var(--g4);border-color:var(--g3);font-weight:400;font-style:italic}
+.assign-btn{background:none;border:none;cursor:pointer;font-size:10px;color:var(--ub);text-decoration:underline;padding:0;font-family:'Source Sans 3',sans-serif}
+.assign-btn:hover{color:var(--ubd)}
+.task-card{background:#fff;border:1px solid var(--g2);border-radius:var(--r);padding:10px 13px;margin-bottom:8px;box-shadow:var(--sh)}
+.task-card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.task-person{font-size:13px;font-weight:700;color:var(--ub)}
+.task-count{font-size:11px;color:var(--g4);font-family:monospace}
+.task-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--g2);font-size:12px}
+.task-row:last-child{border-bottom:none}
+.task-time{font-family:monospace;font-size:11px;color:var(--g5);min-width:42px}
+.task-what{flex:1;color:var(--bk)}
+.task-slot{font-size:10.5px;color:var(--g4)}
+.notiz-box{width:100%;padding:6px 8px;border-radius:var(--r);border:1px solid var(--g3);font-size:12px;font-family:'Source Sans 3',sans-serif;color:var(--bk);background:#fff;resize:vertical;min-height:50px;outline:none;transition:border-color .15s}
+.notiz-box:focus{border-color:var(--ub);box-shadow:0 0 0 3px var(--ubl)}
+.member-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:var(--ubp);border:1px solid var(--ubl);border-radius:99px;font-size:12px;color:var(--ub);margin:3px}
+.member-del{background:none;border:none;cursor:pointer;color:var(--ur);font-size:14px;line-height:1;padding:0 0 0 2px}
+.member-del:hover{color:#8B0000}
 
 .ubc{background:#fff;border-bottom:1px solid var(--g2)}
 .ubc-i{max-width:1300px;margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;gap:6px;height:34px;font-size:11.5px;color:var(--g4)}
@@ -350,6 +368,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <button class="ntab on"  onclick="goTab('kalender',this)">Kalender</button>
       <button class="ntab"     onclick="goTab('probanden',this)">Probanden</button>
       <button class="ntab"     onclick="goTab('uebersicht',this)">Wochenübersicht</button>
+      <button class="ntab"     onclick="goTab('team',this)">Team &amp; Aufgaben</button>
       <button class="ntab"     onclick="goTab('backup',this)">Backup &amp; Export</button>
     </div>
   </nav>
@@ -432,6 +451,49 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         </div>
       </div>
       <div id="ovcontent"></div>
+    </div>
+
+    <!-- TEAM & AUFGABEN -->
+    <div id="tab-team" class="panel">
+      <div class="phdr">
+        <div>
+          <div class="ptitle">Team &amp; Aufgaben</div>
+          <div class="psub">Teamverwaltung · Aufgabenzuweisung pro Slot · Wochenübersicht</div>
+        </div>
+      </div>
+
+      <!-- Team members -->
+      <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-bottom:1.25rem">
+        <div style="background:var(--ub);padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-family:'Source Serif 4',serif;font-size:14px;font-weight:600;color:#fff">Teammitglieder</span>
+          <button class="btn btn-xs" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" onclick="openAddMember()">+ Person hinzufügen</button>
+        </div>
+        <div style="padding:12px 14px">
+          <div id="member-list" style="display:flex;flex-wrap:wrap;gap:4px;min-height:32px"></div>
+        </div>
+      </div>
+
+      <!-- Week selector for tasks -->
+      <div class="wtbar" style="margin-bottom:1.25rem">
+        <div style="display:flex;gap:3px">
+          <button class="arr" onclick="chTW(-1)">&#8592;</button>
+          <button class="arr" onclick="chTW(1)">&#8594;</button>
+        </div>
+        <span class="wbadge" id="twbadge">KW —</span>
+        <span class="wrange" id="twrange"></span>
+        <span class="wfill" id="twfill" style="margin-left:auto;font-size:12px;color:var(--g5)"></span>
+      </div>
+
+      <!-- Task assignment grid -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:1.5rem" id="task-assign-grid"></div>
+
+      <!-- Team week overview -->
+      <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh)">
+        <div style="background:var(--ubd);padding:10px 14px">
+          <span style="font-family:'Source Serif 4',serif;font-size:14px;font-weight:600;color:#fff">Was hat wer zu tun diese Woche?</span>
+        </div>
+        <div id="team-week-overview" style="padding:14px"></div>
+      </div>
     </div>
 
     <!-- BACKUP -->
@@ -522,6 +584,58 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div class="wjhdr">Studienwoche auswählen</div>
     <div class="wjlist" id="wjlist"></div>
     <div class="wjftr"><button class="btn btn-sm" onclick="closeWJ()">Schließen</button></div>
+  </div>
+</div>
+
+<!-- ADD MEMBER MODAL -->
+<div class="ov" id="member-modal" onclick="if(event.target===this)closeMemberModal()">
+  <div class="modal">
+    <div class="mhdr">
+      <span class="mtitle">Teammitglied hinzufügen</span>
+      <button class="mclose" onclick="closeMemberModal()">×</button>
+    </div>
+    <div class="mbody">
+      <div class="fg">
+        <label class="fl">Name</label>
+        <input class="fi" id="i-mname" placeholder="z. B. Anna Muster" maxlength="40">
+        <div class="fh">Vor- und Nachname oder Kürzel</div>
+      </div>
+      <div class="fg">
+        <label class="fl">Rolle / Funktion</label>
+        <input class="fi" id="i-mrole" placeholder="z. B. Studienassistentin, Masterand, PI" maxlength="40">
+      </div>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-sm" onclick="closeMemberModal()">Abbrechen</button>
+      <button class="btn btn-sm btn-p" onclick="saveMember()">Hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ASSIGN MODAL -->
+<div class="ov" id="assign-modal" onclick="if(event.target===this)closeAssignModal()">
+  <div class="modal">
+    <div class="mhdr">
+      <span class="mtitle" id="assign-modal-title">Aufgabe zuweisen</span>
+      <button class="mclose" onclick="closeAssignModal()">×</button>
+    </div>
+    <div class="mbody">
+      <div style="font-size:12.5px;color:var(--g5);margin-bottom:14px" id="assign-modal-sub"></div>
+      <div class="fg">
+        <label class="fl">Zuständige Person</label>
+        <select class="fi" id="i-assign-person">
+          <option value="">— Niemand zugewiesen —</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fl">Notiz (optional)</label>
+        <textarea class="notiz-box" id="i-assign-note" placeholder="z. B. bitte 10 min früher da sein..."></textarea>
+      </div>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-sm" onclick="closeAssignModal()">Abbrechen</button>
+      <button class="btn btn-sm btn-p" onclick="saveAssign()">Speichern</button>
+    </div>
   </div>
 </div>
 
@@ -662,8 +776,12 @@ function kw(d){
 
 // ── STATE ────────────────────────────────────
 let P={}, cW=0, eId=null, db=null, auth=null, unsubDB=null;
-let userRole = 'readonly'; // 'admin' or 'readonly'
+let userRole = 'readonly';
 const isAdmin = () => userRole === 'admin';
+let TEAM = {}; // team members: {id: {name, role}}
+let ASSIGN = {}; // assignments: {`${week}_${phase}_${day}_${slot}_${measure}`: {person, note}}
+let tW = 0; // current week for team tab
+let assignKey = null; // current assignment being edited
 
 const bySlot11=(w,day,slot)=>Object.values(P).find(p=>p.week===w&&p.day11===day&&p.slot11===slot)||null;
 const bySlot12=(w,day,slot)=>Object.values(P).find(p=>p.week===w&&p.day12===day&&p.slot12===slot)||null;
@@ -688,7 +806,7 @@ if (configOk) {
       // Load role from Firestore users collection
       try {
         const { getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const userDoc = await getDoc(doc(db, 'user', user.uid));
         userRole = userDoc.exists() ? (userDoc.data().role || 'readonly') : 'readonly';
       } catch(e) {
         userRole = 'readonly'; // safe default
@@ -732,6 +850,22 @@ function startDB() {
     snap.forEach(d => { P[d.id] = {...d.data(), _id:d.id}; });
     renderAll();
   }, () => setSync(false, 'Verbindungsfehler'));
+
+  // Listen to team members
+  onSnapshot(collection(db,'team'), snap => {
+    TEAM = {};
+    snap.forEach(d => { TEAM[d.id] = {...d.data(), _id:d.id}; });
+    renderMemberList();
+    renderTaskTab();
+  });
+
+  // Listen to assignments
+  onSnapshot(collection(db,'assignments'), snap => {
+    ASSIGN = {};
+    snap.forEach(d => { ASSIGN[d.id] = {...d.data(), _id:d.id}; });
+    renderWeek();
+    renderTaskTab();
+  });
 }
 
 // ── AUTH ACTIONS ─────────────────────────────
@@ -813,16 +947,25 @@ function renderWeek(){
             ${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddSlot(${cW},'${d.phase}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}
           </div>`;
 
-      const chips=s.measures.map(m=>
-        `<span class="chip ${m.cls}">${m.label} <span class="ct">${m.t}</span></span>`
-      ).join('');
+      const chips=s.measures.map(m=>{
+        const aKey=`${cW}_${d.phase}_${d.label}_${s.slot}_${m.label}`;
+        const a=ASSIGN[aKey];
+        const personName=a?.person ? (TEAM[a.person]?.name||a.person) : null;
+        const assignHtml=isAdmin()
+          ?`<button class="assign-btn" onclick="openAssignModal('${aKey}','${m.label}','${d.label} Slot ${s.slot} ${m.t}')">${personName||'+ zuweisen'}</button>`
+          :(personName?`<span style="font-size:9.5px;color:var(--ub)">${personName}</span>`:'');
+        return `<div style="display:flex;align-items:center;gap:4px;padding:3px 0;border-bottom:1px solid var(--g2)">
+          <span class="chip ${m.cls}" style="min-width:0">${m.label} <span class="ct">${m.t}</span></span>
+          ${assignHtml}
+        </div>`;
+      }).join('');
 
       return `<div class="sc ${p?'occ':''}">
         <div class="sc-top">
           <span class="sc-num">Slot ${s.slot}</span>
           <span class="sc-time">${s.blutStart}</span>
         </div>
-        <div class="sc-body">${proHtml}<div class="chips">${chips}</div></div>
+        <div class="sc-body">${proHtml}<div style="margin-top:4px">${chips}</div></div>
       </div>`;
     }).join('');
 
@@ -1022,6 +1165,198 @@ window.closeWJ=()=>document.getElementById('wjov').classList.remove('open');
 window.selW=w=>{ cW=w; renderWeek(); closeWJ(); };
 
 // ── EXPORT ───────────────────────────────────
+// ── TEAM MANAGEMENT ──────────────────────────
+function renderMemberList() {
+  const el = document.getElementById('member-list');
+  if (!el) return;
+  const members = Object.values(TEAM);
+  if (!members.length) {
+    el.innerHTML = '<span style="font-size:12.5px;color:var(--g4);font-style:italic">Noch keine Teammitglieder angelegt.</span>';
+    return;
+  }
+  el.innerHTML = members.map(m =>
+    `<span class="member-pill">
+      <span style="font-weight:600">${m.name}</span>
+      ${m.role ? `<span style="font-size:10px;color:var(--g5)">· ${m.role}</span>` : ''}
+      ${isAdmin() ? `<button class="member-del" onclick="deleteMember('${m._id}')" title="Entfernen">×</button>` : ''}
+    </span>`
+  ).join('');
+}
+
+window.openAddMember = () => {
+  if (!isAdmin()) { toast('Keine Berechtigung', true); return; }
+  document.getElementById('i-mname').value = '';
+  document.getElementById('i-mrole').value = '';
+  document.getElementById('member-modal').classList.add('open');
+};
+
+window.closeMemberModal = () => document.getElementById('member-modal').classList.remove('open');
+
+window.saveMember = async () => {
+  const name = document.getElementById('i-mname').value.trim();
+  const role = document.getElementById('i-mrole').value.trim();
+  if (!name) { toast('Name ist Pflicht', true); return; }
+  try {
+    await addDoc(collection(db, 'team'), { name, role, created: Date.now() });
+    closeMemberModal();
+    toast(`${name} hinzugefügt ✓`);
+  } catch(e) { toast('Fehler: ' + e.message, true); }
+};
+
+window.deleteMember = async id => {
+  if (!confirm('Teammitglied wirklich entfernen?')) return;
+  try {
+    await deleteDoc(doc(db, 'team', id));
+    toast('Entfernt');
+  } catch(e) { toast('Fehler: ' + e.message, true); }
+};
+
+// ── ASSIGNMENT ────────────────────────────────
+window.openAssignModal = (key, measure, label) => {
+  if (!isAdmin()) { toast('Keine Berechtigung', true); return; }
+  assignKey = key;
+  document.getElementById('assign-modal-title').textContent = `${measure} zuweisen`;
+  document.getElementById('assign-modal-sub').textContent = label;
+  const existing = ASSIGN[key];
+
+  // Build person select
+  const sel = document.getElementById('i-assign-person');
+  sel.innerHTML = '<option value="">— Niemand zugewiesen —</option>' +
+    Object.values(TEAM).map(m =>
+      `<option value="${m._id}" ${existing?.person===m._id?'selected':''}>${m.name}${m.role?' ('+m.role+')':''}</option>`
+    ).join('');
+  document.getElementById('i-assign-note').value = existing?.note || '';
+  document.getElementById('assign-modal').classList.add('open');
+};
+
+window.closeAssignModal = () => { document.getElementById('assign-modal').classList.remove('open'); assignKey = null; };
+
+window.saveAssign = async () => {
+  if (!assignKey) return;
+  const person = document.getElementById('i-assign-person').value;
+  const note   = document.getElementById('i-assign-note').value.trim();
+  try {
+    const existing = ASSIGN[assignKey];
+    if (existing) {
+      await updateDoc(doc(db, 'assignments', existing._id), { person, note, updated: Date.now() });
+    } else {
+      await addDoc(collection(db, 'assignments'), { key: assignKey, person, note, created: Date.now() });
+    }
+    closeAssignModal();
+    toast('Zuweisung gespeichert ✓');
+  } catch(e) { toast('Fehler: ' + e.message, true); }
+};
+
+// ── TEAM TAB ──────────────────────────────────
+function renderTaskTab() {
+  const badgeEl = document.getElementById('twbadge');
+  const rangeEl = document.getElementById('twrange');
+  const fillEl  = document.getElementById('twfill');
+  if (!badgeEl) return;
+
+  const mo = wMon(tW), thu = wDay(tW,3), k = kw(mo);
+  badgeEl.textContent = `KW ${k} · ${mo.getFullYear()}`;
+  rangeEl.textContent = `${fD(mo)} – ${fD(thu)}`;
+
+  // Count assignments this week
+  const weekKeys = Object.keys(ASSIGN).filter(k => k.startsWith(`${tW}_`));
+  fillEl.textContent = `${weekKeys.length} Aufgaben zugewiesen`;
+
+  // Assignment grid — one card per day
+  const days = [
+    {label:'Montag',   phase:'t11', slots:T11, dayOff:0},
+    {label:'Dienstag', phase:'t11', slots:T11, dayOff:1},
+    {label:'Mittwoch', phase:'t12', slots:T12, dayOff:2},
+    {label:'Donnerstag',phase:'t12',slots:T12, dayOff:3},
+  ];
+
+  const grid = document.getElementById('task-assign-grid');
+  if (grid) {
+    grid.innerHTML = days.map(d => {
+      const date = wDay(tW, d.dayOff);
+      const rows = d.slots.flatMap(s => {
+        const p = d.phase==='t11' ? bySlot11(tW,d.label,s.slot) : bySlot12(tW,d.label,s.slot);
+        return s.measures.map(m => {
+          const aKey = `${tW}_${d.phase}_${d.label}_${s.slot}_${m.label}`;
+          const a = ASSIGN[aKey];
+          const personName = a?.person ? (TEAM[a.person]?.name || '?') : null;
+          return `<div class="task-row">
+            <span class="task-time">${m.t}</span>
+            <span class="task-what">
+              <strong style="font-weight:600">${m.label}</strong>
+              ${p ? `<span style="font-size:10.5px;color:var(--g5)"> · ${p.pid}</span>` : '<span style="font-size:10.5px;color:var(--g4);font-style:italic"> · frei</span>'}
+            </span>
+            <span class="task-slot">
+              ${personName
+                ? `<span class="team-chip">${personName}</span>${isAdmin()?`<button class="assign-btn" onclick="openAssignModal('${aKey}','${m.label}','${d.label} Slot ${s.slot}')"> ✎</button>`:''}` 
+                : (isAdmin() ? `<button class="assign-btn" onclick="openAssignModal('${aKey}','${m.label}','${d.label} Slot ${s.slot}')">+ zuweisen</button>` : '<span class="team-chip empty">nicht zugewiesen</span>')
+              }
+            </span>
+          </div>`;
+        });
+      }).join('');
+
+      return `<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh)">
+        <div style="background:${d.phase==='t11'?'var(--ub)':'var(--ubd)'};padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-family:'Source Serif 4',serif;font-size:13px;font-weight:600;color:#fff">${d.label}</span>
+          <span style="font-size:10px;color:rgba(255,255,255,.65)">${fD(date)}</span>
+        </div>
+        <div style="padding:6px 12px">${rows}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Per-person overview
+  const ovEl = document.getElementById('team-week-overview');
+  if (!ovEl) return;
+  const members = Object.values(TEAM);
+  if (!members.length) {
+    ovEl.innerHTML = '<span style="font-size:12.5px;color:var(--g4);font-style:italic">Noch keine Teammitglieder angelegt.</span>';
+    return;
+  }
+
+  ovEl.innerHTML = members.map(m => {
+    const myTasks = Object.entries(ASSIGN)
+      .filter(([k,a]) => a.person===m._id && k.startsWith(`${tW}_`))
+      .map(([k,a]) => {
+        const parts = k.split('_'); // week_phase_day_slot_measure
+        const day=parts[2], slot=parts[3], measure=parts[4];
+        const slotDef = [...T11,...T12].find(s=>s.slot===parseInt(slot));
+        const mDef = slotDef?.measures.find(ms=>ms.label===measure);
+        return { day, slot, measure, time: mDef?.t||'', note: a.note };
+      })
+      .sort((a,b) => a.time.localeCompare(b.time));
+
+    if (!myTasks.length) return `
+      <div class="task-card">
+        <div class="task-card-hdr">
+          <span class="task-person">${m.name}</span>
+          ${m.role?`<span style="font-size:11px;color:var(--g4)">${m.role}</span>`:''}
+          <span class="task-count">0 Aufgaben</span>
+        </div>
+        <div style="font-size:12px;color:var(--g4);font-style:italic">Keine Aufgaben diese Woche.</div>
+      </div>`;
+
+    const taskRows = myTasks.map(t =>
+      `<div class="task-row">
+        <span class="task-time">${t.time}</span>
+        <span class="task-what"><strong style="font-weight:600">${t.measure}</strong> · ${t.day} Slot ${t.slot}${t.note?`<span style="color:var(--g5)"> · ${t.note}</span>`:''}</span>
+      </div>`
+    ).join('');
+
+    return `<div class="task-card">
+      <div class="task-card-hdr">
+        <span class="task-person">${m.name}</span>
+        ${m.role?`<span style="font-size:11px;color:var(--g4)">${m.role}</span>`:''}
+        <span class="task-count">${myTasks.length} Aufgabe${myTasks.length>1?'n':''}</span>
+      </div>
+      ${taskRows}
+    </div>`;
+  }).join('');
+}
+
+window.chTW = n => { tW = Math.max(0, Math.min(N_WEEKS-1, tW+n)); renderTaskTab(); };
+
 // ── EXPORT & BACKUP ──────────────────────────
 const exportHistory = [];
 
@@ -1132,10 +1467,12 @@ function goTab(name,btn){
   if(btn) btn.classList.add('on');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('tab-'+name).classList.add('on');
-  const L={kalender:'Messkalender',probanden:'Probandenverwaltung',uebersicht:'Wochenübersicht',backup:'Backup & Export'};
+  const L={kalender:'Messkalender',probanden:'Probandenverwaltung',uebersicht:'Wochenübersicht',team:'Team & Aufgaben',backup:'Backup & Export'};
   document.getElementById('bcc').textContent=L[name]||name;
   if(name==='backup') updateBackupUI();
+  if(name==='team'){ tW=cW; renderTaskTab(); }
 }
 </script>
 </body>
 </html>
+
