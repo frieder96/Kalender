@@ -342,7 +342,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div class="unav-i">
       <button class="ntab on"  onclick="goTab('kalender',this)">Kalender</button>
       <button class="ntab"     onclick="goTab('probanden',this)">Probanden</button>
-      <button class="ntab"     onclick="goTab('recalls',this)">24h Recalls</button>
+      <button class="ntab"     onclick="goTab('recalls',this)">Supplement-Ausgabe &amp; Recalls</button>
       <button class="ntab"     onclick="goTab('team',this)">Team &amp; Aufgaben</button>
       <button class="ntab"     onclick="goTab('backup',this)">Backup &amp; Export</button>
     </div>
@@ -417,7 +417,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <!-- 24H RECALLS -->
     <div id="tab-recalls" class="panel">
       <div class="phdr">
-        <div><div class="ptitle">24h Recalls</div><div class="psub">Flexible Zwischentermine · pro Proband eintragen</div></div>
+        <div><div class="ptitle">Supplement-Ausgabe &amp; Recalls</div><div class="psub">Flexible Zwischentermine · Supplement-Ausgaben · pro Proband eintragen</div></div>
         <div><button class="btn btn-sm btn-p" id="add-recall-btn" onclick="openAddRecall()">+ Recall eintragen</button></div>
       </div>
       <div id="recall-list"></div>
@@ -1534,7 +1534,7 @@ function goTab(name,btn){
   if(btn) btn.classList.add('on');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('tab-'+name).classList.add('on');
-  const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'24h Recalls',team:'Team & Aufgaben',backup:'Backup & Export'};
+  const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export'};
   document.getElementById('bcc').textContent=L[name]||name;
   if(name==='team'){tW=cW;renderTaskTab();}
 }
