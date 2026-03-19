@@ -809,36 +809,117 @@ function renderWeek() {
 }
 
 function renderGesamt() {
-  const ps = Object.values(P).sort((a,b)=>a.lnr.localeCompare(b.lnr));
   const wt = document.getElementById('week-toolbar');
-  if (wt) wt.style.display='none';
-  document.getElementById('wfill').textContent='';
+  if (wt) wt.style.display='flex';
 
-  if (!ps.length) {
-    document.getElementById('cal-content').innerHTML='<div style="text-align:center;padding:3rem;color:var(--g4);font-style:italic">Noch keine Probanden angelegt.</div>';
-    return;
-  }
+  const mo=wMon(cW), thu=wDay(cW,3), k=kw(mo);
+  document.getElementById('wbadge').textContent=`KW ${k} · ${mo.getFullYear()}`;
+  document.getElementById('wrange').textContent=`${fD(mo)} – ${fD(thu)}`;
+
+  const ps = Object.values(P);
+  const DAYS = ['Montag','Dienstag','Mittwoch','Donnerstag'];
+  const DOFF_MAP = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3};
+
+  // Count total events this week
+  let totalEvents = 0;
+
+  // For each day, collect all events
+  const dayEvents = DAYS.map(day => {
+    const events = [];
+
+    // T0 slots
+    T0.forEach(s => {
+      const p = byT0(cW, day, s.slot);
+      if (p) { events.push({type:'T0', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
+    });
+
+    // T1 slots
+    if (day==='Montag'||day==='Dienstag') {
+      T11.filter(s=>s.day===day).forEach(s => {
+        const p = byT11(cW, day, s.slot);
+        if (p) { events.push({type:'T1', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
+      });
+    } else {
+      T12.filter(s=>s.day===day).forEach(s => {
+        const p = byT12(cW, day, s.slot);
+        if (p) { events.push({type:'T1', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
+      });
+    }
+
+    // T2 — flexible date, match by day of week in cW
+    const dayDate = wDay(cW, DOFF_MAP[day]);
+    const dayStr = dayDate.toISOString().split('T')[0];
+    ps.forEach(p => {
+      if (p.t2date===dayStr) { events.push({type:'T2', time:p.t2time||'', pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
+      if (p.t3date===dayStr) { events.push({type:'T3', time:p.t3time||'', pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
+    });
+
+    // 24h Recalls on this day
+    Object.values(RECALLS).forEach(r => {
+      if (r.date===dayStr) {
+        const p = ps.find(x=>x._id===r.pid);
+        if (p) { events.push({type:'RECALL', time:r.time||'', pid:p.pid, lnr:p.lnr, note:r.note}); totalEvents++; }
+      }
+    });
+
+    // Sort by time
+    events.sort((a,b) => (a.time||'').localeCompare(b.time||''));
+    return {day, events, date: dayDate};
+  });
+
+  document.getElementById('wfill').textContent = `${totalEvents} Termine diese Woche`;
+
+  // Color config
+  const typeConfig = {
+    T0:     {label:'T0', bg:'var(--t0bg)', border:'var(--t0bd)', color:'var(--t0c)'},
+    T1:     {label:'T1', bg:'var(--t1bg)', border:'var(--t1bd)', color:'var(--t1c)'},
+    T2:     {label:'T2', bg:'var(--t2bg)', border:'var(--t2bd)', color:'var(--t2c)'},
+    T3:     {label:'T3', bg:'var(--t3bg)', border:'var(--t3bd)', color:'var(--t3c)'},
+    RECALL: {label:'Recall', bg:'#FEF6EC', border:'#F0CCA0', color:'#3D2200'},
+  };
 
   document.getElementById('cal-content').innerHTML = `
-    <div style="margin-bottom:12px;font-size:12px;color:var(--g5)">Alle Probanden mit ihren Terminen — klicke auf einen Block für Details.</div>
-    ${ps.map(p=>{
-      const t0 = p.t0week!==undefined ? `<span class="pt-block pt-t0" title="T0: ${p.t0day} KW${kw(wMon(p.t0week))}">T0 · ${p.t0day?.slice(0,2)} KW${kw(wMon(p.t0week))}</span>` : `<span class="pt-block pt-missing">T0 offen</span>`;
-      const t1 = p.t1week!==undefined ? `<span class="pt-block pt-t1" title="T1: KW${kw(wMon(p.t1week))}">T1 · KW${kw(wMon(p.t1week))}</span>` : `<span class="pt-block pt-missing">T1 offen</span>`;
-      const t2 = p.t2date ? `<span class="pt-block pt-t2" title="T2: ${p.t2date}">T2 · ${new Date(p.t2date).toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'})}</span>` : `<span class="pt-block pt-missing">T2 offen</span>`;
-      const t3 = p.t3date ? `<span class="pt-block pt-t3" title="T3: ${p.t3date}">T3 · ${new Date(p.t3date).toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'})}</span>` : `<span class="pt-block pt-missing">T3 offen</span>`;
-      const myRecalls = Object.values(RECALLS).filter(r=>r.pid===p._id).sort((a,b)=>a.date.localeCompare(b.date));
-      const recallBlocks = myRecalls.map(r=>`<span class="pt-block pt-recall" title="Recall: ${r.date}">Recall · ${new Date(r.date).toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'})}</span>`).join('');
-      return `<div class="proband-timeline">
-        <div class="pt-hdr">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span class="pt-id">${p.pid}</span><span class="pt-lnr">${p.lnr}</span>
-            ${p.notiz?`<span style="font-size:11px;color:var(--g5);font-style:italic">${p.notiz}</span>`:''}
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+      ${dayEvents.map(({day, events, date}) => {
+        const cards = events.length ? events.map(ev => {
+          const cfg = typeConfig[ev.type];
+          return `<div style="background:${cfg.bg};border:1px solid ${cfg.border};border-radius:var(--r);padding:6px 9px;margin-bottom:5px;cursor:pointer" onclick="openEditProband('${ev.id||''}')">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+              <span style="font-size:10px;font-weight:700;color:${cfg.color};text-transform:uppercase;letter-spacing:.05em">${cfg.label}${ev.slot?' Slot '+ev.slot:''}</span>
+              ${ev.time?`<span style="font-family:monospace;font-size:10px;color:${cfg.color};opacity:.8">${ev.time}</span>`:''}
+            </div>
+            <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+              <span style="font-family:monospace;font-size:11px;font-weight:700;background:rgba(255,255,255,.6);padding:1px 5px;border-radius:3px;color:${cfg.color}">${ev.pid}</span>
+              <span style="font-family:monospace;font-size:10px;opacity:.75;color:${cfg.color}">${ev.lnr}</span>
+              ${ev.note?`<span style="font-size:9.5px;font-style:italic;color:${cfg.color};opacity:.7">${ev.note}</span>`:''}
+            </div>
+          </div>`;
+        }).join('') : `<div style="padding:1.5rem;text-align:center;color:var(--g4);font-size:12px;font-style:italic">Keine Termine</div>`;
+
+        return `<div>
+          <div style="background:var(--ub);border-radius:var(--r) var(--r) 0 0;padding:9px 12px">
+            <div style="font-family:'Source Serif 4',serif;font-size:14px;font-weight:600;color:#fff">${day}</div>
+            <div style="font-size:10.5px;color:rgba(255,255,255,.65);margin-top:2px">${fD(date)} · ${events.length} Termine</div>
+            <div style="height:3px;background:rgba(255,255,255,.2);margin-top:6px;border-radius:2px;overflow:hidden">
+              <div style="height:100%;background:rgba(255,255,255,.75);width:${Math.min(100,events.length*12)}%"></div>
+            </div>
           </div>
-          ${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">Bearbeiten</button>`:''}
-        </div>
-        <div class="pt-body">${t0}${t1}${t2}${t3}${recallBlocks}</div>
-      </div>`;
-    }).join('')}`;
+          <div style="background:#fff;border:1px solid var(--g2);border-top:none;border-radius:0 0 var(--r) var(--r);padding:8px;min-height:80px">
+            ${cards}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;padding:10px 14px;background:#fff;border:1px solid var(--g2);border-radius:var(--r)">
+      <span style="font-size:10.5px;color:var(--g5);font-weight:700;text-transform:uppercase;letter-spacing:.06em">Legende:</span>
+      ${Object.entries(typeConfig).map(([k,c])=>
+        `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px">
+          <span style="width:12px;height:12px;border-radius:3px;background:${c.bg};border:1px solid ${c.border};display:inline-block"></span>
+          <span style="color:${c.color};font-weight:600">${c.label}</span>
+        </span>`
+      ).join('')}
+    </div>`;
 }
 
 function renderTable() {
