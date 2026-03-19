@@ -649,6 +649,8 @@ let cW=0, curTermin='T0';
 let eId=null, recallEditId=null, assignKey=null, tW=0;
 let db=null, auth=null, userRole='readonly';
 const isAdmin = () => userRole==='admin';
+window.curTermin = 'T0';
+window._renderWeek = () => renderWeek();
 
 // Lookup helpers
 const byT0  = (w,day,slot) => Object.values(P).find(p=>p.t0week===w&&p.t0day===day&&p.t0slot===slot)||null;
@@ -724,6 +726,7 @@ document.getElementById('linp-email').addEventListener('keydown',e=>{if(e.key===
 
 // ── RENDER CALENDAR ───────────────
 function renderWeek() {
+  curTermin = window.curTermin || 'T0';
   const mo=wMon(cW), thu=wDay(cW,3), k=kw(mo);
   document.getElementById('wbadge').textContent=`KW ${k} · ${mo.getFullYear()}`;
   document.getElementById('wrange').textContent=`${fD(mo)} – ${fD(thu)}`;
@@ -1198,10 +1201,10 @@ function goTab(name,btn){
 function setTermin(t, btn) {
   document.querySelectorAll('.termin-tabs .ttab').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
-  curTermin=t;
+  window.curTermin=t;
   const wt=document.getElementById('week-toolbar');
   if(wt) wt.style.display = t==='GESAMT'?'none':'flex';
-  renderWeek();
+  if(window._renderWeek) window._renderWeek();
 }
 </script>
 </body>
