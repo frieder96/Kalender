@@ -179,7 +179,19 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 /* 24h RECALL */
 .recall-card{background:#fff;border:1px solid var(--g2);border-left:3px solid #F0C898;border-radius:var(--r);padding:10px 14px;margin-bottom:8px;box-shadow:var(--sh)}
 
-/* TEAM */
+/* SPERREN */
+.day-blocked { background: #FDF2F4 !important; }
+.day-blocked .dayhdr-top { background: #8B1A1A !important; }
+.slot-blocked { background: #FDF2F4 !important; border-color: #E8BFBF !important; border-left: 3px solid #C8102E !important; }
+.slot-blocked .sc-top { background: #FCEEF1 !important; }
+.blocked-banner { display:flex; align-items:center; gap:6px; padding:6px 10px; background:#FDF2F4; border:1px solid #E8BFBF; border-radius:var(--r); font-size:11.5px; color:#8B1A1A; margin-bottom:6px; }
+.blocked-banner strong { font-weight:700; }
+.lock-btn { background:none; border:none; cursor:pointer; font-size:13px; padding:2px 5px; border-radius:3px; color:rgba(255,255,255,.7); transition:all .15s; }
+.lock-btn:hover { background:rgba(255,255,255,.15); color:#fff; }
+.lock-btn.locked { color:#F0C040; }
+.slot-lock-btn { background:none; border:none; cursor:pointer; font-size:11px; color:var(--g4); padding:2px 4px; border-radius:3px; transition:all .15s; }
+.slot-lock-btn:hover { background:var(--g2); color:var(--ur); }
+.slot-lock-btn.locked { color:var(--ur); }
 .task-card{background:#fff;border:1px solid var(--g2);border-radius:var(--r);padding:10px 13px;margin-bottom:8px;box-shadow:var(--sh)}
 .task-person{font-size:13px;font-weight:700;color:var(--ub)}
 .task-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--g2);font-size:12px}
@@ -568,6 +580,35 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
   </div>
 </div>
 
+<!-- SPERREN MODAL -->
+<div class="ov" id="sperren-modal" onclick="if(event.target===this)closeSperren()">
+  <div class="modal">
+    <div class="mhdr" style="background:#8B1A1A"><span class="mtitle" id="sperren-modal-title">Tag sperren</span><button class="mclose" onclick="closeSperren()">×</button></div>
+    <div class="mbody">
+      <div style="background:#FDF2F4;border:1px solid #E8BFBF;border-radius:var(--r);padding:10px 13px;margin-bottom:14px;font-size:12.5px;color:#8B1A1A" id="sperren-info"></div>
+      <div class="fg">
+        <label class="fl">Grund</label>
+        <input class="fi" id="i-sperren-grund" placeholder="z. B. Feiertag, Konferenz, Urlaub …" maxlength="80">
+      </div>
+      <div class="fg">
+        <label class="fl">Gilt für Phase</label>
+        <select class="fi" id="i-sperren-termin">
+          <option value="ALL">Alle Phasen (T0, T1, T2, T3)</option>
+          <option value="T0">Nur T0 — Voruntersuchung</option>
+          <option value="T1">Nur T1 — Hauptuntersuchung</option>
+          <option value="T2">Nur T2 — Folgeuntersuchung</option>
+          <option value="T3">Nur T3 — Abschlussuntersuchung</option>
+        </select>
+      </div>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-sm btn-d" id="sperren-del-btn" onclick="deleteSperren()" style="display:none;margin-right:auto">Sperre aufheben</button>
+      <button class="btn btn-sm" onclick="closeSperren()">Abbrechen</button>
+      <button class="btn btn-sm" style="background:#8B1A1A;color:#fff;border-color:#8B1A1A" onclick="saveSperren()">Sperren</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script type="module">
@@ -666,13 +707,22 @@ function kw(d) {
 const DOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3};
 
 // ── STATE ─────────────────────────
-let P={}, RECALLS={}, TEAM={}, ASSIGN={};
+let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={};
 let cW=0, curTermin='T0';
 let eId=null, recallEditId=null, assignKey=null, tW=0;
+let sperrenEditId=null, sperrenDay=null, sperrenSlot=null, sperrenTermin=null;
 let db=null, auth=null, userRole='readonly';
 const isAdmin = () => userRole==='admin';
 window.curTermin = 'T0';
 window._renderWeek = () => renderWeek();
+
+// Sperre lookup helpers
+function isSperred(termin, week, day, slot=null) {
+  return Object.values(SPERREN).find(s =>
+    s.termin===termin && s.week===week && s.day===day &&
+    (s.slot===null || s.slot===undefined || slot===null || s.slot===slot)
+  ) || null;
+}
 
 // Lookup helpers
 const byT0  = (w,day,slot) => Object.values(P).find(p=>p.t0week===w&&p.t0day===day&&p.t0slot===slot)||null;
@@ -724,6 +774,9 @@ function startDB() {
   });
   onSnapshot(collection(db,'assignments'), snap => {
     ASSIGN={}; snap.forEach(d=>{ASSIGN[d.id]={...d.data(),_id:d.id}}); renderWeek(); renderTaskTab();
+  });
+  onSnapshot(collection(db,'sperren'), snap => {
+    SPERREN={}; snap.forEach(d=>{SPERREN[d.id]={...d.data(),_id:d.id}}); renderWeek();
   });
 }
 
@@ -796,9 +849,21 @@ function renderWeek() {
 
     const cards=slots.map(s=>{
       const p=getter(cW,d.label,s.slot);
-      const proHtml=p
-        ?`<div class="prow"><span class="pbadge">${p.pid}</span><span class="lbadge">${p.lnr}</span>${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button><button class="btn btn-xs btn-d" onclick="delProband('${p._id}')">✕</button>`:''}</div>`
-        :`<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddProbandSlot(${cW},'${curTermin}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
+
+      // Check slot-level and day-level sperre
+      const slotSperr = Object.values(SPERREN).find(sp =>
+        sp.week===cW && sp.day===d.label && sp.slot===s.slot &&
+        (sp.termin===curTermin||sp.termin==='ALL'));
+      const daySperr = !slotSperr && Object.values(SPERREN).find(sp =>
+        sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) &&
+        (sp.termin===curTermin||sp.termin==='ALL'));
+      const isSperred = slotSperr || daySperr;
+
+      const proHtml = isSperred
+        ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSperred.grund?` · ${isSperred.grund}`:''} ${isSperred.termin!=='ALL'?`(${isSperred.termin})`:''}</div>`
+        : p
+          ?`<div class="prow"><span class="pbadge">${p.pid}</span><span class="lbadge">${p.lnr}</span>${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button><button class="btn btn-xs btn-d" onclick="delProband('${p._id}')">✕</button>`:''}</div>`
+          :`<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddProbandSlot(${cW},'${curTermin}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
 
       const measRows=s.measures.map(m=>{
         const aKey=`${cW}_${curTermin}_${d.label}_${s.slot}_${m.label}`.replace(/[^a-zA-Z0-9_]/g,'_');
@@ -806,24 +871,50 @@ function renderWeek() {
         return `<div class="meas-row">
           <span class="chip ${m.cls}" style="min-width:0;flex-shrink:0">${m.label} <span class="ct">${m.t}</span></span>
           <span style="flex:1"></span>
-          ${isAdmin()?`<button class="assign-btn" onclick="openAssignModal('${aKey}','${m.label}','${d.label} Slot ${s.slot}')">${pName?`<span class="team-chip">${pName}</span>`:'+ zuweisen'}</button>`:(pName?`<span class="team-chip">${pName}</span>`:'')}
+          ${!isSperred&&isAdmin()?`<button class="assign-btn" onclick="openAssignModal('${aKey}','${m.label}','${d.label} Slot ${s.slot}')">${pName?`<span class="team-chip">${pName}</span>`:'+ zuweisen'}</button>`:(pName?`<span class="team-chip">${pName}</span>`:'')}
         </div>`;
       }).join('');
 
-      return `<div class="sc ${p?'occ':''}">
-        <div class="sc-top"><span class="sc-num">Slot ${s.slot}</span><span class="sc-time">${s.blutStart}</span></div>
-        <div class="sc-body">${proHtml}<div style="margin-top:4px">${measRows}</div></div>
+      const lockIcon = isAdmin()
+        ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'${curTermin}','${d.label}',${s.slot})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>`
+        : '';
+
+      return `<div class="sc ${p&&!isSperred?'occ':''} ${isSperred?'slot-blocked':''}">
+        <div class="sc-top">
+          <span class="sc-num">Slot ${s.slot}</span>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span class="sc-time">${s.blutStart}</span>
+            ${lockIcon}
+          </div>
+        </div>
+        <div class="sc-body">${proHtml}<div style="margin-top:4px">${isSperred?'':measRows}</div></div>
       </div>`;
     }).join('');
 
     const t12note = curTermin==='T1'&&(d.label==='Mittwoch'||d.label==='Donnerstag')
       ? `<div style="font-size:9.5px;color:rgba(255,255,255,.55);margin-top:2px">T2-Termin wird hier vereinbart</div>` : '';
 
+    const daySperre = Object.values(SPERREN).find(sp =>
+      sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) &&
+      (sp.termin===curTermin||sp.termin==='ALL'));
+
+    const dayLockBtn = isAdmin()
+      ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'${curTermin}','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>`
+      : '';
+
+    const hdrColor = daySperre ? '#8B1A1A' : headerColor;
+    const dayBlockedNote = daySperre
+      ? `<div style="font-size:9.5px;color:rgba(255,220,220,.9);margin-top:3px">⛔ ${daySperre.grund||'Gesperrt'}${daySperre.termin!=='ALL'?` (${daySperre.termin})`:''}</div>`
+      : '';
+
     return `<div class="dcol">
-      <div class="dayhdr-top" style="background:${headerColor};border-radius:var(--r) var(--r) 0 0">
-        <div class="dname">${d.label}</div>
+      <div class="dayhdr-top" style="background:${hdrColor};border-radius:var(--r) var(--r) 0 0">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="dname">${d.label}</div>
+          ${dayLockBtn}
+        </div>
         <div class="drow"><span class="ddate">${fD(date)} · ${dayFilled}/${slots.length}</span><span class="dphase">${phaseLabel}</span></div>
-        ${t12note}
+        ${t12note}${dayBlockedNote}
         <div class="dfill"><div class="dfill-bar" style="width:${pct}%"></div></div>
       </div>${cards}
     </div>`;
@@ -1262,6 +1353,64 @@ window.closeWJ=()=>document.getElementById('wjov').classList.remove('open');
 window.selW=w=>{cW=w;renderWeek();closeWJ();};
 window.chW=n=>{cW=Math.max(0,Math.min(N_WEEKS-1,cW+n));renderWeek();};
 window.goToday=()=>{const d=Math.floor((new Date()-START)/(7*86400000));cW=Math.max(0,Math.min(N_WEEKS-1,d));renderWeek();};
+
+// ── SPERREN ───────────────────────
+window.openSperrenDay = (week, termin, day) => {
+  if(!isAdmin()){toast('Keine Berechtigung',true);return;}
+  sperrenDay=day; sperrenSlot=null; sperrenTermin=termin; sperrenEditId=null;
+  document.getElementById('sperren-modal-title').textContent='Tag sperren';
+  document.getElementById('sperren-info').textContent=`${day} · KW ${kw(wMon(week))} · Alle Slots`;
+  document.getElementById('i-sperren-termin').value=termin;
+  document.getElementById('i-sperren-grund').value='';
+
+  // Check if already blocked → show delete button
+  const existing = Object.values(SPERREN).find(s=>s.week===week&&s.day===day&&(s.slot===null||s.slot===undefined)&&(s.termin===termin||s.termin==='ALL'));
+  const delBtn = document.getElementById('sperren-del-btn');
+  if(existing){ sperrenEditId=existing._id; document.getElementById('i-sperren-grund').value=existing.grund||''; document.getElementById('i-sperren-termin').value=existing.termin||termin; delBtn.style.display=''; }
+  else { delBtn.style.display='none'; }
+
+  // Store week for save
+  window._sperrenWeek = week;
+  document.getElementById('sperren-modal').classList.add('open');
+};
+
+window.openSperrenSlot = (week, termin, day, slot) => {
+  if(!isAdmin()){toast('Keine Berechtigung',true);return;}
+  sperrenDay=day; sperrenSlot=slot; sperrenTermin=termin; sperrenEditId=null;
+  document.getElementById('sperren-modal-title').textContent='Slot sperren';
+  document.getElementById('sperren-info').textContent=`${day} · Slot ${slot} · KW ${kw(wMon(week))}`;
+  document.getElementById('i-sperren-termin').value=termin;
+  document.getElementById('i-sperren-grund').value='';
+
+  const existing = Object.values(SPERREN).find(s=>s.week===week&&s.day===day&&s.slot===slot&&(s.termin===termin||s.termin==='ALL'));
+  const delBtn = document.getElementById('sperren-del-btn');
+  if(existing){ sperrenEditId=existing._id; document.getElementById('i-sperren-grund').value=existing.grund||''; document.getElementById('i-sperren-termin').value=existing.termin||termin; delBtn.style.display=''; }
+  else { delBtn.style.display='none'; }
+
+  window._sperrenWeek = week;
+  document.getElementById('sperren-modal').classList.add('open');
+};
+
+window.closeSperren = () => { document.getElementById('sperren-modal').classList.remove('open'); sperrenEditId=null; };
+
+window.saveSperren = async () => {
+  const week = window._sperrenWeek;
+  const grund = document.getElementById('i-sperren-grund').value.trim();
+  const termin = document.getElementById('i-sperren-termin').value;
+  const data = { week, day:sperrenDay, slot:sperrenSlot??null, termin, grund, updated:Date.now() };
+  try {
+    if(sperrenEditId){ await updateDoc(doc(db,'sperren',sperrenEditId),data); }
+    else { await addDoc(collection(db,'sperren'),{...data,created:Date.now()}); }
+    closeSperren();
+    toast(`${sperrenSlot?'Slot':'Tag'} gesperrt ✓`);
+  } catch(e){ toast('Fehler: '+e.message,true); }
+};
+
+window.deleteSperren = async () => {
+  if(!sperrenEditId) return;
+  try { await deleteDoc(doc(db,'sperren',sperrenEditId)); closeSperren(); toast('Sperre aufgehoben ✓'); }
+  catch(e){ toast('Fehler: '+e.message,true); }
+};
 
 // ── EXPORT ────────────────────────
 const tsFile = prefix => { const n=new Date(),p=x=>String(x).padStart(2,'0'); return `${prefix}_${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}_${p(n.getHours())}${p(n.getMinutes())}.csv`; };
