@@ -179,6 +179,28 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 /* 24h RECALL */
 .recall-card{background:#fff;border:1px solid var(--g2);border-left:3px solid #F0C898;border-radius:var(--r);padding:10px 14px;margin-bottom:8px;box-shadow:var(--sh)}
 
+/* ABWESENHEITEN */
+.month-nav{display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;background:#fff;border:1px solid var(--g2);border-left:4px solid var(--ub);border-radius:var(--r);padding:10px 14px;box-shadow:var(--sh)}
+.month-badge{background:var(--ub);color:#fff;font-size:13px;font-weight:700;padding:5px 16px;border-radius:var(--r);min-width:160px;text-align:center}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:1.25rem}
+.cal-dow{text-align:center;font-size:10.5px;font-weight:700;color:var(--g5);text-transform:uppercase;letter-spacing:.06em;padding:6px 0}
+.cal-day{background:#fff;border:1px solid var(--g2);border-radius:var(--r);min-height:90px;padding:5px;cursor:pointer;transition:all .15s;position:relative}
+.cal-day:hover{border-color:var(--ub);box-shadow:0 2px 8px rgba(42,94,161,.1)}
+.cal-day.other-month{background:var(--g1);opacity:.5;cursor:default}
+.cal-day.today{border-color:var(--ub);border-width:2px}
+.cal-day.has-absent{background:#FEF6F0}
+.cal-day-num{font-size:11.5px;font-weight:700;color:var(--g6);margin-bottom:4px;display:flex;align-items:center;justify-content:space-between}
+.cal-day-num.today-num{color:var(--ub)}
+.absent-chip{display:flex;align-items:center;gap:3px;background:#E87127;color:#fff;border-radius:3px;padding:2px 5px;font-size:9.5px;font-weight:600;margin-bottom:2px;cursor:pointer;transition:opacity .15s}
+.absent-chip:hover{opacity:.85}
+.absent-chip .chip-del{background:rgba(255,255,255,.3);border:none;border-radius:2px;color:#fff;font-size:10px;cursor:pointer;padding:0 3px;line-height:1.4;margin-left:2px}
+.absent-chip .chip-del:hover{background:rgba(255,255,255,.5)}
+.add-absent-btn{display:none;position:absolute;bottom:4px;right:4px;background:var(--ub);color:#fff;border:none;border-radius:3px;font-size:9.5px;padding:2px 6px;cursor:pointer;font-family:'Source Sans 3',sans-serif}
+.cal-day:hover .add-absent-btn{display:block}
+.absent-legend{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px;background:#fff;border:1px solid var(--g2);border-radius:var(--r);margin-bottom:1.25rem}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--g6)}
+.legend-dot{width:10px;height:10px;border-radius:2px;background:#E87127}
+
 /* SPERREN */
 .day-blocked { background: #FDF2F4 !important; }
 .day-blocked .dayhdr-top { background: #8B1A1A !important; }
@@ -345,6 +367,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <button class="ntab"     onclick="goTab('recalls',this)">Supplement-Ausgabe &amp; Recalls</button>
       <button class="ntab"     onclick="goTab('team',this)">Team &amp; Aufgaben</button>
       <button class="ntab"     onclick="goTab('backup',this)">Backup &amp; Export</button>
+      <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
     </div>
   </nav>
   <div class="ubc"><div class="ubc-i"><span>Universität Wien</span><span>›</span><span>AAAging Studie</span><span>›</span><span class="bc-c" id="bcc">Kalender</span></div></div>
@@ -488,6 +511,43 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         Lade vor jeder Studienwoche einmal den Probanden-Export herunter und speichere ihn in einem datierten Ordner.
       </div>
     </div>
+    <!-- ABWESENHEITEN -->
+    <div id="tab-abwesenheit" class="panel">
+      <div class="phdr">
+        <div><div class="ptitle">Abwesenheiten</div><div class="psub">Monatsansicht · Wer ist wann nicht verfügbar?</div></div>
+        <button class="btn btn-sm btn-p" onclick="openAbsentModal(null)">+ Eigene Abwesenheit eintragen</button>
+      </div>
+
+      <!-- Legend -->
+      <div class="absent-legend">
+        <span style="font-size:11px;font-weight:700;color:var(--g5);text-transform:uppercase;letter-spacing:.06em">Legende:</span>
+        <div class="legend-item"><div class="legend-dot"></div> Abwesend</div>
+        <div class="legend-item" style="margin-left:auto;font-size:11px;color:var(--g5)">Klick auf einen Tag um Abwesenheit einzutragen</div>
+      </div>
+
+      <!-- Month navigation -->
+      <div class="month-nav">
+        <div style="display:flex;gap:3px">
+          <button class="arr" onclick="chMonth(-1)">&#8592;</button>
+          <button class="arr" onclick="chMonth(1)">&#8594;</button>
+        </div>
+        <span class="month-badge" id="month-badge">—</span>
+        <button class="btn btn-sm" onclick="goThisMonth()" style="margin-left:4px">Aktueller Monat</button>
+        <span style="margin-left:auto;font-size:12px;color:var(--g5)" id="month-absent-count"></span>
+      </div>
+
+      <!-- Calendar grid -->
+      <div class="cal-grid" id="absent-cal"></div>
+
+      <!-- List view below -->
+      <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh)">
+        <div style="background:var(--ubd);padding:10px 14px">
+          <span style="font-family:'Source Serif 4',serif;font-size:14px;font-weight:600;color:#fff">Alle Abwesenheiten dieses Monats</span>
+        </div>
+        <div id="absent-list" style="padding:14px"></div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -577,6 +637,26 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <div class="fg"><label class="fl">Notiz (optional)</label><textarea class="notiz-box" id="i-assign-note" placeholder="z. B. bitte 10 min früher da sein…"></textarea></div>
     </div>
     <div class="mftr"><button class="btn btn-sm" onclick="closeAssignModal()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveAssign()">Speichern</button></div>
+  </div>
+</div>
+
+<!-- ABWESENHEIT MODAL -->
+<div class="ov" id="absent-modal" onclick="if(event.target===this)closeAbsentModal()">
+  <div class="modal">
+    <div class="mhdr" style="background:#E87127"><span class="mtitle" id="absent-modal-title">Abwesenheit eintragen</span><button class="mclose" onclick="closeAbsentModal()">×</button></div>
+    <div class="mbody">
+      <div style="background:#FEF6F0;border:1px solid #F4C09A;border-radius:var(--r);padding:9px 12px;margin-bottom:14px;font-size:12.5px;color:#B85010" id="absent-modal-info"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="fg"><label class="fl">Von</label><input class="fi" type="date" id="ia-from"></div>
+        <div class="fg"><label class="fl">Bis</label><input class="fi" type="date" id="ia-to"><div class="fh">Gleicher Tag = 1 Tag</div></div>
+      </div>
+      <div class="fg"><label class="fl">Kommentar (optional)</label><textarea class="notiz-box" id="ia-note" placeholder="z. B. Urlaub, Konferenz in Berlin, Krankenstand …"></textarea></div>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-sm btn-d" id="absent-del-btn" onclick="deleteAbsent()" style="display:none;margin-right:auto">Löschen</button>
+      <button class="btn btn-sm" onclick="closeAbsentModal()">Abbrechen</button>
+      <button class="btn btn-sm" style="background:#E87127;color:#fff;border-color:#E87127" onclick="saveAbsent()">Speichern</button>
+    </div>
   </div>
 </div>
 
@@ -707,11 +787,12 @@ function kw(d) {
 const DOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3};
 
 // ── STATE ─────────────────────────
-let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={};
+let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={};
 let cW=0, curTermin='T0';
 let eId=null, recallEditId=null, assignKey=null, tW=0;
 let sperrenEditId=null, sperrenDay=null, sperrenSlot=null, sperrenTermin=null;
-let db=null, auth=null, userRole='readonly';
+let absentEditId=null, curMonth=new Date().getMonth(), curYear=new Date().getFullYear();
+let db=null, auth=null, userRole='readonly', currentUser=null;
 const isAdmin = () => userRole==='admin';
 window.curTermin = 'T0';
 window._renderWeek = () => renderWeek();
@@ -741,6 +822,7 @@ db   = getFirestore(app);
 onAuthStateChanged(auth, async user => {
   document.getElementById('loading-screen').style.display='none';
   if (user) {
+    currentUser = user;
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app-screen').style.display='block';
     document.getElementById('user-email').textContent=user.email;
@@ -777,6 +859,9 @@ function startDB() {
   });
   onSnapshot(collection(db,'sperren'), snap => {
     SPERREN={}; snap.forEach(d=>{SPERREN[d.id]={...d.data(),_id:d.id}}); renderWeek();
+  });
+  onSnapshot(collection(db,'abwesenheiten'), snap => {
+    ABSENT={}; snap.forEach(d=>{ABSENT[d.id]={...d.data(),_id:d.id}}); renderAbsentCal();
   });
 }
 
@@ -1372,6 +1457,171 @@ window.selW=w=>{cW=w;renderWeek();closeWJ();};
 window.chW=n=>{cW=Math.max(0,Math.min(N_WEEKS-1,cW+n));renderWeek();};
 window.goToday=()=>{const d=Math.floor((new Date()-START)/(7*86400000));cW=Math.max(0,Math.min(N_WEEKS-1,d));renderWeek();};
 
+// ── ABWESENHEITEN ─────────────────
+function renderAbsentCal() {
+  const cal = document.getElementById('absent-cal'); if(!cal) return;
+  const list = document.getElementById('absent-list'); 
+
+  const y=curYear, m=curMonth;
+  const monthNames=['Jänner','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  document.getElementById('month-badge').textContent=`${monthNames[m]} ${y}`;
+
+  // Get all absences that overlap this month
+  const monthStart = new Date(y,m,1);
+  const monthEnd   = new Date(y,m+1,0);
+
+  // Helper: does absence overlap a given date?
+  const overlaps = (ab, date) => {
+    const from = new Date(ab.from); const to = new Date(ab.to||ab.from);
+    return date >= from && date <= to;
+  };
+
+  // Count this month
+  const monthAbsences = Object.values(ABSENT).filter(ab => {
+    const from=new Date(ab.from), to=new Date(ab.to||ab.from);
+    return from<=monthEnd && to>=monthStart;
+  });
+  document.getElementById('month-absent-count').textContent = `${monthAbsences.length} Abwesenheit${monthAbsences.length!==1?'en':''} dieses Monat`;
+
+  // Day of week headers
+  const dows = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+  const headerHtml = dows.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+
+  // First day of month (Mon=0)
+  const firstDow = (new Date(y,m,1).getDay()+6)%7;
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  const daysInPrevMonth = new Date(y,m,0).getDate();
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  let cells = '';
+  // Prev month padding
+  for(let i=firstDow-1;i>=0;i--) {
+    cells+=`<div class="cal-day other-month"><div class="cal-day-num">${daysInPrevMonth-i}</div></div>`;
+  }
+
+  // Current month days
+  for(let d=1;d<=daysInMonth;d++) {
+    const date = new Date(y,m,d); date.setHours(0,0,0,0);
+    const isToday = date.getTime()===today.getTime();
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+    // Absences on this day
+    const dayAbsences = Object.values(ABSENT).filter(ab=>overlaps(ab,date));
+    const hasAbsent = dayAbsences.length>0;
+
+    const chips = dayAbsences.map(ab => {
+      const canDel = ab.uid===currentUser?.uid || userRole==='admin';
+      return `<div class="absent-chip" onclick="openAbsentModal('${ab._id}')">
+        <span>👤 ${ab.name||ab.email?.split('@')[0]||'?'}</span>
+        ${canDel?`<button class="chip-del" onclick="event.stopPropagation();quickDelAbsent('${ab._id}')">×</button>`:''}
+      </div>`;
+    }).join('');
+
+    cells+=`<div class="cal-day ${isToday?'today':''} ${hasAbsent?'has-absent':''}">
+      <div class="cal-day-num ${isToday?'today-num':''}">${d}${isToday?'<span style="font-size:9px;color:var(--ub);margin-left:3px">●</span>':''}</div>
+      ${chips}
+      <button class="add-absent-btn" onclick="openAbsentModalDate('${dateStr}')">+ Abwesend</button>
+    </div>`;
+  }
+
+  // Next month padding
+  const totalCells = firstDow + daysInMonth;
+  const remaining = (7-totalCells%7)%7;
+  for(let d=1;d<=remaining;d++) cells+=`<div class="cal-day other-month"><div class="cal-day-num">${d}</div></div>`;
+
+  cal.innerHTML = headerHtml + cells;
+
+  // List view
+  if(list) {
+    if(!monthAbsences.length) {
+      list.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--g4);font-style:italic">Keine Abwesenheiten in diesem Monat.</div>';
+    } else {
+      const sorted = monthAbsences.sort((a,b)=>a.from.localeCompare(b.from));
+      list.innerHTML=sorted.map(ab=>{
+        const canEdit = ab.uid===currentUser?.uid || userRole==='admin';
+        const fromD=new Date(ab.from), toD=new Date(ab.to||ab.from);
+        const fromStr=fromD.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit'});
+        const toStr=ab.to&&ab.to!==ab.from?toD.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit'}):null;
+        const days=Math.round((toD-fromD)/86400000)+1;
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--g2);flex-wrap:wrap;gap:6px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="font-size:12px;font-weight:700;color:#B85010;background:#FEF6F0;border:1px solid #F4C09A;border-radius:3px;padding:2px 8px">👤 ${ab.name||ab.email?.split('@')[0]||'?'}</span>
+            <span style="font-family:monospace;font-size:12px;font-weight:700">${fromStr}${toStr?` → ${toStr}`:''}</span>
+            <span style="font-size:11px;color:var(--g5)">${days} Tag${days!==1?'e':''}</span>
+            ${ab.note?`<span style="font-size:12px;color:var(--g5);font-style:italic">· ${ab.note}</span>`:''}
+          </div>
+          ${canEdit?`<div style="display:flex;gap:5px"><button class="btn btn-xs" onclick="openAbsentModal('${ab._id}')">Bearbeiten</button><button class="btn btn-xs btn-d" onclick="quickDelAbsent('${ab._id}')">Löschen</button></div>`:''}
+        </div>`;
+      }).join('');
+    }
+  }
+}
+
+window.openAbsentModal = id => {
+  absentEditId = id || null;
+  const ab = id ? ABSENT[id] : null;
+  document.getElementById('absent-modal-title').textContent = ab ? 'Abwesenheit bearbeiten' : 'Abwesenheit eintragen';
+  document.getElementById('absent-modal-info').textContent = `Eingetragen als: ${currentUser?.email||''}`;
+  document.getElementById('ia-from').value = ab?.from || '';
+  document.getElementById('ia-to').value   = ab?.to   || ab?.from || '';
+  document.getElementById('ia-note').value = ab?.note || '';
+  document.getElementById('absent-del-btn').style.display = ab ? '' : 'none';
+  document.getElementById('absent-modal').classList.add('open');
+};
+
+window.openAbsentModalDate = dateStr => {
+  absentEditId = null;
+  document.getElementById('absent-modal-title').textContent = 'Abwesenheit eintragen';
+  document.getElementById('absent-modal-info').textContent = `Eingetragen als: ${currentUser?.email||''}`;
+  document.getElementById('ia-from').value = dateStr;
+  document.getElementById('ia-to').value   = dateStr;
+  document.getElementById('ia-note').value = '';
+  document.getElementById('absent-del-btn').style.display = 'none';
+  document.getElementById('absent-modal').classList.add('open');
+};
+
+window.closeAbsentModal = () => { document.getElementById('absent-modal').classList.remove('open'); absentEditId=null; };
+
+window.saveAbsent = async () => {
+  const from = document.getElementById('ia-from').value;
+  const to   = document.getElementById('ia-to').value || from;
+  const note = document.getElementById('ia-note').value.trim();
+  if(!from){toast('Bitte ein Datum auswählen',true);return;}
+  if(to < from){toast('Enddatum muss nach dem Startdatum liegen',true);return;}
+
+  const data = {
+    from, to, note,
+    uid:   currentUser?.uid   || '',
+    email: currentUser?.email || '',
+    name:  currentUser?.displayName || currentUser?.email?.split('@')[0] || currentUser?.email || '',
+    updated: Date.now()
+  };
+  try {
+    if(absentEditId){ await updateDoc(doc(db,'abwesenheiten',absentEditId),data); }
+    else { await addDoc(collection(db,'abwesenheiten'),{...data,created:Date.now()}); }
+    closeAbsentModal(); toast('Abwesenheit gespeichert ✓');
+  } catch(e){ toast('Fehler: '+e.message,true); }
+};
+
+window.quickDelAbsent = async id => {
+  const ab = ABSENT[id]; if(!ab) return;
+  if(ab.uid!==currentUser?.uid && userRole!=='admin'){toast('Nur eigene Abwesenheiten können gelöscht werden',true);return;}
+  if(!confirm('Abwesenheit wirklich löschen?')) return;
+  try { await deleteDoc(doc(db,'abwesenheiten',id)); toast('Abwesenheit gelöscht ✓'); }
+  catch(e){ toast('Fehler: '+e.message,true); }
+};
+
+window.deleteAbsent = async () => { if(absentEditId) await quickDelAbsent(absentEditId); closeAbsentModal(); };
+
+window.chMonth = n => {
+  curMonth += n;
+  if(curMonth>11){curMonth=0;curYear++;}
+  if(curMonth<0){curMonth=11;curYear--;}
+  renderAbsentCal();
+};
+
+window.goThisMonth = () => { curMonth=new Date().getMonth(); curYear=new Date().getFullYear(); renderAbsentCal(); };
+
 // ── SPERREN ───────────────────────
 window.openSperrenDay = (week, termin, day) => {
   if(!isAdmin()){toast('Keine Berechtigung',true);return;}
@@ -1534,9 +1784,10 @@ function goTab(name,btn){
   if(btn) btn.classList.add('on');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('tab-'+name).classList.add('on');
-  const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export'};
+  const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export',abwesenheit:'Abwesenheiten'};
   document.getElementById('bcc').textContent=L[name]||name;
   if(name==='team'){tW=cW;renderTaskTab();}
+  if(name==='abwesenheit'){renderAbsentCal();}
 }
 
 function setTermin(t, btn) {
