@@ -1439,10 +1439,12 @@ function renderWeek() {
         </div>`;
 
         // Normal or 2-person
+        const _slotDate = wDay(cW,d.off).toISOString().split('T')[0];
+        const _slotTime = m.t || s.blutStart || '';
         const assignSection = !isSperred&&isAdmin()
           ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
-              <button class="assign-btn" onclick="openAssignModal('${aKey}','${m.label}','${d.label} Slot ${s.slot}')">${pName?`<span class="team-chip">${pName}</span>`:'+ P1'}</button>
-              ${m.persons===2?`<button class="assign-btn" onclick="openAssignModal('${aKey2}','${m.label} (2)','${d.label} Slot ${s.slot}')">${pName2?`<span class="team-chip">${pName2}</span>`:'+ P2'}</button>`:''}</div>`
+              <button class="assign-btn" onclick="openAssignModal('${aKey}','${m.label}','${d.label} Slot ${s.slot}','${_slotDate}','${_slotTime}')">${pName?`<span class="team-chip">${pName}</span>`:'+ P1'}</button>
+              ${m.persons===2?`<button class="assign-btn" onclick="openAssignModal('${aKey2}','${m.label} (2)','${d.label} Slot ${s.slot}','${_slotDate}','${_slotTime}')">${pName2?`<span class="team-chip">${pName2}</span>`:'+ P2'}</button>`:''}</div>`
           : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
               ${pName?`<span class="team-chip">${pName}</span>`:''}
               ${m.persons===2&&pName2?`<span class="team-chip">${pName2}</span>`:''}
@@ -2022,15 +2024,80 @@ window.deleteMember = async id => {
 };
 
 // ── ASSIGNMENTS ───────────────────
-window.openAssignModal = (key, measure, label) => {
+window.openAssignModal = (key, measure, label, slotDate, slotTime) => {
   if(!isAdmin()){toast('Keine Berechtigung',true);return;}
   assignKey=key;
   document.getElementById('assign-modal-title').textContent=`${measure} zuweisen`;
   document.getElementById('assign-modal-sub').textContent=label;
   const existing=ASSIGN[key];
-  document.getElementById('i-assign-person').innerHTML='<option value="">— Niemand —</option>'+
-    Object.values(TEAM).map(m=>`<option value="${m._id}" ${existing?.person===m._id?'selected':''}>${m.name}${m.role?' ('+m.role+')':''}</option>`).join('');
+
+  // ── Availability checks ──────────────────────────────
+  // 1) Absence: match by name field in ABSENT
+  function isAbsent(memberName) {
+    if(!slotDate) return false;
+    return Object.values(ABSENT).some(ab => {
+      const n = (ab.name||ab.email||'').toLowerCase();
+      if(!n || !memberName) return false;
+      if(!n.includes(memberName.toLowerCase()) && !memberName.toLowerCase().includes(n)) return false;
+      return slotDate >= ab.from && slotDate <= (ab.to||ab.from);
+    });
+  }
+
+  // 2) Studio conflict: check if trainer/member in SP_SLOTS on same date
+  function hasStudioConflict(memberName) {
+    if(!slotDate || !memberName) return false;
+    const slotD = new Date(slotDate);
+    const slotH = slotTime ? parseInt(slotTime.split(':')[0]) : -1;
+    return Object.entries(SP_SLOTS_DATA).some(([k, sd]) => {
+      // key: s{sid}_d{di}_h{h}_w{wo}
+      const m = k.match(/^s(\d+)_d(\d+)_h(\d+)_w(-?\d+)$/);
+      if(!m) return false;
+      const di=parseInt(m[2]), h=parseInt(m[3]), wo=parseInt(m[4]);
+      const dates = spGetWeekDates(wo);
+      const slotDayDate = dates[di-1];
+      if(!slotDayDate) return false;
+      if(slotDayDate.toISOString().split('T')[0] !== slotDate) return false;
+      // Check time overlap: studio slot is h:00–h+1:00, study slot at slotH
+      const timeOverlap = slotH < 0 || (slotH >= h && slotH < h+1) || (h >= slotH && h < slotH+2);
+      if(!timeOverlap) return false;
+      const n = memberName.toLowerCase();
+      const isTrainer = (sd.trainer||'').toLowerCase().includes(n);
+      const isMember = (sd.members||[]).some(mn=>(mn||'').toLowerCase().includes(n));
+      return isTrainer || isMember;
+    });
+  }
+
+  // Build dropdown with availability indicators
+  const opts = Object.values(TEAM).map(m => {
+    const absent = isAbsent(m.name);
+    const studio = !absent && hasStudioConflict(m.name);
+    let suffix = '';
+    if(absent) suffix = ' 🏖️ Abwesend';
+    else if(studio) suffix = ' ⚠️ Studio-Termin';
+    const style = absent ? 'color:#C8102E' : studio ? 'color:#E87127' : '';
+    return `<option value="${m._id}" ${existing?.person===m._id?'selected':''} style="${style}">${m.name}${m.role?' ('+m.role+')':''}${suffix}</option>`;
+  }).join('');
+
+  document.getElementById('i-assign-person').innerHTML='<option value="">— Niemand —</option>'+opts;
   document.getElementById('i-assign-note').value=existing?.note||'';
+
+  // Show availability legend if any conflicts
+  const anyConflict = Object.values(TEAM).some(m=>isAbsent(m.name)||hasStudioConflict(m.name));
+  let legend = document.getElementById('assign-avail-legend');
+  if(!legend){
+    legend = document.createElement('div');
+    legend.id = 'assign-avail-legend';
+    legend.style.cssText = 'font-size:11px;margin-top:8px;padding:7px 10px;border-radius:4px;background:#F8F6F2;border:1px solid #E8E4DE;display:none';
+    document.getElementById('i-assign-note').parentElement.after(legend);
+  }
+  if(anyConflict && slotDate) {
+    legend.innerHTML = `<strong style="display:block;margin-bottom:4px;color:#414141">Verfügbarkeit am ${new Date(slotDate+'T12:00').toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'})}</strong>
+      <span style="color:#C8102E">🏖️ Abwesend</span> &nbsp;·&nbsp; <span style="color:#E87127">⚠️ Studio-Termin zur selben Zeit</span>`;
+    legend.style.display = 'block';
+  } else {
+    legend.style.display = 'none';
+  }
+
   document.getElementById('assign-modal').classList.add('open');
 };
 window.closeAssignModal = () => { document.getElementById('assign-modal').classList.remove('open'); assignKey=null; };
