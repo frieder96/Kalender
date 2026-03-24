@@ -3215,13 +3215,17 @@ function rpDecodeAssign(key, val) {
   if(!day || isNaN(slot)) return null;
 
   // Get slot time from the appropriate slot array
+  const _is12day = day==='Mittwoch'||day==='Donnerstag';
   const slotArr = termin==='T0'?T0:
-    (termin==='T1'||termin==='T1.1')?T11:
     (termin==='T1.2')?T12:
-    (termin==='T2'||termin==='T2.1')?T21:
+    (termin==='T1.1')?T11:
+    (termin==='T1')?(_is12day?T12:T11):
     (termin==='T2.2')?T22:
-    (termin==='T3'||termin==='T3.1')?T31:
-    (termin==='T3.2')?T32:null;
+    (termin==='T2.1')?T21:
+    (termin==='T2')?(_is12day?T22:T21):
+    (termin==='T3.2')?T32:
+    (termin==='T3.1')?T31:
+    (termin==='T3')?(_is12day?T32:T31):null;
 
   const slotDef = slotArr?.find(s=>s.slot===slot);
   const measureDef = slotDef?.measures.find(m=>m.label.replace(/[^a-zA-Z0-9_]/g,'_')===measure||m.label===measure);
