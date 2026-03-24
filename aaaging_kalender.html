@@ -10,10 +10,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root {
   --ub:#2A5EA1; --ubd:#1E4A80; --ubm:#4A7EC1; --ubl:#E8EFF7; --ubp:#F0F5FB;
@@ -1085,6 +1081,15 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
+// Expose to window so regular <script> blocks can use them
+window._col      = (...a) => collection(...a);
+window._onSnap   = (...a) => onSnapshot(...a);
+window._addDoc   = (...a) => addDoc(...a);
+window._updateDoc= (...a) => updateDoc(...a);
+window._deleteDoc= (...a) => deleteDoc(...a);
+window._doc      = (...a) => doc(...a);
+window._setDoc   = (...a) => setDoc(...a);
+
 // ── STUDY CONFIG ─────────────────
 const START   = new Date('2026-03-16');
 const N_WEEKS = 96; // ~2 years to end of 2027
@@ -1169,7 +1174,10 @@ let eId=null, recallEditId=null, assignKey=null, tW=0;
 let sperrenEditId=null, sperrenDay=null, sperrenSlot=null, sperrenTermin=null;
 let absentEditId=null, curMonth=new Date().getMonth(), curYear=new Date().getFullYear();
 let db=null, auth=null, userRole='readonly', currentUser=null;
+window._db = () => db;
+window._fbFns = null; // set after import
 const isAdmin = () => userRole==='admin';
+window.isAdmin = isAdmin;
 window.curTermin = 'T0';
 window._renderWeek = () => renderWeek();
 
@@ -1194,6 +1202,7 @@ const byT32 = (w,day,slot) => Object.values(P).find(p=>p.t3week===w&&p.t3day12==
 const app  = initializeApp(firebaseConfig);
 auth = getAuth(app);
 db   = getFirestore(app);
+window.db = db;
 
 onAuthStateChanged(auth, async user => {
   document.getElementById('loading-screen').style.display='none';
@@ -2166,18 +2175,7 @@ function goTab(name,btn){
   document.getElementById('bcc').textContent=L[name]||name;
   if(name==='team'){tW=cW;renderTaskTab();}
   if(name==='abwesenheit'){renderAbsentCal();}
-  if(name==='studio'){ spRenderProbanden(); }
-  if(name==='studio' && window.spInit) window.spInit();
-}
-
-function spSwitchTab(id, btn) {
-  document.querySelectorAll('.sp-snav-btn').forEach(b=>b.classList.remove('on'));
-  if(btn) btn.classList.add('on');
-  ['sp-probanden','sp-calendar','sp-5rm'].forEach(t=>{
-    const el=document.getElementById(t); if(el) el.style.display=t===id?'':'none';
-  });
-  if(id==='sp-5rm') spRenderClientList();
-}
+  if(name==='studio'){spRenderProbanden();}
 }
 
 function setTermin(t, btn) {
@@ -2213,13 +2211,13 @@ window.spOnChange = fn => sp_listeners.push(fn);
 
 // Start Firestore listeners for studio data
 function spStartListeners(){
-  if(!db) return;
-  onSnapshot(collection(db,'sp_probands'), snap=>{
+  const _db=window.db; if(!_db) return;
+  window._onSnap(window._col(_db,'sp_probands'), snap=>{
     SP_PROBANDS={};
     snap.forEach(d=>{SP_PROBANDS[d.id]={...d.data(),_id:d.id};});
     spEmit(); spSetSync(true);
   });
-  onSnapshot(collection(db,'sp_slots'), snap=>{
+  window._onSnap(window._col(_db,'sp_slots'), snap=>{
     SP_SLOTS_DATA={};
     snap.forEach(d=>{SP_SLOTS_DATA[d.id]={...d.data(),_id:d.id};});
     spEmit();
@@ -2288,14 +2286,14 @@ window.spSaveProbandModal=async()=>{
     gender:document.getElementById('sp-pv-gender').value,note:document.getElementById('sp-pv-note').value.trim(),
     sessions:spEditId?(SP_PROBANDS[spEditId]?.sessions||[]):[]};
   try{
-    if(spEditId) await updateDoc(doc(db,'sp_probands',spEditId),{...data,updated:Date.now()});
-    else await addDoc(collection(db,'sp_probands'),{...data,created:Date.now(),updated:Date.now()});
+    if(spEditId) await window._updateDoc(window._doc(window.db,'sp_probands',spEditId),{...data,updated:Date.now()});
+    else await window._addDoc(window._col(window.db,'sp_probands'),{...data,created:Date.now(),updated:Date.now()});
     spCloseProbandModal(); toast(spEditId?'Proband aktualisiert ✓':'Proband angelegt ✓');
   }catch(e){toast('Fehler: '+e.message,true);}
 };
 window.spDelProband=async(id)=>{
   if(!confirm('Proband wirklich löschen?')) return;
-  try{await deleteDoc(doc(db,'sp_probands',id));toast('Gelöscht');}catch(e){toast('Fehler: '+e.message,true);}
+  try{await window._deleteDoc(window._doc(window.db,'sp_probands',id));toast('Gelöscht');}catch(e){toast('Fehler: '+e.message,true);}
 };
 
 // ── PROBAND LIST ───────────────────────────
@@ -2543,7 +2541,7 @@ window.spAddBooking=async()=>{
     newData={...data,members:[...data.members,name],attendance:[...(data.attendance||data.members.map(()=>'pending')),'pending']};
   }
   try{
-    await setDoc(doc(db,'sp_slots',key),{key,...newData,updated:Date.now()});
+    await window._setDoc(window._doc(window.db,'sp_slots',key),{key,...newData,updated:Date.now()});
     document.getElementById('sp-book-name').value='';
     spOpenSlotModal(spSlotDi,spSlotH);
   }catch(e){toast('Fehler: '+e.message,true);}
@@ -2560,7 +2558,7 @@ window.spRemoveBooking=async(type,index)=>{
     newData={...data,members:newMem,attendance:newAtt};
   }
   try{
-    await setDoc(doc(db,'sp_slots',key),{key,...newData,updated:Date.now()});
+    await window._setDoc(window._doc(window.db,'sp_slots',key),{key,...newData,updated:Date.now()});
     spOpenSlotModal(spSlotDi,spSlotH);
   }catch(e){toast('Fehler: '+e.message,true);}
 };
@@ -2572,7 +2570,7 @@ window.spToggleAtt=async(memberIndex,currentStatus)=>{
   const cycle=['pending','present','absent'];
   att[memberIndex]=cycle[(cycle.indexOf(currentStatus)+1)%3];
   try{
-    await setDoc(doc(db,'sp_slots',key),{key,...data,attendance:att,updated:Date.now()});
+    await window._setDoc(window._doc(window.db,'sp_slots',key),{key,...data,attendance:att,updated:Date.now()});
     spOpenSlotModal(spSlotDi,spSlotH);
   }catch(e){toast('Fehler: '+e.message,true);}
 };
@@ -2695,7 +2693,7 @@ window.spSaveSession=async()=>{
   if(!hasData){toast('Bitte mindestens eine Übung ausfüllen',true);return;}
   const sessions=[...(c.sessions||[]),{id:Date.now().toString(),date,note,results}].sort((a,b)=>a.date.localeCompare(b.date));
   try{
-    await updateDoc(doc(db,'sp_probands',c._id),{sessions,updated:Date.now()});
+    await window._updateDoc(window._doc(window.db,'sp_probands',c._id),{sessions,updated:Date.now()});
     toast('Test gespeichert ✓'); spSwitchTab5rm('history');
   }catch(e){toast('Fehler: '+e.message,true);}
 };
@@ -2730,7 +2728,7 @@ window.sp5rmDelSession=async id=>{
   if(!confirm('Test löschen?')) return;
   const c=SP_PROBANDS[sp5rmClientId]; if(!c) return;
   const sessions=(c.sessions||[]).filter(s=>s.id!==id);
-  try{await updateDoc(doc(db,'sp_probands',c._id),{sessions,updated:Date.now()});sp5rmRenderHistory();}
+  try{await window._updateDoc(window._doc(window.db,'sp_probands',c._id),{sessions,updated:Date.now()});sp5rmRenderHistory();}
   catch(e){toast('Fehler: '+e.message,true);}
 };
 function sp5rmRenderProgress(){
