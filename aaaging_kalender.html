@@ -1065,6 +1065,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div class="mhdr" style="background:#E87127"><span class="mtitle" id="absent-modal-title">Abwesenheit eintragen</span><button class="mclose" onclick="closeAbsentModal()">×</button></div>
     <div class="mbody">
       <div style="background:#FEF6F0;border:1px solid #F4C09A;border-radius:var(--r);padding:9px 12px;margin-bottom:14px;font-size:12.5px;color:#B85010" id="absent-modal-info"></div>
+      <div class="fg" id="ia-person-wrap" style="display:none"><label class="fl">Person</label><select class="fi" id="ia-person"></select></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="fg"><label class="fl">Von</label><input class="fi" type="date" id="ia-from"></div>
         <div class="fg"><label class="fl">Bis</label><input class="fi" type="date" id="ia-to"><div class="fh">Gleicher Tag = 1 Tag</div></div>
@@ -2261,7 +2262,22 @@ window.openAbsentModal = id => {
   absentEditId = id || null;
   const ab = id ? ABSENT[id] : null;
   document.getElementById('absent-modal-title').textContent = ab ? 'Abwesenheit bearbeiten' : 'Abwesenheit eintragen';
-  document.getElementById('absent-modal-info').textContent = `Eingetragen als: ${currentUser?.email||''}`;
+
+  // Person selector: admins can pick any team member
+  const wrap = document.getElementById('ia-person-wrap');
+  const sel  = document.getElementById('ia-person');
+  if (isAdmin()) {
+    const teamOpts = Object.values(TEAM).sort((a,b)=>a.name.localeCompare(b.name))
+      .map(m=>`<option value="${m.name}" ${ab?.name===m.name?'selected':''}>${m.name}${m.role?' · '+m.role:''}</option>`).join('');
+    const selfName = currentUser?.displayName || currentUser?.email?.split('@')[0] || currentUser?.email || '';
+    sel.innerHTML = `<option value="${selfName}" ${(!ab||ab.name===selfName)?'selected':''}>👤 ${selfName} (ich)</option>${teamOpts}`;
+    wrap.style.display = '';
+    document.getElementById('absent-modal-info').textContent = 'Admin: Abwesenheit für beliebige Person eintragbar';
+  } else {
+    wrap.style.display = 'none';
+    document.getElementById('absent-modal-info').textContent = `Eingetragen als: ${currentUser?.email||''}`;
+  }
+
   document.getElementById('ia-from').value = ab?.from || '';
   document.getElementById('ia-to').value   = ab?.to   || ab?.from || '';
   document.getElementById('ia-note').value = ab?.note || '';
@@ -2272,7 +2288,21 @@ window.openAbsentModal = id => {
 window.openAbsentModalDate = dateStr => {
   absentEditId = null;
   document.getElementById('absent-modal-title').textContent = 'Abwesenheit eintragen';
-  document.getElementById('absent-modal-info').textContent = `Eingetragen als: ${currentUser?.email||''}`;
+
+  const wrap = document.getElementById('ia-person-wrap');
+  const sel  = document.getElementById('ia-person');
+  if (isAdmin()) {
+    const teamOpts = Object.values(TEAM).sort((a,b)=>a.name.localeCompare(b.name))
+      .map(m=>`<option value="${m.name}">${m.name}${m.role?' · '+m.role:''}</option>`).join('');
+    const selfName = currentUser?.displayName || currentUser?.email?.split('@')[0] || currentUser?.email || '';
+    sel.innerHTML = `<option value="${selfName}">👤 ${selfName} (ich)</option>${teamOpts}`;
+    wrap.style.display = '';
+    document.getElementById('absent-modal-info').textContent = 'Admin: Abwesenheit für beliebige Person eintragbar';
+  } else {
+    wrap.style.display = 'none';
+    document.getElementById('absent-modal-info').textContent = `Eingetragen als: ${currentUser?.email||''}`;
+  }
+
   document.getElementById('ia-from').value = dateStr;
   document.getElementById('ia-to').value   = dateStr;
   document.getElementById('ia-note').value = '';
@@ -2289,13 +2319,20 @@ window.saveAbsent = async () => {
   if(!from){toast('Bitte ein Datum auswählen',true);return;}
   if(to < from){toast('Enddatum muss nach dem Startdatum liegen',true);return;}
 
-  const data = {
-    from, to, note,
-    uid:   currentUser?.uid   || '',
-    email: currentUser?.email || '',
-    name:  currentUser?.displayName || currentUser?.email?.split('@')[0] || currentUser?.email || '',
-    updated: Date.now()
-  };
+  // Admins can save for any team member
+  let name, uid, email;
+  if (isAdmin() && document.getElementById('ia-person-wrap').style.display !== 'none') {
+    name  = document.getElementById('ia-person').value;
+    const tm = Object.values(TEAM).find(m=>m.name===name);
+    uid   = tm?._id || currentUser?.uid || '';
+    email = tm?.email || name;
+  } else {
+    name  = currentUser?.displayName || currentUser?.email?.split('@')[0] || currentUser?.email || '';
+    uid   = currentUser?.uid || '';
+    email = currentUser?.email || '';
+  }
+
+  const data = { from, to, note, uid, email, name, updated: Date.now() };
   try {
     if(absentEditId){ await updateDoc(doc(db,'abwesenheiten',absentEditId),data); }
     else { await addDoc(collection(db,'abwesenheiten'),{...data,created:Date.now()}); }
