@@ -19,6 +19,8 @@
   --t1c:#2A5EA1; --t1bg:#E8EFF7; --t1bd:#A0C0E0;
   --t2c:#188A7D; --t2bg:#E4F5F2; --t2bd:#90D4C4;
   --t3c:#5D5DBB; --t3bg:#EEEEF8; --t3bd:#C0C0E0;
+  --teegc:#7A3DB0; --teegbg:#F5EEFB; --teegbd:#C9A8E8;
+  --tmlrtc:#0A6E8A; --tmlrtbg:#E5F4F8; --tmlrtbd:#80C4D8;
   --r:4px; --rl:6px; --sh:0 1px 4px rgba(42,94,161,.1);
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -95,6 +97,10 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 .ttab.tg.on{background:#333;color:#fff;border-color:#333}
 .ttab.tr{border-color:#C0A0E0;color:#4A2080;background:#F5F0FA}
 .ttab.tr.on{background:#4A2080;color:#fff;border-color:#4A2080}
+.ttab.teeg{border-color:var(--teegbd);color:var(--teegc);background:var(--teegbg)}
+.ttab.teeg.on{background:var(--teegc);color:#fff;border-color:var(--teegc)}
+.ttab.tmrt{border-color:var(--tmlrtbd);color:var(--tmlrtc);background:var(--tmlrtbg)}
+.ttab.tmrt.on{background:var(--tmlrtc);color:#fff;border-color:var(--tmlrtc)}
 
 /* WEEK TOOLBAR */
 .wtbar{display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;flex-wrap:wrap;background:#fff;border:1px solid var(--g2);border-left:4px solid var(--ub);border-radius:var(--r);padding:10px 14px;box-shadow:var(--sh)}
@@ -123,6 +129,9 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 .sc{background:#fff;border:1px solid var(--g2);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);transition:border-color .15s}
 .sc:hover{border-color:var(--ubm)}
 .sc.occ{border-left:3px solid var(--ub)}
+.sc.booked{background:#F2FAF5 !important;border:1px solid #A8D8B8 !important;border-left:3px solid #2E8B57 !important;}
+.sc.booked .sc-top{background:#E4F5EC !important;border-bottom:1px solid #B8DECA !important;}
+.sc.booked .sc-num{color:#1E6E42 !important;}
 .sc-top{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:var(--ubp);border-bottom:1px solid var(--g2)}
 .sc-num{font-size:10.5px;font-weight:700;color:var(--ub);text-transform:uppercase;letter-spacing:.05em}
 .sc-time{font-family:monospace;font-size:11px;color:var(--g5);font-weight:700}
@@ -681,6 +690,8 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <button class="ttab t1" onclick="setTermin('T1',this)">T1 — Hauptuntersuchung</button>
         <button class="ttab t2" onclick="setTermin('T2',this)">T2 — Folgeuntersuchung</button>
         <button class="ttab t3" onclick="setTermin('T3',this)">T3 — Abschlussuntersuchung</button>
+        <button class="ttab teeg" onclick="setTermin('EEG',this)">EEG</button>
+        <button class="ttab tmrt" onclick="setTermin('MRT',this)">MRT</button>
         <button class="ttab tg" onclick="setTermin('GESAMT',this)">Gesamtübersicht</button>
       </div>
 
@@ -988,6 +999,42 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 </div>
 
 <!-- MEMBER MODAL -->
+
+<!-- EEG BOOKING MODAL -->
+<div class="ov" id="eeg-book-modal" style="display:none" onclick="if(event.target===this)closeEEGBookModal()">
+  <div class="modal">
+    <div class="mhdr" style="background:var(--teegc)"><span class="mtitle">EEG-Slot zuweisen</span><button class="mclose" onclick="closeEEGBookModal()">×</button></div>
+    <div class="mbody">
+      <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="eeg-book-info"></div>
+      <div class="fg"><label class="fl">Proband</label><select class="fi" id="eeg-book-pid"></select></div>
+    </div>
+    <div class="mftr"><button class="btn btn-sm" onclick="closeEEGBookModal()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveEEGBooking()">Speichern</button></div>
+  </div>
+</div>
+
+<!-- MRT BOOKING MODAL -->
+<div class="ov" id="mrt-book-modal" style="display:none" onclick="if(event.target===this)closeMRTBookModal()">
+  <div class="modal">
+    <div class="mhdr" style="background:var(--tmlrtc)"><span class="mtitle">MRT-Slot zuweisen</span><button class="mclose" onclick="closeMRTBookModal()">×</button></div>
+    <div class="mbody">
+      <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="mrt-book-info"></div>
+      <div class="fg"><label class="fl">Proband</label><select class="fi" id="mrt-book-pid"></select></div>
+    </div>
+    <div class="mftr"><button class="btn btn-sm" onclick="closeMRTBookModal()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveMRTBooking()">Speichern</button></div>
+  </div>
+</div>
+
+<!-- MRT CUSTOM SLOT MODAL -->
+<div class="ov" id="mrt-slot-modal" style="display:none" onclick="if(event.target===this)closeMrtSlotModal()">
+  <div class="modal">
+    <div class="mhdr" style="background:var(--tmlrtc)"><span class="mtitle">MRT-Slot hinzufügen</span><button class="mclose" onclick="closeMrtSlotModal()">×</button></div>
+    <div class="mbody">
+      <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="mrt-slot-info"></div>
+      <div class="fg"><label class="fl">Startzeit (90 min Slot)</label><input class="fi" type="time" id="mrt-slot-time"></div>
+    </div>
+    <div class="mftr"><button class="btn btn-sm" onclick="closeMrtSlotModal()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveMrtSlotTime()">Hinzufügen</button></div>
+  </div>
+</div>
 <div class="ov" id="member-modal" onclick="if(event.target===this)closeMemberModal()">
   <div class="modal">
     <div class="mhdr"><span class="mtitle">Teammitglied hinzufügen</span><button class="mclose" onclick="closeMemberModal()">×</button></div>
@@ -1155,6 +1202,20 @@ const T32 = T12.map(s => ({...s}));
 window._T0=T0; window._T11=T11; window._T12=T12;
 window._T21=T21; window._T22=T22; window._T31=T31; window._T32=T32;
 
+// EEG: Di/Mi/Do/Fr, 3 fixed 2.5h slots
+const EEG_STARTS = ['09:00','11:30','15:00'];
+const EEG_ENDS   = ['11:30','14:00','17:30'];
+const EEG_DAYS   = [{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
+const EEG_SLOTS  = EEG_STARTS.map((t,i)=>({slot:i+1, blutStart:t, end:EEG_ENDS[i], measures:[{label:'EEG-Messung',cls:'ceinschl',t}]}));
+
+// MRT: Mo–Fr, 90-min slots. Fixed from 04.05.2026 (07:00–08:30). Before: custom per day.
+const MRT_CUTOFF = new Date('2026-05-04');
+const MRT_FIXED_START = '07:00';
+const MRT_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
+
+// State for EEG/MRT bookings and MRT custom slots
+let EEG_BOOKINGS={}, MRT_BOOKINGS={}, MRT_SLOTS={};
+
 // ── DATE UTILS ───────────────────
 const wMon = w => { const d=new Date(START); d.setDate(d.getDate()+w*7); return d; };
 const fD   = d => d.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'});
@@ -1165,7 +1226,7 @@ function kw(d) {
   const y1=new Date(t.getFullYear(),0,4);
   return 1+Math.round(((t-y1)/86400000-3+(y1.getDay()||7))/7);
 }
-const DOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3};
+const DOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
 
 // ── STATE ─────────────────────────
 let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={};
@@ -1177,6 +1238,7 @@ let absentEditId=null, curMonth=new Date().getMonth(), curYear=new Date().getFul
 let db=null, auth=null, userRole='readonly', currentUser=null;
 window._db = () => db;
 window._fbFns = null; // set after import
+window._fbFns = {addDoc, deleteDoc, setDoc, getDoc, doc, collection, updateDoc};
 const isAdmin = () => userRole==='admin';
 window.isAdmin = isAdmin;
 window.curTermin = 'T0';
@@ -1198,6 +1260,20 @@ const byT21 = (w,day,slot) => Object.values(P).find(p=>p.t2week===w&&p.t2day11==
 const byT22 = (w,day,slot) => Object.values(P).find(p=>p.t2week===w&&p.t2day12===day&&p.t2slot12===slot)||null;
 const byT31 = (w,day,slot) => Object.values(P).find(p=>p.t3week===w&&p.t3day11===day&&p.t3slot11===slot)||null;
 const byT32 = (w,day,slot) => Object.values(P).find(p=>p.t3week===w&&p.t3day12===day&&p.t3slot12===slot)||null;
+
+// EEG/MRT booking lookups
+const byEEG = (w,day,slot) => Object.values(EEG_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.slot===slot)||null;
+const byMRT = (w,day,slotIdx) => Object.values(MRT_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.slotIdx===slotIdx)||null;
+
+// Get MRT slot times for a given week+day
+function getMrtSlotsForDay(w, day) {
+  const mon = wMon(w);
+  const isFixedPhase = mon >= MRT_CUTOFF;
+  if (isFixedPhase) return [MRT_FIXED_START];
+  const key = `${w}_${day}`.replace(/[^a-zA-Z0-9_]/g,'_');
+  const stored = Object.values(MRT_SLOTS).find(s=>s.week===w&&s.day===day);
+  return stored?.times || [];
+}
 
 // ── FIREBASE INIT ─────────────────
 const app  = initializeApp(firebaseConfig);
@@ -1250,6 +1326,15 @@ function startDB() {
   });
   onSnapshot(collection(db,'abwesenheiten'), snap => {
     ABSENT={}; snap.forEach(d=>{ABSENT[d.id]={...d.data(),_id:d.id}}); renderAbsentCal();
+  });
+  onSnapshot(collection(db,'eeg_bookings'), snap => {
+    EEG_BOOKINGS={}; snap.forEach(d=>{EEG_BOOKINGS[d.id]={...d.data(),_id:d.id}}); renderWeek();
+  });
+  onSnapshot(collection(db,'mrt_bookings'), snap => {
+    MRT_BOOKINGS={}; snap.forEach(d=>{MRT_BOOKINGS[d.id]={...d.data(),_id:d.id}}); renderWeek();
+  });
+  onSnapshot(collection(db,'mrt_slots'), snap => {
+    MRT_SLOTS={}; snap.forEach(d=>{MRT_SLOTS[d.id]={...d.data(),_id:d.id}}); renderWeek();
   });
 }
 
@@ -1307,6 +1392,10 @@ function renderWeek() {
     slotSets=days.map(d=>slotsByDay[d.label]);
     getters=days.map(d=>d.label==='Montag'||d.label==='Dienstag'?byT31:byT32);
     phaseLabel='T3'; headerColor='var(--t3c)';
+  } else if (curTermin==='EEG') {
+    renderEEGWeek(); return;
+  } else if (curTermin==='MRT') {
+    renderMRTWeek(); return;
   }
 
   let filled=0, total=0;
@@ -1370,7 +1459,7 @@ function renderWeek() {
         ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'${curTermin}','${d.label}',${s.slot})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>`
         : '';
 
-      return `<div class="sc ${p&&!isSperred?'occ':''} ${isSperred?'slot-blocked':''}">
+      return `<div class="sc ${p&&!isSperred?'booked':''} ${isSperred?'slot-blocked':''}">
         <div class="sc-top">
           <span class="sc-num">Slot ${s.slot}</span>
           <div style="display:flex;align-items:center;gap:4px">
@@ -1408,6 +1497,162 @@ function renderWeek() {
         ${t12note}${dayBlockedNote}
         <div class="dfill"><div class="dfill-bar" style="width:${pct}%"></div></div>
       </div>${cards}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderEEGWeek() {
+  const mo = wMon(cW), k = kw(mo);
+  document.getElementById('wbadge').textContent = `KW ${k} · ${mo.getFullYear()}`;
+  const fri = wDay(cW,4);
+  document.getElementById('wrange').textContent = `${fD(mo)} – ${fD(fri)}`;
+
+  let filled=0, total=EEG_DAYS.length * EEG_SLOTS.length;
+  EEG_DAYS.forEach(d => EEG_SLOTS.forEach(s => { if(byEEG(cW,d.label,s.slot)) filled++; }));
+  document.getElementById('wfill').textContent = `${filled} / ${total} Slots belegt`;
+
+  const content = document.getElementById('cal-content');
+  const hdrColor = 'var(--teegc)';
+
+  content.innerHTML = `<div class="dgrid" style="grid-template-columns:repeat(4,1fr)">${EEG_DAYS.map(d => {
+    const date = wDay(cW, d.off);
+    const dayFilled = EEG_SLOTS.filter(s => byEEG(cW,d.label,s.slot)).length;
+    const pct = Math.round(dayFilled/EEG_SLOTS.length*100);
+
+    const daySperre = Object.values(SPERREN).find(sp =>
+      sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) &&
+      (sp.termin==='EEG'||sp.termin==='ALL'));
+    const hdrColorFinal = daySperre ? '#8B1A1A' : hdrColor;
+    const dayBlockedNote = daySperre
+      ? `<div style="font-size:9.5px;color:rgba(255,220,220,.9);margin-top:3px">⛔ ${daySperre.grund||'Gesperrt'}</div>` : '';
+    const dayLockBtn = isAdmin()
+      ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'EEG','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>` : '';
+
+    const cards = EEG_SLOTS.map(s => {
+      const bk = byEEG(cW, d.label, s.slot);
+      const slotSperr = Object.values(SPERREN).find(sp =>
+        sp.week===cW && sp.day===d.label && sp.slot===s.slot && (sp.termin==='EEG'||sp.termin==='ALL'));
+      const isSp = slotSperr || daySperre;
+
+      const proHtml = isSp
+        ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSp.grund?` · ${isSp.grund}`:''}</div>`
+        : bk
+          ? `<div class="prow"><span class="pbadge">${bk.pid}</span><span class="lbadge">${bk.lnr}</span>${isAdmin()?`<button class="btn btn-xs btn-d" onclick="delEEGBooking('${bk._id}')">✕</button>`:''}</div>`
+          : `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()&&!daySperre?`<button class="btn btn-xs btn-p" onclick="openEEGBookModal(${cW},'${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
+
+      const lockIcon = isAdmin()
+        ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'EEG','${d.label}',${s.slot})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>` : '';
+
+      return `<div class="sc ${bk&&!isSp?'booked':''} ${isSp?'slot-blocked':''}">
+        <div class="sc-top">
+          <span class="sc-num">Slot ${s.slot}</span>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span class="sc-time">${s.blutStart}–${s.end}</span>
+            ${lockIcon}
+          </div>
+        </div>
+        <div class="sc-body">${proHtml}</div>
+      </div>`;
+    }).join('');
+
+    return `<div class="dcol">
+      <div class="dayhdr-top" style="background:${hdrColorFinal};border-radius:var(--r) var(--r) 0 0">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="dname">${d.label}</div>${dayLockBtn}
+        </div>
+        <div class="drow"><span class="ddate">${fD(date)} · ${dayFilled}/${EEG_SLOTS.length}</span><span class="dphase">EEG</span></div>
+        ${dayBlockedNote}
+        <div class="dfill"><div class="dfill-bar" style="width:${pct}%"></div></div>
+      </div>${cards}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderMRTWeek() {
+  const mo = wMon(cW), k = kw(mo);
+  document.getElementById('wbadge').textContent = `KW ${k} · ${mo.getFullYear()}`;
+  const fri = wDay(cW,4);
+  document.getElementById('wrange').textContent = `${fD(mo)} – ${fD(fri)}`;
+
+  const isFixedPhase = mo >= MRT_CUTOFF;
+  const content = document.getElementById('cal-content');
+  const hdrColor = 'var(--tmlrtc)';
+
+  let filled=0, total=0;
+  MRT_DAYS.forEach(d => {
+    const times = getMrtSlotsForDay(cW, d.label);
+    total += times.length;
+    times.forEach((_,i) => { if(byMRT(cW,d.label,i)) filled++; });
+  });
+  document.getElementById('wfill').textContent = `${filled} / ${total} Slots belegt`;
+
+  const phaseHint = isFixedPhase
+    ? `<div style="font-size:11px;color:var(--g5);margin-bottom:8px">📅 Fixphase ab 04.05.2026 · 07:00–08:30</div>`
+    : `<div style="font-size:11px;color:#7A3D00;background:#FFF3E0;border:1px solid #FFCC80;border-radius:var(--r);padding:6px 10px;margin-bottom:10px">⚙️ Flexible Phase vor 04.05.2026 · Admin kann Startzeiten pro Tag eintragen</div>`;
+
+  content.innerHTML = phaseHint + `<div class="dgrid" style="grid-template-columns:repeat(5,1fr)">${MRT_DAYS.map(d => {
+    const date = wDay(cW, d.off);
+    const times = getMrtSlotsForDay(cW, d.label);
+    const dayFilled = times.filter((_,i)=>byMRT(cW,d.label,i)).length;
+    const pct = times.length ? Math.round(dayFilled/times.length*100) : 0;
+
+    const daySperre = Object.values(SPERREN).find(sp =>
+      sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) && (sp.termin==='MRT'||sp.termin==='ALL'));
+    const hdrColorFinal = daySperre ? '#8B1A1A' : hdrColor;
+    const dayBlockedNote = daySperre
+      ? `<div style="font-size:9.5px;color:rgba(255,220,220,.9);margin-top:3px">⛔ ${daySperre.grund||'Gesperrt'}</div>` : '';
+    const dayLockBtn = isAdmin()
+      ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'MRT','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>` : '';
+
+    const addSlotBtn = isAdmin() && !isFixedPhase && !daySperre
+      ? `<button class="btn btn-xs" style="margin:6px 0 4px;width:100%;font-size:10px" onclick="openAddMrtSlot(${cW},'${d.label}')">+ Slot hinzufügen</button>` : '';
+
+    const slotCards = times.length === 0
+      ? `<div style="padding:1rem;text-align:center;font-size:11px;color:var(--g4);font-style:italic">Keine Slots eingetragen</div>`
+      : times.map((t,i) => {
+          const bk = byMRT(cW, d.label, i);
+          const slotSperr = Object.values(SPERREN).find(sp =>
+            sp.week===cW && sp.day===d.label && sp.slot===i && (sp.termin==='MRT'||sp.termin==='ALL'));
+          const isSp = slotSperr || daySperre;
+          // calc end time
+          const [hh,mm] = t.split(':').map(Number);
+          const endMin = hh*60+mm+90;
+          const endStr = `${String(Math.floor(endMin/60)).padStart(2,'0')}:${String(endMin%60).padStart(2,'0')}`;
+
+          const proHtml = isSp
+            ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong></div>`
+            : bk
+              ? `<div class="prow"><span class="pbadge">${bk.pid}</span><span class="lbadge">${bk.lnr}</span>${isAdmin()?`<button class="btn btn-xs btn-d" onclick="delMRTBooking('${bk._id}')">✕</button>`:''}</div>`
+              : `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()&&!daySperre?`<button class="btn btn-xs btn-p" onclick="openMRTBookModal(${cW},'${d.label}',${i})">+ Zuweisen</button>`:''}</div>`;
+
+          const lockIcon = isAdmin()
+            ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'MRT','${d.label}',${i})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>` : '';
+          const delSlotBtn = isAdmin() && !isFixedPhase
+            ? `<button class="slot-lock-btn" onclick="delMrtSlotTime(${cW},'${d.label}',${i})" title="Slot entfernen" style="color:#C8102E">✕</button>` : '';
+
+          return `<div class="sc ${bk&&!isSp?'booked':''} ${isSp?'slot-blocked':''}">
+            <div class="sc-top">
+              <span class="sc-num">Slot ${i+1}</span>
+              <div style="display:flex;align-items:center;gap:2px">
+                <span class="sc-time">${t}–${endStr}</span>
+                ${lockIcon}${delSlotBtn}
+              </div>
+            </div>
+            <div class="sc-body">${proHtml}</div>
+          </div>`;
+        }).join('');
+
+    return `<div class="dcol">
+      <div class="dayhdr-top" style="background:${hdrColorFinal};border-radius:var(--r) var(--r) 0 0">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="dname">${d.label}</div>${dayLockBtn}
+        </div>
+        <div class="drow"><span class="ddate">${fD(date)} · ${dayFilled}/${times.length}</span><span class="dphase">MRT</span></div>
+        ${dayBlockedNote}
+        <div class="dfill"><div class="dfill-bar" style="width:${pct}%"></div></div>
+      </div>
+      ${slotCards}
+      ${addSlotBtn}
     </div>`;
   }).join('')}</div>`;
 }
@@ -2159,6 +2404,107 @@ window.exportRecalls = () => {
   const h=['P-ID','Laufnr.','Datum','Uhrzeit','Notiz'];
   const rows=rs.map(r=>{const p=Object.values(P).find(x=>x._id===r.pid);return[p?.pid||'',p?.lnr||'',r.date||'',r.time||'',r.note||''];});
   dlCSV([h,...rows],tsFile('AAAging_Recalls')); toast('Recalls exportiert ✓');
+};
+
+// ── EEG BOOKING ───────────────────
+let _eegBookCtx = null;
+window.openEEGBookModal = (w, day, slot) => {
+  _eegBookCtx = {w, day, slot};
+  const sel = document.getElementById('eeg-book-pid');
+  sel.innerHTML = Object.values(P).sort((a,b)=>(a.pid||'').localeCompare(b.pid||'')).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
+  document.getElementById('eeg-book-info').textContent = `${day} · KW ${kw(wMon(w))} · Slot ${slot} (${EEG_SLOTS[slot-1].blutStart}–${EEG_SLOTS[slot-1].end})`;
+  document.getElementById('eeg-book-modal').style.display='flex';
+};
+window.closeEEGBookModal = () => { document.getElementById('eeg-book-modal').style.display='none'; };
+window.saveEEGBooking = async () => {
+  if(!_eegBookCtx) return;
+  const {w,day,slot} = _eegBookCtx;
+  const pid_sel = document.getElementById('eeg-book-pid').value;
+  const p = Object.values(P).find(x=>x._id===pid_sel);
+  if(!p){toast('Proband nicht gefunden',true);return;}
+  try {
+    const {addDoc,collection:col} = window._fbFns;
+    await addDoc(col(db,'eeg_bookings'),{week:w,day,slot,pid:p.pid,lnr:p.lnr,probandId:p._id,created:Date.now()});
+    toast('EEG-Slot gebucht ✓'); closeEEGBookModal();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+window.delEEGBooking = async (id) => {
+  if(!confirm('Buchung wirklich löschen?')) return;
+  try { const {deleteDoc,doc:fdoc}=window._fbFns; await deleteDoc(fdoc(db,'eeg_bookings',id)); toast('Buchung gelöscht ✓'); }
+  catch(e){toast('Fehler: '+e.message,true);}
+};
+
+// ── MRT BOOKING ───────────────────
+let _mrtBookCtx = null;
+window.openMRTBookModal = (w, day, slotIdx) => {
+  _mrtBookCtx = {w, day, slotIdx};
+  const times = getMrtSlotsForDay(w, day);
+  const t = times[slotIdx] || '?';
+  const [hh,mm] = t.split(':').map(Number);
+  const endMin = hh*60+mm+90;
+  const endStr = `${String(Math.floor(endMin/60)).padStart(2,'0')}:${String(endMin%60).padStart(2,'0')}`;
+  const sel = document.getElementById('mrt-book-pid');
+  sel.innerHTML = Object.values(P).sort((a,b)=>(a.pid||'').localeCompare(b.pid||'')).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
+  document.getElementById('mrt-book-info').textContent = `${day} · KW ${kw(wMon(w))} · Slot ${slotIdx+1} (${t}–${endStr})`;
+  document.getElementById('mrt-book-modal').style.display='flex';
+};
+window.closeMRTBookModal = () => { document.getElementById('mrt-book-modal').style.display='none'; };
+window.saveMRTBooking = async () => {
+  if(!_mrtBookCtx) return;
+  const {w,day,slotIdx} = _mrtBookCtx;
+  const pid_sel = document.getElementById('mrt-book-pid').value;
+  const p = Object.values(P).find(x=>x._id===pid_sel);
+  if(!p){toast('Proband nicht gefunden',true);return;}
+  try {
+    const {addDoc,collection:col} = window._fbFns;
+    await addDoc(col(db,'mrt_bookings'),{week:w,day,slotIdx,pid:p.pid,lnr:p.lnr,probandId:p._id,created:Date.now()});
+    toast('MRT-Slot gebucht ✓'); closeMRTBookModal();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+window.delMRTBooking = async (id) => {
+  if(!confirm('Buchung wirklich löschen?')) return;
+  try { const {deleteDoc,doc:fdoc}=window._fbFns; await deleteDoc(fdoc(db,'mrt_bookings',id)); toast('Buchung gelöscht ✓'); }
+  catch(e){toast('Fehler: '+e.message,true);}
+};
+
+// ── MRT CUSTOM SLOTS (pre-cutoff) ─
+let _mrtSlotCtx = null;
+window.openAddMrtSlot = (w, day) => {
+  _mrtSlotCtx = {w, day};
+  document.getElementById('mrt-slot-info').textContent = `${day} · KW ${kw(wMon(w))}`;
+  document.getElementById('mrt-slot-time').value = '';
+  document.getElementById('mrt-slot-modal').style.display='flex';
+};
+window.closeMrtSlotModal = () => { document.getElementById('mrt-slot-modal').style.display='none'; };
+window.saveMrtSlotTime = async () => {
+  if(!_mrtSlotCtx) return;
+  const {w,day} = _mrtSlotCtx;
+  const t = document.getElementById('mrt-slot-time').value;
+  if(!t){toast('Bitte Uhrzeit eingeben',true);return;}
+  const {setDoc,doc:fdoc,getDoc} = window._fbFns;
+  const key = `${w}_${day}`.replace(/[^a-zA-Z0-9_]/g,'_');
+  try {
+    const existing = Object.values(MRT_SLOTS).find(s=>s.week===w&&s.day===day);
+    if(existing){
+      const times = [...(existing.times||[]),t].sort();
+      await setDoc(fdoc(db,'mrt_slots',existing._id),{week:w,day,times});
+    } else {
+      const {addDoc,collection:col}=window._fbFns;
+      await addDoc(col(db,'mrt_slots'),{week:w,day,times:[t]});
+    }
+    toast('Slot hinzugefügt ✓'); closeMrtSlotModal();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+window.delMrtSlotTime = async (w, day, idx) => {
+  if(!confirm('Slot wirklich entfernen?')) return;
+  const existing = Object.values(MRT_SLOTS).find(s=>s.week===w&&s.day===day);
+  if(!existing) return;
+  const times = existing.times.filter((_,i)=>i!==idx);
+  try {
+    const {setDoc,doc:fdoc}=window._fbFns;
+    await setDoc(fdoc(db,'mrt_slots',existing._id),{week:w,day,times});
+    toast('Slot entfernt ✓');
+  } catch(e){toast('Fehler: '+e.message,true);}
 };
 
 // ── HELPERS ───────────────────────
