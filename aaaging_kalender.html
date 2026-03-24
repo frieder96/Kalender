@@ -1032,15 +1032,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <div class="fg"><label class="fl">Datum</label><input class="fi" type="date" id="ir-date"></div>
         <div class="fg"><label class="fl">Uhrzeit</label><input class="fi" type="time" id="ir-time"></div>
       </div>
-      <div class="fg">
-        <label class="fl">Raum <span style="font-weight:400;color:var(--g4)">(optional)</span></label>
-        <div style="display:flex;gap:6px">
-          <select class="fi" id="ir-room" style="flex:1">
-            <option value="">— kein Raum —</option>
-          </select>
-          <button class="btn btn-xs" onclick="openRoomManager()" title="Räume verwalten" style="white-space:nowrap">⚙️ Räume</button>
-        </div>
-      </div>
+
       <div class="fg"><label class="fl">Notiz</label><textarea class="notiz-box" id="ir-note" placeholder="z. B. telefonisch, vor Ort …"></textarea></div>
     </div>
     <div class="mftr"><button class="btn btn-sm" onclick="closeRecall()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveRecall()">Speichern</button></div>
@@ -1118,7 +1110,11 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div class="mbody">
       <div style="font-size:12.5px;color:var(--g5);margin-bottom:14px" id="assign-modal-sub"></div>
       <div class="fg"><label class="fl">Zuständige Person</label><select class="fi" id="i-assign-person"><option value="">— Niemand zugewiesen —</option></select></div>
-      <div class="fg" id="assign-room-wrap" style="display:none"><label class="fl">Raum <span style="font-weight:400;color:var(--g4)">(optional)</span></label><input class="fi" id="i-assign-room" placeholder="z. B. SR 1, Labor B, Telefonisch …" maxlength="60"></div>
+      <div class="fg" id="assign-room-wrap" style="display:none"><label class="fl">Raum <span style="font-weight:400;color:var(--g4)">(optional)</span></label>
+        <select class="fi" id="i-assign-room">
+          <option value="">— kein Raum —</option>
+        </select>
+      </div>
       <div class="fg"><label class="fl">Notiz (optional)</label><textarea class="notiz-box" id="i-assign-note" placeholder="z. B. bitte 10 min früher da sein…"></textarea></div>
     </div>
     <div class="mftr"><button class="btn btn-sm" onclick="closeAssignModal()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveAssign()">Speichern</button></div>
@@ -1925,7 +1921,6 @@ function renderRecalls() {
           ${p?`<span class="pbadge">${p.pid}</span><span class="lbadge">${p.lnr}</span>`:`<span style="color:var(--g4);font-size:12px">Proband nicht gefunden</span>`}
           <span style="font-family:monospace;font-size:12px;color:var(--bk);font-weight:700">${r.date?new Date(r.date).toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}):''}</span>
           ${r.time?`<span style="font-family:monospace;font-size:12px;color:var(--g5)">${r.time} Uhr</span>`:''}
-          ${r.room?`<span style="font-size:12px;color:var(--ub)">📍 ${r.room}</span>`:''}
           ${r.note?`<span style="font-size:12px;color:var(--g5);font-style:italic">· ${r.note}</span>`:''}
         </div>
         ${isAdmin()?`<div style="display:flex;gap:5px"><button class="btn btn-xs" onclick="openEditRecall('${r._id}')">Bearbeiten</button><button class="btn btn-xs btn-d" onclick="delRecall('${r._id}')">Löschen</button></div>`:''}
@@ -2226,7 +2221,6 @@ window.openAddRecall = () => {
   document.getElementById('ir-date').value='';
   document.getElementById('ir-time').value='';
   document.getElementById('ir-note').value='';
-  refreshRoomDropdown();
   const sel=document.getElementById('ir-pid');
   sel.innerHTML='<option value="">— Proband auswählen —</option>'+
     Object.values(P).sort((a,b)=>a.lnr.localeCompare(b.lnr)).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
@@ -2243,7 +2237,6 @@ window.openEditRecall = id => {
   document.getElementById('ir-date').value=r.date||'';
   document.getElementById('ir-time').value=r.time||'';
   document.getElementById('ir-note').value=r.note||'';
-  refreshRoomDropdown(r.room||'');
   document.getElementById('recall-modal').classList.add('open');
 };
 
@@ -2254,9 +2247,8 @@ window.saveRecall = async () => {
   const date=document.getElementById('ir-date').value;
   const time=document.getElementById('ir-time').value;
   const note=document.getElementById('ir-note').value.trim();
-  const room=document.getElementById('ir-room').value;
   if(!pid||!date){toast('Proband und Datum sind Pflicht',true);return;}
-  const data={pid,date,time,note,room,updated:Date.now()};
+  const data={pid,date,time,note,updated:Date.now()};
   try {
     if(recallEditId){ await updateDoc(doc(db,'recalls',recallEditId),data); }
     else { await addDoc(collection(db,'recalls'),{...data,created:Date.now()}); }
@@ -2361,7 +2353,14 @@ window.openAssignModal = (key, measure, label, slotDate, slotTime) => {
 
   document.getElementById('i-assign-person').innerHTML='<option value="">— Niemand —</option>'+opts;
   document.getElementById('assign-room-wrap').style.display = '';
-  document.getElementById('i-assign-room').value = existing?.room||'';
+  // Populate room dropdown from saved rooms
+  const roomSel = document.getElementById('i-assign-room');
+  const savedRooms = Object.values(ROOMS).sort((a,b)=>a.name.localeCompare(b.name));
+  roomSel.innerHTML = '<option value="">— kein Raum —</option>' +
+    savedRooms.map(r=>`<option value="${r.name}" ${existing?.room===r.name?'selected':''}>${r.name}</option>`).join('');
+  if(existing?.room && !savedRooms.find(r=>r.name===existing.room)){
+    roomSel.innerHTML += `<option value="${existing.room}" selected>${existing.room}</option>`;
+  }
   document.getElementById('i-assign-note').value=existing?.note||'';
 
   // Show availability legend if any conflicts
