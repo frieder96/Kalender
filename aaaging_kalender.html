@@ -1032,9 +1032,34 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <div class="fg"><label class="fl">Datum</label><input class="fi" type="date" id="ir-date"></div>
         <div class="fg"><label class="fl">Uhrzeit</label><input class="fi" type="time" id="ir-time"></div>
       </div>
+      <div class="fg">
+        <label class="fl">Raum <span style="font-weight:400;color:var(--g4)">(optional)</span></label>
+        <div style="display:flex;gap:6px">
+          <select class="fi" id="ir-room" style="flex:1">
+            <option value="">— kein Raum —</option>
+          </select>
+          <button class="btn btn-xs" onclick="openRoomManager()" title="Räume verwalten" style="white-space:nowrap">⚙️ Räume</button>
+        </div>
+      </div>
       <div class="fg"><label class="fl">Notiz</label><textarea class="notiz-box" id="ir-note" placeholder="z. B. telefonisch, vor Ort …"></textarea></div>
     </div>
     <div class="mftr"><button class="btn btn-sm" onclick="closeRecall()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveRecall()">Speichern</button></div>
+  </div>
+</div>
+
+<!-- ROOM MANAGER MODAL -->
+<div class="ov" id="room-manager-modal" onclick="if(event.target===this)closeRoomManager()">
+  <div class="modal">
+    <div class="mhdr" style="background:var(--ub)"><span class="mtitle">Räume verwalten</span><button class="mclose" onclick="closeRoomManager()">×</button></div>
+    <div class="mbody">
+      <div style="font-size:12px;color:var(--g5);margin-bottom:12px">Feste Räume für 24h Recalls — stehen in jedem Recall-Modal zur Auswahl.</div>
+      <div id="room-list" style="margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px">
+        <input class="fi" id="i-new-room" placeholder="Raum hinzufügen z. B. SR 1, Labor B …" maxlength="60" onkeydown="if(event.key==='Enter')saveRoom()">
+        <button class="btn btn-sm btn-p" onclick="saveRoom()">+ Hinzufügen</button>
+      </div>
+    </div>
+    <div class="mftr"><button class="btn btn-sm" onclick="closeRoomManager()">Schließen</button></div>
   </div>
 </div>
 
@@ -1227,7 +1252,7 @@ const T11 = T11_STARTS.map((bs,i) => {
   ]};
 });
 
-// T1.2: 8 slots (1-4 Mi, 5-8 Do)
+// T1.2: 8 slots (1-4 Mi, 5-8 Do) — Isokinetik 75min, no 24h Recall
 const T12 = Array.from({length:8},(_,i) => {
   const sn=i+1, sm=7*60+45+i*60;
   const sH=Math.floor(sm/60), sMm=sm%60;
@@ -1235,15 +1260,14 @@ const T12 = Array.from({length:8},(_,i) => {
   const day=sn<=4?'Mittwoch':'Donnerstag';
   return { slot:sn, day, blutStart:iso, measures:[
     {label:'Isokinetik',cls:'ciso',t:iso},
-    {label:'RBANS',cls:'crbans',t:am(sH,sMm,105)},
-    {label:'24h Recall',cls:'crecall',t:am(sH,sMm,150)},
+    {label:'RBANS',cls:'crbans',t:am(sH,sMm,75)},
   ]};
 });
 
-// T2 & T3: same structure as T1 (T2.1=T1.1, T2.2=T1.2)
-const T21 = T11.map(s => ({...s}));
+// T2 & T3: same structure as T1 but T2.1/T3.1 (Mo/Di) have no 24h Recall
+const T21 = T11.map(s => ({...s, measures: s.measures.filter(m=>m.label!=='24h Recall')}));
 const T22 = T12.map(s => ({...s}));
-const T31 = T11.map(s => ({...s}));
+const T31 = T11.map(s => ({...s, measures: s.measures.filter(m=>m.label!=='24h Recall')}));
 const T32 = T12.map(s => ({...s}));
 
 window._T0=T0; window._T11=T11; window._T12=T12;
@@ -1252,7 +1276,7 @@ window._T21=T21; window._T22=T22; window._T31=T31; window._T32=T32;
 // EEG: Di/Mi/Do/Fr, 3 fixed 2.5h slots
 const EEG_STARTS = ['09:00','11:30','15:00'];
 const EEG_ENDS   = ['11:30','14:00','17:30'];
-const EEG_DAYS   = [{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
+const EEG_DAYS   = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 const EEG_SLOTS  = EEG_STARTS.map((t,i)=>({slot:i+1, blutStart:t, end:EEG_ENDS[i], measures:[{label:'EEG-Messung',cls:'ceinschl',t}]}));
 
 // MRT: Mo–Fr, 90-min slots. Fixed from 04.05.2026 (07:00–08:30). Before: custom per day.
@@ -1276,7 +1300,7 @@ function kw(d) {
 const DOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
 
 // ── STATE ─────────────────────────
-let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={};
+let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={}, ROOMS={};
 window._P = () => P;
 let cW=0, curTermin='T0';
 let eId=null, recallEditId=null, assignKey=null, tW=0;
@@ -1381,6 +1405,9 @@ function startDB() {
   onSnapshot(collection(db,'abwesenheiten'), snap => {
     ABSENT={}; snap.forEach(d=>{ABSENT[d.id]={...d.data(),_id:d.id}}); renderAbsentCal();
   });
+  onSnapshot(collection(db,'recall_rooms'), snap => {
+    ROOMS={}; snap.forEach(d=>{ROOMS[d.id]={...d.data(),_id:d.id}}); renderRoomList(); refreshRoomDropdown();
+  });
   onSnapshot(collection(db,'eeg_bookings'), snap => {
     EEG_BOOKINGS={}; snap.forEach(d=>{EEG_BOOKINGS[d.id]={...d.data(),_id:d.id}}); renderWeek();
   });
@@ -1469,7 +1496,7 @@ function renderWeek() {
       // Check slot-level and day-level sperre
       const _tMatch = t => t===curTermin || t==='ALL' || t===curTermin.replace(/\.[12]$/,'');
       const slotSperr = Object.values(SPERREN).find(sp =>
-        sp.week===cW && sp.day===d.label && sp.slot===s.slot && _tMatch(sp.termin));
+        sp.week===cW && sp.day===d.label && Number(sp.slot)===Number(s.slot) && _tMatch(sp.termin));
       const daySperr = !slotSperr && Object.values(SPERREN).find(sp =>
         sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) && _tMatch(sp.termin));
       const isSperred = slotSperr || daySperr;
@@ -1867,9 +1894,12 @@ function renderTable() {
   const ps=Object.values(P).sort((a,b)=>a.lnr.localeCompare(b.lnr));
   if(!ps.length){tbody.innerHTML='<tr><td colspan="9" class="te">Noch keine Probanden angelegt.</td></tr>';return;}
   tbody.innerHTML=ps.map(p=>{
-    const t0 = p.t0week!==undefined?`<span style="font-size:11px">${p.t0day?.slice(0,2)} KW${kw(wMon(p.t0week))}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
-    const t11 = p.t1week!==undefined?`<span style="font-size:11px">${p.t1day11?.slice(0,2)} S${p.t1slot11}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
-    const t12 = p.t1week!==undefined?`<span style="font-size:11px">${p.t1day12?.slice(0,2)} S${p.t1slot12}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
+    const _t0time = p.t0slot ? (T0.find(s=>s.slot===p.t0slot)?.blutStart||'') : '';
+    const _t11time = p.t1slot11 ? (T11.find(s=>s.slot===p.t1slot11)?.blutStart||'') : '';
+    const _t12time = p.t1slot12 ? (T12.find(s=>s.slot===p.t1slot12)?.blutStart||'') : '';
+    const t0 = p.t0week!==undefined?`<span style="font-size:11px">${p.t0day?.slice(0,2)} ${_t0time}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
+    const t11 = p.t1week!==undefined?`<span style="font-size:11px">${p.t1day11?.slice(0,2)} ${_t11time}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
+    const t12 = p.t1week!==undefined?`<span style="font-size:11px">${p.t1day12?.slice(0,2)} ${_t12time}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
     const t2 = p.t2date?`<span style="font-size:11px">${new Date(p.t2date).toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'2-digit'})}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
     const t3 = p.t3date?`<span style="font-size:11px">${new Date(p.t3date).toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'2-digit'})}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
     return `<tr>
@@ -1894,6 +1924,7 @@ function renderRecalls() {
           ${p?`<span class="pbadge">${p.pid}</span><span class="lbadge">${p.lnr}</span>`:`<span style="color:var(--g4);font-size:12px">Proband nicht gefunden</span>`}
           <span style="font-family:monospace;font-size:12px;color:var(--bk);font-weight:700">${r.date?new Date(r.date).toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}):''}</span>
           ${r.time?`<span style="font-family:monospace;font-size:12px;color:var(--g5)">${r.time} Uhr</span>`:''}
+          ${r.room?`<span style="font-size:12px;color:var(--ub)">📍 ${r.room}</span>`:''}
           ${r.note?`<span style="font-size:12px;color:var(--g5);font-style:italic">· ${r.note}</span>`:''}
         </div>
         ${isAdmin()?`<div style="display:flex;gap:5px"><button class="btn btn-xs" onclick="openEditRecall('${r._id}')">Bearbeiten</button><button class="btn btn-xs btn-d" onclick="delRecall('${r._id}')">Löschen</button></div>`:''}
@@ -2146,6 +2177,47 @@ window.delProband = async id => {
 };
 
 // ── RECALLS ───────────────────────
+function refreshRoomDropdown(selected='') {
+  const sel = document.getElementById('ir-room'); if(!sel) return;
+  const rooms = Object.values(ROOMS).sort((a,b)=>a.name.localeCompare(b.name));
+  sel.innerHTML = '<option value="">— kein Raum —</option>' +
+    rooms.map(r=>`<option value="${r.name}" ${r.name===selected?'selected':''}>${r.name}</option>`).join('');
+}
+
+function renderRoomList() {
+  const el = document.getElementById('room-list'); if(!el) return;
+  const rooms = Object.values(ROOMS).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!rooms.length){ el.innerHTML='<div style="font-size:12px;color:var(--g4);font-style:italic">Noch keine Räume eingetragen.</div>'; return; }
+  el.innerHTML = rooms.map(r=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--g1);border-radius:var(--r);margin-bottom:4px">
+    <span style="font-size:13px">📍 ${r.name}</span>
+    <button class="btn btn-xs btn-d" onclick="deleteRoom('${r._id}')">×</button>
+  </div>`).join('');
+}
+
+window.openRoomManager = () => {
+  renderRoomList();
+  document.getElementById('i-new-room').value='';
+  document.getElementById('room-manager-modal').classList.add('open');
+};
+window.closeRoomManager = () => { document.getElementById('room-manager-modal').classList.remove('open'); };
+
+window.saveRoom = async () => {
+  const name = document.getElementById('i-new-room').value.trim();
+  if(!name){toast('Bitte Raumname eingeben',true);return;}
+  if(Object.values(ROOMS).some(r=>r.name===name)){toast('Raum bereits vorhanden',true);return;}
+  try {
+    await addDoc(collection(db,'recall_rooms'),{name,created:Date.now()});
+    document.getElementById('i-new-room').value='';
+    toast(`${name} hinzugefügt ✓`);
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+
+window.deleteRoom = async (id) => {
+  if(!confirm('Raum wirklich löschen?')) return;
+  try { await deleteDoc(doc(db,'recall_rooms',id)); toast('Raum gelöscht'); }
+  catch(e){toast('Fehler: '+e.message,true);}
+};
+
 window.openAddRecall = () => {
   if(!isAdmin()){toast('Keine Berechtigung',true);return;}
   recallEditId=null;
@@ -2153,6 +2225,7 @@ window.openAddRecall = () => {
   document.getElementById('ir-date').value='';
   document.getElementById('ir-time').value='';
   document.getElementById('ir-note').value='';
+  refreshRoomDropdown();
   const sel=document.getElementById('ir-pid');
   sel.innerHTML='<option value="">— Proband auswählen —</option>'+
     Object.values(P).sort((a,b)=>a.lnr.localeCompare(b.lnr)).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
@@ -2169,6 +2242,7 @@ window.openEditRecall = id => {
   document.getElementById('ir-date').value=r.date||'';
   document.getElementById('ir-time').value=r.time||'';
   document.getElementById('ir-note').value=r.note||'';
+  refreshRoomDropdown(r.room||'');
   document.getElementById('recall-modal').classList.add('open');
 };
 
@@ -2179,8 +2253,9 @@ window.saveRecall = async () => {
   const date=document.getElementById('ir-date').value;
   const time=document.getElementById('ir-time').value;
   const note=document.getElementById('ir-note').value.trim();
+  const room=document.getElementById('ir-room').value;
   if(!pid||!date){toast('Proband und Datum sind Pflicht',true);return;}
-  const data={pid,date,time,note,updated:Date.now()};
+  const data={pid,date,time,note,room,updated:Date.now()};
   try {
     if(recallEditId){ await updateDoc(doc(db,'recalls',recallEditId),data); }
     else { await addDoc(collection(db,'recalls'),{...data,created:Date.now()}); }
@@ -2199,7 +2274,14 @@ function renderMemberList() {
   const el=document.getElementById('member-list'); if(!el) return;
   const members=Object.values(TEAM);
   if(!members.length){el.innerHTML='<span style="font-size:12.5px;color:var(--g4);font-style:italic">Noch keine Teammitglieder.</span>';return;}
-  el.innerHTML=members.map(m=>`<span class="member-pill"><span style="font-weight:600">${m.name}</span>${m.role?`<span style="font-size:10px;color:var(--g5)">· ${m.role}</span>`:''}${isAdmin()?`<button class="member-del" onclick="deleteMember('${m._id}')">×</button>`:''}</span>`).join('');
+  // PhD students first, then others alphabetically
+  const isPhd = m => (m.role||'').toLowerCase().includes('phd') || (m.role||'').toLowerCase().includes('doktor') || (m.role||'').toLowerCase().includes('ph.d');
+  const sorted = [...members].sort((a,b) => {
+    const aPhd=isPhd(a), bPhd=isPhd(b);
+    if(aPhd&&!bPhd) return -1; if(!aPhd&&bPhd) return 1;
+    return a.name.localeCompare(b.name);
+  });
+  el.innerHTML=sorted.map(m=>`<span class="member-pill">${isPhd(m)?'<span style="font-size:9px;color:#5D5DBB;font-weight:700;margin-right:3px">PhD</span>':''}<span style="font-weight:600">${m.name}</span>${m.role?`<span style="font-size:10px;color:var(--g5)">· ${m.role}</span>`:''}${isAdmin()?`<button class="member-del" onclick="deleteMember('${m._id}')">×</button>`:''}</span>`).join('');
 }
 
 window.openAddMember = () => {
@@ -2589,7 +2671,9 @@ window.openSperrenSlot = (week, termin, day, slot) => {
   document.getElementById('i-sperren-termin').value=termin;
   document.getElementById('i-sperren-grund').value='';
 
-  const existing = Object.values(SPERREN).find(s=>s.week===week&&s.day===day&&s.slot===slot&&(s.termin===termin||s.termin==='ALL'));
+  // Use loose equality for slot (Firestore may return number or int type)
+  const _stMatch = t => t===termin||t==='ALL'||t===termin.replace(/\.[12]$/,'');
+  const existing = Object.values(SPERREN).find(s=>s.week===week&&s.day===day&&Number(s.slot)==Number(slot)&&_stMatch(s.termin));
   const delBtn = document.getElementById('sperren-del-btn');
   if(existing){ sperrenEditId=existing._id; document.getElementById('i-sperren-grund').value=existing.grund||''; document.getElementById('i-sperren-termin').value=existing.termin||termin; delBtn.style.display=''; }
   else { delBtn.style.display='none'; }
