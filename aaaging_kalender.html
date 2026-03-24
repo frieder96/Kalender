@@ -3274,7 +3274,7 @@ function rpIsNow(timeStr) {
 
 function rpRenderLive() {
   const el = document.getElementById('rp-content'); if(!el) return;
-  const todayAssigns = rpGetTodayAssignments();
+  const todayAssigns = rpGetTodayAssignments().filter(a=>a.person);
   const now = new Date();
 
   // Group by room, filter to currently active or upcoming (next 2h)
@@ -3342,80 +3342,94 @@ function rpRenderLive() {
 
 function rpRenderDay() {
   const el = document.getElementById('rp-content'); if(!el) return;
-  const assignments = rpGetTodayAssignments();
+  const assignments = rpGetTodayAssignments().filter(a=>a.person);
   const today = new Date();
   const todayLabel = today.toLocaleDateString('de-AT',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
 
-  // Group by room → by time
+  // Group by room
   const byRoom = {};
   Object.values(ROOMS).forEach(r=>{ byRoom[r.name]=[]; });
-  assignments.forEach(d=>{ if(!byRoom[d.room]) byRoom[d.room]=[]; byRoom[d.room].push(d); });
+  assignments.forEach(d=>{ if(d.room){if(!byRoom[d.room]) byRoom[d.room]=[]; byRoom[d.room].push(d);} });
+  // Remove rooms with no entries
+  const activeRooms = Object.entries(byRoom).filter(([,items])=>items.length);
 
-  const allTimes = [...new Set(assignments.map(d=>d.time).filter(Boolean))].sort();
-
-  if(!Object.keys(byRoom).length) {
-    el.innerHTML='<div style="padding:3rem;text-align:center;color:var(--g4);font-style:italic">Keine Räume konfiguriert.</div>'; return;
+  if(!activeRooms.length) {
+    el.innerHTML='<div style="padding:3rem;text-align:center;color:var(--g4);font-style:italic">Heute keine Termine mit Raum-Zuweisung.</div>'; return;
   }
 
   el.innerHTML = `
     <div style="font-size:13px;font-weight:600;color:var(--ub);margin-bottom:1rem">${todayLabel}</div>
-    <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead>
-        <tr>
-          <th style="padding:8px 12px;background:var(--ub);color:#fff;text-align:left;border-radius:var(--r) 0 0 0">Raum</th>
-          ${allTimes.map(t=>`<th style="padding:8px 12px;background:var(--ub);color:#fff;text-align:center;white-space:nowrap">${t}</th>`).join('')}
-        </tr>
-      </thead>
-      <tbody>
-        ${Object.entries(byRoom).map(([room, items],ri)=>`
-          <tr style="background:${ri%2?'#fff':'var(--g1)'}">
-            <td style="padding:8px 12px;font-weight:700;color:var(--g6);white-space:nowrap">📍 ${room}</td>
-            ${allTimes.map(t=>{
-              const hit = items.find(i=>i.time===t);
-              if(!hit) return `<td style="padding:8px;text-align:center;color:var(--g3)">—</td>`;
-              return `<td style="padding:6px 8px;text-align:center">
-                <div style="background:var(--t1bg);border:1px solid var(--t1bd);border-radius:4px;padding:4px 6px">
-                  <div style="font-size:10px;font-weight:700;color:var(--t1c)">${hit.measure}</div>
-                  <div style="font-size:10px;color:var(--g5)">${hit.person||'—'}</div>
-                </div>
-              </td>`;
-            }).join('')}
-          </tr>`).join('')}
-      </tbody>
-    </table></div>`;
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
+    ${activeRooms.map(([room,items])=>`
+      <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh)">
+        <div style="background:var(--ub);padding:10px 14px;font-size:13px;font-weight:700;color:#fff">📍 ${room}</div>
+        <div style="padding:10px">
+          ${items.sort((a,b)=>(a.time||'').localeCompare(b.time||'')).map(a=>{
+            const prob = Object.values(P).find(p=>p.pid===a.person||p.lnr===a.person);
+            const label = prob?(prob.pid||prob.lnr):a.person;
+            return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--g1)">
+              <span style="font-family:monospace;font-size:12px;font-weight:700;color:var(--ub);white-space:nowrap">${a.time}</span>
+              <div>
+                <div style="font-size:12px;font-weight:600;color:var(--bk)">${a.measure}</div>
+                <div style="font-size:11px;color:var(--g5)">${label||a.person}</div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`).join('')}
+    </div>`;
 }
 
 function rpRenderWeek() {
   const el = document.getElementById('rp-content'); if(!el) return;
-  const assignments = rpGetWeekAssignments(cW);
+  // Only show assignments where person is set
+  const assignments = rpGetWeekAssignments(cW).filter(a=>a.person);
   const mo = wMon(cW);
   const DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
 
-  const allRooms = [...new Set([...Object.values(ROOMS).map(r=>r.name), ...assignments.map(a=>a.room).filter(Boolean)])].sort();
+  // Only rooms that actually have entries this week
+  const usedRooms = [...new Set(assignments.map(a=>a.room).filter(Boolean))].sort();
+  const allRooms = usedRooms.length ? usedRooms
+    : Object.values(ROOMS).map(r=>r.name).sort();
 
   if(!allRooms.length) {
-    el.innerHTML='<div style="padding:3rem;text-align:center;color:var(--g4);font-style:italic">Keine Räume konfiguriert.</div>'; return;
+    el.innerHTML='<div style="padding:3rem;text-align:center;color:var(--g4);font-style:italic">Diese Woche keine Termine mit Raum-Zuweisung.</div>'; return;
   }
 
   el.innerHTML = `
     <div style="font-size:12px;color:var(--g5);margin-bottom:1rem">KW ${kw(mo)} · ${fD(mo)} – ${fD(wDay(cW,3))}</div>
-    <div style="display:grid;grid-template-columns:auto repeat(4,1fr);gap:1px;background:var(--g2);border-radius:var(--r);overflow:hidden">
-      <div style="background:var(--ub);padding:10px 14px;font-size:11px;font-weight:700;color:#fff">Raum</div>
-      ${DAYS.map(d=>`<div style="background:var(--ub);padding:10px 8px;font-size:11px;font-weight:700;color:#fff;text-align:center">${d.label.slice(0,2)}<br><span style="font-weight:400;opacity:.75">${fDs(wDay(cW,d.off))}</span></div>`).join('')}
-      ${allRooms.map((room,ri)=>`
-        <div style="background:${ri%2?'var(--g1)':'#fff'};padding:8px 14px;font-size:12px;font-weight:700;color:var(--g6);border-top:1px solid var(--g2)">📍 ${room}</div>
-        ${DAYS.map(d=>{
-          const items = assignments.filter(a=>a.room===room && a.day===d.label);
-          if(!items.length) return `<div style="background:${ri%2?'var(--g1)':'#fff'};padding:6px;border-top:1px solid var(--g2);text-align:center;color:var(--g3);font-size:11px">—</div>`;
-          return `<div style="background:${ri%2?'var(--g1)':'#fff'};padding:6px;border-top:1px solid var(--g2)">
-            ${items.map(a=>`<div style="background:var(--t1bg);border:1px solid var(--t1bd);border-radius:4px;padding:3px 6px;margin-bottom:3px;font-size:10px">
-              <span style="font-weight:700;color:var(--t1c)">${a.time}</span> ${a.measure}<br>
-              <span style="color:var(--g5)">${a.person||'—'}</span>
-            </div>`).join('')}
-          </div>`;
-        }).join('')}`).join('')}
-    </div>`;
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:600px">
+      <thead>
+        <tr>
+          <th style="padding:10px 14px;background:var(--ub);color:#fff;text-align:left;min-width:130px">Raum</th>
+          ${DAYS.map(d=>`<th style="padding:10px 8px;background:var(--ub);color:#fff;text-align:left">
+            ${d.label}<br><span style="font-weight:400;opacity:.75;font-size:10px">${fDs(wDay(cW,d.off))}</span>
+          </th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${allRooms.map((room,ri)=>{
+          const rowItems = DAYS.map(d=>assignments.filter(a=>a.room===room&&a.day===d.label)
+            .sort((a,b)=>(a.time||'').localeCompare(b.time||'')));
+          const hasAny = rowItems.some(items=>items.length);
+          if(!hasAny) return '';
+          return `<tr style="background:${ri%2?'var(--g1)':'#fff'}">
+            <td style="padding:10px 14px;font-weight:700;color:var(--g6);vertical-align:top;border-top:1px solid var(--g2)">📍 ${room}</td>
+            ${rowItems.map(items=>`<td style="padding:8px;vertical-align:top;border-top:1px solid var(--g2)">
+              ${items.length ? items.map(a=>{
+                const prob=Object.values(P).find(p=>p.pid===a.person||p.lnr===a.person);
+                const label=prob?(prob.lnr||(prob.pid||a.person)):a.person;
+                return `<div style="padding:5px 7px;margin-bottom:4px;background:var(--ubl);border-left:3px solid var(--ub);border-radius:3px">
+                  <div style="font-size:11px;font-weight:700;color:var(--ub)">${a.time} · ${a.measure}</div>
+                  <div style="font-size:11px;color:var(--g5);margin-top:1px">${label}</div>
+                </div>`;
+              }).join('') : '<span style="color:var(--g3);font-size:11px">—</span>'}
+            </td>`).join('')}
+          </tr>`;
+        }).join('\')}
+      </tbody>
+    </table></div>`;
 }
 function setSync(ok,lbl){ document.getElementById('sdot').style.background=ok?'#4CAF80':'#F0C040'; document.getElementById('slbl').textContent=lbl||(ok?'Synchronisiert':'Getrennt'); }
 function toast(msg,err=false){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast'+(err?' err':''); setTimeout(()=>t.classList.add('show'),10); setTimeout(()=>t.classList.remove('show'),3200); }
