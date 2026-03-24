@@ -687,7 +687,8 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 
       <div class="termin-tabs">
         <button class="ttab t0 on" onclick="setTermin('T0',this)">T0 — Voruntersuchung</button>
-        <button class="ttab t1" onclick="setTermin('T1',this)">T1 — Hauptuntersuchung</button>
+        <button class="ttab t1" onclick="setTermin('T1.1',this)">T1.1 — Hauptuntersuchung Mo/Di</button>
+        <button class="ttab t1" onclick="setTermin('T1.2',this)">T1.2 — Hauptuntersuchung Mi/Do</button>
         <button class="ttab t2" onclick="setTermin('T2',this)">T2 — Folgeuntersuchung</button>
         <button class="ttab t3" onclick="setTermin('T3',this)">T3 — Abschlussuntersuchung</button>
         <button class="ttab teeg" onclick="setTermin('EEG',this)">EEG</button>
@@ -1119,7 +1120,8 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <select class="fi" id="i-sperren-termin">
           <option value="ALL">Alle Phasen (T0, T1, T2, T3)</option>
           <option value="T0">Nur T0 — Voruntersuchung</option>
-          <option value="T1">Nur T1 — Hauptuntersuchung</option>
+          <option value="T1.1">Nur T1.1 — Hauptuntersuchung Mo/Di</option>
+          <option value="T1.2">Nur T1.2 — Hauptuntersuchung Mi/Do</option>
           <option value="T2">Nur T2 — Folgeuntersuchung</option>
           <option value="T3">Nur T3 — Abschlussuntersuchung</option>
         </select>
@@ -1399,12 +1401,16 @@ function renderWeek() {
   if (curTermin==='T0') {
     days=[{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
     slotSets=days.map(()=>T0); getters=days.map(()=>byT0); phaseLabel='T0'; headerColor='var(--t0c)';
-  } else if (curTermin==='T1') {
-    days=[{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
-    const slotsByDay={'Montag':T11,'Dienstag':T11,'Mittwoch':T12,'Donnerstag':T12};
-    slotSets=days.map(d=>slotsByDay[d.label]);
-    getters=days.map(d=>d.label==='Montag'||d.label==='Dienstag'?byT11:byT12);
-    phaseLabel='T1'; headerColor='var(--t1c)';
+  } else if (curTermin==='T1.1') {
+    days=[{label:'Montag',off:0},{label:'Dienstag',off:1}];
+    slotSets=days.map(()=>T11);
+    getters=days.map(()=>byT11);
+    phaseLabel='T1.1'; headerColor='var(--t1c)';
+  } else if (curTermin==='T1.2') {
+    days=[{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
+    slotSets=days.map(()=>T12);
+    getters=days.map(()=>byT12);
+    phaseLabel='T1.2'; headerColor='var(--t1c)';
   } else if (curTermin==='T2') {
     days=[{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
     const slotsByDay={'Montag':T21,'Dienstag':T21,'Mittwoch':T22,'Donnerstag':T22};
@@ -1438,12 +1444,11 @@ function renderWeek() {
       const p=getter(cW,d.label,s.slot);
 
       // Check slot-level and day-level sperre
+      const _tMatch = t => t===curTermin || t==='ALL' || (t==='T1' && (curTermin==='T1.1'||curTermin==='T1.2'));
       const slotSperr = Object.values(SPERREN).find(sp =>
-        sp.week===cW && sp.day===d.label && sp.slot===s.slot &&
-        (sp.termin===curTermin||sp.termin==='ALL'));
+        sp.week===cW && sp.day===d.label && sp.slot===s.slot && _tMatch(sp.termin));
       const daySperr = !slotSperr && Object.values(SPERREN).find(sp =>
-        sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) &&
-        (sp.termin===curTermin||sp.termin==='ALL'));
+        sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) && _tMatch(sp.termin));
       const isSperred = slotSperr || daySperr;
 
       const proHtml = isSperred
@@ -1498,12 +1503,12 @@ function renderWeek() {
       </div>`;
     }).join('');
 
-    const t12note = curTermin==='T1'&&(d.label==='Mittwoch'||d.label==='Donnerstag')
+    const t12note = curTermin==='T1.2'&&(d.label==='Mittwoch'||d.label==='Donnerstag')
       ? `<div style="font-size:9.5px;color:rgba(255,255,255,.55);margin-top:2px">T2-Termin wird hier vereinbart</div>` : '';
 
+    const _tMatch2 = t => t===curTermin || t==='ALL' || (t==='T1' && (curTermin==='T1.1'||curTermin==='T1.2'));
     const daySperre = Object.values(SPERREN).find(sp =>
-      sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) &&
-      (sp.termin===curTermin||sp.termin==='ALL'));
+      sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) && _tMatch2(sp.termin));
 
     const dayLockBtn = isAdmin()
       ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'${curTermin}','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>`
@@ -1709,16 +1714,17 @@ function renderGesamt() {
       if (p) { events.push({type:'T0', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
     });
 
-    // T1 slots
+    // T1.1 slots
     if (day==='Montag'||day==='Dienstag') {
       T11.filter(s=>s.day===day).forEach(s => {
         const p = byT11(cW, day, s.slot);
-        if (p) { events.push({type:'T1', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
+        if (p) { events.push({type:'T1.1', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
       });
+    // T1.2 slots
     } else {
       T12.filter(s=>s.day===day).forEach(s => {
         const p = byT12(cW, day, s.slot);
-        if (p) { events.push({type:'T1', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
+        if (p) { events.push({type:'T1.2', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
       });
     }
 
@@ -1748,7 +1754,8 @@ function renderGesamt() {
   // Color config
   const typeConfig = {
     T0:     {label:'T0', bg:'var(--t0bg)', border:'var(--t0bd)', color:'var(--t0c)'},
-    T1:     {label:'T1', bg:'var(--t1bg)', border:'var(--t1bd)', color:'var(--t1c)'},
+    'T1.1': {label:'T1.1', bg:'var(--t1bg)', border:'var(--t1bd)', color:'var(--t1c)'},
+    'T1.2': {label:'T1.2', bg:'var(--t1bg)', border:'var(--t1bd)', color:'var(--t1c)'},
     T2:     {label:'T2', bg:'var(--t2bg)', border:'var(--t2bd)', color:'var(--t2c)'},
     T3:     {label:'T3', bg:'var(--t3bg)', border:'var(--t3bd)', color:'var(--t3c)'},
     RECALL: {label:'Recall', bg:'#FEF6EC', border:'#F0CCA0', color:'#3D2200'},
@@ -1907,17 +1914,19 @@ window.openAddProbandSlot = (w, termin, day, slot) => {
 
   // Build label
   const slotDef = termin==='T0' ? T0.find(s=>s.slot===slot)
-    : termin==='T1' ? (day==='Montag'||day==='Dienstag' ? T11.find(s=>s.slot===slot) : T12.find(s=>s.slot===slot))
+    : termin==='T1.1' ? T11.find(s=>s.slot===slot)
+    : termin==='T1.2' ? T12.find(s=>s.slot===slot)
     : null;
   const timeStr = slotDef ? ` · ${slotDef.blutStart}` : '';
-  document.getElementById('slot-assign-title').textContent = `Slot belegen — ${termin}`;
+  document.getElementById('slot-assign-title').textContent = `Slot belegen — ${termin==='T1.1'?'T1.1 Mo/Di':termin==='T1.2'?'T1.2 Mi/Do':termin}`;
   document.getElementById('slot-assign-info').textContent = `${day} · KW ${kw(wMon(w))} · Slot ${slot}${timeStr}`;
 
   // Fill dropdown with unassigned probands (no slot in this termin yet)
   const assigned = new Set();
   Object.values(P).forEach(p => {
     if(termin==='T0' && p.t0week!==undefined) assigned.add(p._id);
-    if(termin==='T1' && p.t1week!==undefined) assigned.add(p._id);
+    if((termin==='T1.1') && p.t1slot11!==undefined) assigned.add(p._id);
+    if((termin==='T1.2') && p.t1slot12!==undefined) assigned.add(p._id);
     if(termin==='T2' && p.t2date) assigned.add(p._id);
     if(termin==='T3' && p.t3date) assigned.add(p._id);
   });
@@ -1949,15 +1958,12 @@ window.saveSlotAssign = async () => {
   let update = {};
   if(termin==='T0'){
     update = {t0week:w, t0day:day, t0slot:slot};
-  } else if(termin==='T1'){
-    if(day==='Montag'||day==='Dienstag'){
-      update = {t1week:w, t1day11:day, t1slot11:slot,
-        // keep existing T1.2 if set
-        ...(p.t1day12 ? {t1day12:p.t1day12, t1slot12:p.t1slot12} : {})};
-    } else {
-      update = {t1week:w, t1day12:day, t1slot12:slot,
-        ...(p.t1day11 ? {t1day11:p.t1day11, t1slot11:p.t1slot11} : {})};
-    }
+  } else if(termin==='T1.1'){
+    update = {t1week: p.t1week??w, t1day11:day, t1slot11:slot,
+      ...(p.t1day12 ? {t1day12:p.t1day12, t1slot12:p.t1slot12} : {})};
+  } else if(termin==='T1.2'){
+    update = {t1week: p.t1week??w, t1day12:day, t1slot12:slot,
+      ...(p.t1day11 ? {t1day11:p.t1day11, t1slot11:p.t1slot11} : {})};
   }
 
   try {
@@ -1973,13 +1979,16 @@ window.slotAssignOpenNew = () => {
   if(!ctx) return;
   const {w, termin, day, slot} = ctx;
   if(termin==='T0'){ document.getElementById('ip-t0week').value=w; document.getElementById('ip-t0day').value=day; updT0Slots(); document.getElementById('ip-t0slot').value=slot; }
-  else if(termin==='T1'){
+  else if(termin==='T1.1'){
     document.getElementById('ip-t1week').value=w;
-    if(day==='Montag'||day==='Dienstag'){ document.getElementById('ip-t1day11').value=day; }
-    else { document.getElementById('ip-t1day12').value=day; }
+    document.getElementById('ip-t1day11').value=day;
     updT1Slots();
-    if(day==='Montag'||day==='Dienstag') document.getElementById('ip-t1s11').value=slot;
-    else document.getElementById('ip-t1s12').value=slot;
+    document.getElementById('ip-t1s11').value=slot;
+  } else if(termin==='T1.2'){
+    document.getElementById('ip-t1week').value=w;
+    document.getElementById('ip-t1day12').value=day;
+    updT1Slots();
+    document.getElementById('ip-t1s12').value=slot;
   }
 };
 
@@ -2253,7 +2262,7 @@ function buildWJList() {
   document.getElementById('wjlist').innerHTML=Array.from({length:N_WEEKS},(_,w)=>{
     const mo=wMon(w),k=kw(mo);
     const cnt=curTermin==='T0'?ps.filter(p=>p.t0week===w).length
-             :curTermin==='T1'?ps.filter(p=>p.t1week===w).length
+             :(curTermin==='T1.1'||curTermin==='T1.2')?ps.filter(p=>p.t1week===w).length
              :curTermin==='T2'?ps.filter(p=>p.t2week===w).length
              :curTermin==='T3'?ps.filter(p=>p.t3week===w).length:0;
     return `<div class="wji ${w===cW?'cur':''} ${cnt?'has':''}" onclick="selW(${w})">
@@ -2744,7 +2753,7 @@ function setTermin(t, btn) {
   btn.classList.add('on');
   window.curTermin=t;
   const wt=document.getElementById('week-toolbar');
-  if(wt) wt.style.display = t==='GESAMT'?'none':'flex';
+  if(wt) wt.style.display = (t==='GESAMT')?'none':'flex';
   if(window._renderWeek) window._renderWeek();
 }
 </script>
