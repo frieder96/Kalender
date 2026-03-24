@@ -949,7 +949,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div class="mhdr"><span class="mtitle" id="proband-modal-title">Proband anlegen</span><button class="mclose" onclick="closeProband()">×</button></div>
     <div class="mbody">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="fg"><label class="fl">Probanden-ID</label><input class="fi" id="ip-pid" placeholder="P001" maxlength="10"><div class="fh">Format: P001, P002 …</div></div>
+        <div class="fg"><label class="fl">Probanden-ID <span style="font-weight:400;color:var(--g4)">(optional)</span></label><input class="fi" id="ip-pid" placeholder="P001 — wird nach T0 vergeben" maxlength="10"><div class="fh">Format: P001, P002 … · kann später nachgetragen werden</div></div>
         <div class="fg"><label class="fl">Laufnummer</label><input class="fi" id="ip-lnr" placeholder="L005" maxlength="10"><div class="fh">Format: L001 – L126</div></div>
       </div>
       <div style="border-top:1px solid var(--g2);padding-top:12px;margin-top:4px;margin-bottom:12px;font-size:11px;font-weight:700;color:var(--ub);text-transform:uppercase;letter-spacing:.06em">T0 — Voruntersuchung</div>
@@ -1867,8 +1867,12 @@ window.openAddProband = () => {
   ['ip-pid','ip-lnr','ip-notiz'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   ['ip-t2date','ip-t2time','ip-t3date','ip-t3time'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   buildWeekSel('ip-t0week'); buildWeekSel('ip-t1week');
-  document.getElementById('ip-t0week').value=cW; document.getElementById('ip-t1week').value=cW;
-  updT0Slots(); updT1Slots();
+  // Reset week selectors but clear slot selections so termins are truly optional
+  document.getElementById('ip-t0week').value='';
+  document.getElementById('ip-t1week').value='';
+  document.getElementById('ip-t0slot').innerHTML='<option value="">— erst Woche wählen —</option>';
+  document.getElementById('ip-t1s11').innerHTML='<option value="">— erst Woche wählen —</option>';
+  document.getElementById('ip-t1s12').innerHTML='<option value="">— erst Woche wählen —</option>';
   document.getElementById('proband-modal').classList.add('open');
 };
 
@@ -1913,21 +1917,34 @@ window.closeProband = () => { document.getElementById('proband-modal').classList
 window.saveProband = async () => {
   const pid=document.getElementById('ip-pid').value.trim().toUpperCase();
   const lnr=document.getElementById('ip-lnr').value.trim().toUpperCase();
-  if(!pid||!lnr){toast('P-ID und Laufnummer sind Pflicht',true);return;}
-  if(!/^P\d{1,4}$/.test(pid)){toast('Format P-ID: P001 …',true);return;}
+  if(!lnr){toast('Laufnummer ist Pflicht',true);return;}
+  if(pid && !/^P\d{1,4}$/.test(pid)){toast('Format P-ID: P001 …',true);return;}
   if(!/^L\d{1,4}$/.test(lnr)){toast('Format Laufnr.: L001 …',true);return;}
-  const dup=Object.values(P).find(p=>p._id!==eId&&(p.pid===pid||p.lnr===lnr));
-  if(dup){toast((dup.pid===pid?'P-ID':'Laufnummer')+' bereits vergeben',true);return;}
+  const dup=Object.values(P).find(p=>p._id!==eId&&((pid&&p.pid&&p.pid===pid)||p.lnr===lnr));
+  if(dup){toast((pid&&dup.pid===pid?'P-ID':'Laufnummer')+' bereits vergeben',true);return;}
+  // Only include termin fields if actually filled in
+  const _t0w=document.getElementById('ip-t0week').value;
+  const _t0s=document.getElementById('ip-t0slot').value;
+  const _t1w=document.getElementById('ip-t1week').value;
+  const _t1s11=document.getElementById('ip-t1s11').value;
+  const _t1s12=document.getElementById('ip-t1s12').value;
+  const hasT0 = _t0w!=='' && _t0s!=='';
+  const hasT1 = _t1w!=='' && _t1s11!=='' && _t1s12!=='';
+
   const data={
     pid,lnr,
-    t0week:parseInt(document.getElementById('ip-t0week').value),
-    t0day:document.getElementById('ip-t0day').value,
-    t0slot:parseInt(document.getElementById('ip-t0slot').value),
-    t1week:parseInt(document.getElementById('ip-t1week').value),
-    t1day11:document.getElementById('ip-t1day11').value,
-    t1slot11:parseInt(document.getElementById('ip-t1s11').value),
-    t1day12:document.getElementById('ip-t1day12').value,
-    t1slot12:parseInt(document.getElementById('ip-t1s12').value),
+    ...(hasT0 ? {
+      t0week:parseInt(_t0w),
+      t0day:document.getElementById('ip-t0day').value,
+      t0slot:parseInt(_t0s)
+    } : {}),
+    ...(hasT1 ? {
+      t1week:parseInt(_t1w),
+      t1day11:document.getElementById('ip-t1day11').value,
+      t1slot11:parseInt(_t1s11),
+      t1day12:document.getElementById('ip-t1day12').value,
+      t1slot12:parseInt(_t1s12)
+    } : {}),
     t2date:document.getElementById('ip-t2date').value||null,
     t2time:document.getElementById('ip-t2time').value||null,
     t3date:document.getElementById('ip-t3date').value||null,
