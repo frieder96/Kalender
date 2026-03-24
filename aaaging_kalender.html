@@ -1077,6 +1077,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div class="mbody">
       <div style="font-size:12.5px;color:var(--g5);margin-bottom:14px" id="assign-modal-sub"></div>
       <div class="fg"><label class="fl">Zuständige Person</label><select class="fi" id="i-assign-person"><option value="">— Niemand zugewiesen —</option></select></div>
+      <div class="fg" id="assign-room-wrap" style="display:none"><label class="fl">Raum <span style="font-weight:400;color:var(--g4)">(optional)</span></label><input class="fi" id="i-assign-room" placeholder="z. B. SR 1, Labor B, Telefonisch …" maxlength="60"></div>
       <div class="fg"><label class="fl">Notiz (optional)</label><textarea class="notiz-box" id="i-assign-note" placeholder="z. B. bitte 10 min früher da sein…"></textarea></div>
     </div>
     <div class="mftr"><button class="btn btn-sm" onclick="closeAssignModal()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveAssign()">Speichern</button></div>
@@ -1470,6 +1471,7 @@ function renderWeek() {
         const aKey2=`${cW}_${curTermin}_${d.label}_${s.slot}_${m.label}_2`.replace(/[^a-zA-Z0-9_]/g,'_');
         const a=ASSIGN[aKey]; const pName=a?.person?(TEAM[a.person]?.name||a.person):null;
         const a2=m.persons===2?ASSIGN[aKey2]:null; const pName2=a2?.person?(TEAM[a2.person]?.name||a2.person):null;
+        const aRoom = a?.room || a2?.room || '';
 
         // Frühstück: no assign button, grey italic label
         if(m.noAssign) return `<div class="meas-row" style="opacity:.65">
@@ -1490,7 +1492,7 @@ function renderWeek() {
 
         return `<div class="meas-row">
           <span class="chip ${m.cls}" style="min-width:0;flex-shrink:0">${m.label} <span class="ct">${m.t}</span></span>
-          <span style="flex:1"></span>
+          <span style="flex:1">${aRoom?`<span style="font-size:10px;color:var(--ub);margin-left:4px">📍 ${aRoom}</span>`:''}</span>
           ${assignSection}
         </div>`;
       }).join('');
@@ -2266,6 +2268,8 @@ window.openAssignModal = (key, measure, label, slotDate, slotTime) => {
   }).join('');
 
   document.getElementById('i-assign-person').innerHTML='<option value="">— Niemand —</option>'+opts;
+  document.getElementById('assign-room-wrap').style.display = '';
+  document.getElementById('i-assign-room').value = existing?.room||'';
   document.getElementById('i-assign-note').value=existing?.note||'';
 
   // Show availability legend if any conflicts
@@ -2292,9 +2296,10 @@ window.saveAssign = async () => {
   if(!assignKey) return;
   const person=document.getElementById('i-assign-person').value;
   const note=document.getElementById('i-assign-note').value.trim();
+  const room=document.getElementById('i-assign-room').value.trim();
   try {
     const ref=doc(db,'assignments',assignKey);
-    await setDoc(ref,{key:assignKey,person,note,updated:Date.now()});
+    await setDoc(ref,{key:assignKey,person,note,room,updated:Date.now()});
     closeAssignModal(); toast('Zuweisung gespeichert ✓');
   } catch(e){toast('Fehler: '+e.message,true);}
 };
