@@ -860,7 +860,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
           <button class="sp-snav-btn on" onclick="spSwitch('sp-probanden',this)">👥 Probanden</button>
           <button class="sp-snav-btn"    onclick="spSwitch('sp-calendar',this)">📅 Buchungskalender</button>
           <button class="sp-snav-btn"    onclick="spSwitch('sp-5rm',this)">💪 5RM Diagnostik</button>
-          ${window.isAdmin && window.isAdmin() ? '<button class="sp-snav-btn" onclick="spOpenTemplateManager()">⚙️ Übungs-Templates</button>' : ''}
+          <button class="sp-snav-btn" id="sp-tmpl-btn" onclick="spOpenTemplateManager()" style="display:none">⚙️ Übungs-Templates</button>
         </div>
 
         <div id="sp-probanden"><div id="sp-pv-react-root"></div></div>
@@ -1335,6 +1335,8 @@ onAuthStateChanged(auth, async user => {
     else { badge.textContent='Nur Lesen'; badge.className='role-badge readonly'; document.getElementById('readonly-banner').classList.add('show'); }
     document.getElementById('add-proband-btn').style.display = isAdmin()?'':'none';
     document.getElementById('add-recall-btn').style.display  = isAdmin()?'':'none';
+    const tmplBtn = document.getElementById('sp-tmpl-btn');
+    if(tmplBtn) tmplBtn.style.display = isAdmin()?'':'none';
     startDB();
     spStartListeners();
     spSetSync(true);
