@@ -664,6 +664,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <button class="ntab"     onclick="goTab('team',this)">Team &amp; Aufgaben</button>
       <button class="ntab"     onclick="goTab('backup',this)">Backup &amp; Export</button>
       <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
+      <button class="ntab"     onclick="goTab('raumplan',this)">🏠 Raumplan</button>
       <button class="ntab"     onclick="goTab('studio',this)">Studio &amp; Training</button>
     </div>
   </nav>
@@ -864,6 +865,19 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 
     <!-- STUDIO & TRAINING -->
     <!-- STUDIO & TRAINING -->
+    <!-- RAUMPLAN -->
+    <div id="tab-raumplan" class="panel">
+      <div class="phdr">
+        <div><div class="ptitle">Live Raumplan</div><div class="psub">Echtzeit · Tagesplan · Wochenplan</div></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" id="rp-btn-live" onclick="rpSetView('live',this)" style="background:var(--ub);color:#fff;border-color:var(--ub)">⚡ Live</button>
+          <button class="btn btn-sm" id="rp-btn-day"  onclick="rpSetView('day',this)">📅 Heute</button>
+          <button class="btn btn-sm" id="rp-btn-week" onclick="rpSetView('week',this)">🗓 Woche</button>
+        </div>
+      </div>
+      <div id="rp-content"></div>
+    </div>
+
     <div id="tab-studio" class="panel">
       <div class="phdr">
         <div><div class="ptitle">Studio &amp; Training</div><div class="psub">Buchungskalender · Probanden · 5RM Kraftdiagnostik · 3 Studios</div></div>
@@ -3034,6 +3048,249 @@ window.delMrtSlotTime = async (w, day, idx) => {
 };
 
 // ── HELPERS ───────────────────────
+
+// ── RAUMPLAN ──────────────────────
+let _rpView = 'live';
+let _rpLiveTimer = null;
+
+window.rpSetView = (view, btn) => {
+  _rpView = view;
+  ['live','day','week'].forEach(v => {
+    const b = document.getElementById(`rp-btn-${v}`);
+    if(b){ b.style.background=v===view?'var(--ub)':''; b.style.color=v===view?'#fff':''; b.style.borderColor=v===view?'var(--ub)':''; }
+  });
+  rpRender();
+};
+
+function rpRender() {
+  if(_rpView==='live')  rpRenderLive();
+  else if(_rpView==='day')  rpRenderDay();
+  else if(_rpView==='week') rpRenderWeek();
+}
+
+// ── Decode ASSIGN key: `week_termin_day_slot_measure(_2)` ──────────
+function rpDecodeAssign(key, val) {
+  // key format: 13_T1_Montag_1_Blutabnahme or 13_T1_1_Montag_1_Blutabnahme
+  const parts = key.split('_');
+  if(parts.length < 4) return null;
+  const week = parseInt(parts[0]);
+  // termin may contain dots replaced by _ e.g. T1_1 = T1.1
+  let termin, day, slot, measure;
+  // Try to detect: parts[1] is termin (T0,T1,T2,T3,T1_1,T1_2 etc)
+  // After replaceing /[^a-zA-Z0-9_]/g → T1.1 → T1_1
+  let idx = 1;
+  if(/^T\d$/.test(parts[idx]) && /^\d$/.test(parts[idx+1])) {
+    termin = parts[idx]+'.'+parts[idx+1]; idx+=2;
+  } else { termin = parts[idx]; idx++; }
+  day = parts[idx]; idx++;
+  slot = parseInt(parts[idx]); idx++;
+  measure = parts.slice(idx).join('_');
+
+  if(!day || isNaN(slot)) return null;
+
+  // Get slot time from the appropriate slot array
+  const slotArr = termin==='T0'?T0:
+    (termin==='T1'||termin==='T1.1')?T11:
+    (termin==='T1.2')?T12:
+    (termin==='T2'||termin==='T2.1')?T21:
+    (termin==='T2.2')?T22:
+    (termin==='T3'||termin==='T3.1')?T31:
+    (termin==='T3.2')?T32:null;
+
+  const slotDef = slotArr?.find(s=>s.slot===slot);
+  const measureDef = slotDef?.measures.find(m=>m.label.replace(/[^a-zA-Z0-9_]/g,'_')===measure||m.label===measure);
+
+  return {week, termin, day, slot, measure: measureDef?.label||measure, time: measureDef?.t||slotDef?.blutStart||'', room: val?.room||'', person: val?.person?(TEAM[val.person]?.name||val.person):'', val};
+}
+
+function rpGetTodayAssignments() {
+  const today = new Date();
+  const todayStr = today.toLocaleDateString('de-AT',{weekday:'long'});
+  const days = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
+  const todayOff = days[todayStr];
+  if(todayOff===undefined) return [];
+
+  // Find which week offset matches today
+  const results = [];
+  Object.entries(ASSIGN).forEach(([key, val]) => {
+    if(!val?.room) return;
+    const dec = rpDecodeAssign(key, val);
+    if(!dec) return;
+    if(dec.day !== todayStr) return;
+    // Check week matches today
+    const mon = wMon(dec.week);
+    const slotDate = new Date(mon); slotDate.setDate(mon.getDate() + (days[dec.day]||0));
+    if(slotDate.toDateString()!==today.toDateString()) return;
+    results.push(dec);
+  });
+  return results.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+}
+
+function rpGetWeekAssignments(weekOff) {
+  const results = [];
+  Object.entries(ASSIGN).forEach(([key, val]) => {
+    if(!val?.room) return;
+    const dec = rpDecodeAssign(key, val);
+    if(!dec || dec.week !== weekOff) return;
+    results.push(dec);
+  });
+  return results.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+}
+
+function rpIsNow(timeStr) {
+  if(!timeStr) return false;
+  const now = new Date();
+  const [h,m] = timeStr.split(':').map(Number);
+  const start = new Date(); start.setHours(h,m,0,0);
+  const end = new Date(start); end.setMinutes(end.getMinutes()+60);
+  return now>=start && now<end;
+}
+
+function rpRenderLive() {
+  const el = document.getElementById('rp-content'); if(!el) return;
+  const todayAssigns = rpGetTodayAssignments();
+  const now = new Date();
+
+  // Group by room, filter to currently active or upcoming (next 2h)
+  const rooms = {};
+  const nowMin = now.getHours()*60+now.getMinutes();
+  todayAssigns.forEach(d => {
+    if(!d.room) return;
+    const [h,m] = (d.time||'00:00').split(':').map(Number);
+    const startMin = h*60+m, endMin = startMin+60;
+    const status = nowMin>=startMin&&nowMin<endMin ? 'now' : nowMin<startMin&&startMin-nowMin<=120 ? 'soon' : nowMin>=endMin ? 'done' : 'later';
+    if(!rooms[d.room]) rooms[d.room] = [];
+    rooms[d.room].push({...d, status, startMin, endMin});
+  });
+
+  // Also show empty rooms
+  Object.values(ROOMS).forEach(r => { if(!rooms[r.name]) rooms[r.name]=[]; });
+
+  if(!Object.keys(rooms).length) {
+    el.innerHTML = '<div style="padding:3rem;text-align:center;color:var(--g4);font-style:italic">Keine Räume konfiguriert oder keine Termine mit Raum heute.</div>';
+    return;
+  }
+
+  const nowStr = now.toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit'});
+  el.innerHTML = `
+    <div style="font-size:11px;color:var(--g5);margin-bottom:1rem">Aktuell: <strong>${nowStr}</strong> Uhr · Automatische Aktualisierung alle 60 Sek.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">
+    ${Object.entries(rooms).map(([room, items]) => {
+      const active = items.filter(i=>i.status==='now');
+      const soon   = items.filter(i=>i.status==='soon');
+      const isOccupied = active.length>0;
+      const bg = isOccupied ? '#FFF5F0' : '#F2FAF5';
+      const border = isOccupied ? '#E87127' : '#2E8B57';
+      const dot = isOccupied ? '🔴' : soon.length ? '🟡' : '🟢';
+      const statusLabel = isOccupied ? 'Belegt' : soon.length ? 'Bald belegt' : 'Frei';
+      const statusColor = isOccupied ? '#E87127' : soon.length ? '#C8870A' : '#2E8B57';
+
+      const activeCards = active.map(d=>`
+        <div style="padding:8px 10px;background:#fff;border-radius:6px;border-left:3px solid #E87127;margin-top:6px">
+          <div style="font-size:11px;font-weight:700;color:#E87127">${d.time} Uhr · ${d.measure}</div>
+          <div style="font-size:12px;color:var(--g6);margin-top:2px">${d.person||'—'}</div>
+          <div style="font-size:10px;color:var(--g5)">${d.termin} · ${d.day}</div>
+        </div>`).join('');
+
+      const soonCards = soon.map(d=>`
+        <div style="padding:8px 10px;background:#FFF8F0;border-radius:6px;border-left:3px solid #C8870A;margin-top:6px">
+          <div style="font-size:11px;font-weight:700;color:#C8870A">in ${Math.round(((d.startMin)-(nowMin)))} Min · ${d.time} Uhr</div>
+          <div style="font-size:12px;color:var(--g6);margin-top:2px">${d.measure}</div>
+          <div style="font-size:10px;color:var(--g5)">${d.person||'—'}</div>
+        </div>`).join('');
+
+      return `<div style="background:${bg};border:2px solid ${border};border-radius:10px;padding:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:15px;font-weight:700;color:var(--bk)">📍 ${room}</span>
+          <span style="font-size:11px;font-weight:700;color:${statusColor}">${dot} ${statusLabel}</span>
+        </div>
+        ${activeCards||soonCards||'<div style="font-size:11px;color:var(--g4);padding:6px 0">Keine aktuellen Termine</div>'}
+      </div>`;
+    }).join('')}
+    </div>`;
+
+  // Auto-refresh every 60s
+  if(_rpLiveTimer) clearTimeout(_rpLiveTimer);
+  if(_rpView==='live') _rpLiveTimer = setTimeout(()=>{ if(_rpView==='live') rpRenderLive(); }, 60000);
+}
+
+function rpRenderDay() {
+  const el = document.getElementById('rp-content'); if(!el) return;
+  const assignments = rpGetTodayAssignments();
+  const today = new Date();
+  const todayLabel = today.toLocaleDateString('de-AT',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
+
+  // Group by room → by time
+  const byRoom = {};
+  Object.values(ROOMS).forEach(r=>{ byRoom[r.name]=[]; });
+  assignments.forEach(d=>{ if(!byRoom[d.room]) byRoom[d.room]=[]; byRoom[d.room].push(d); });
+
+  const allTimes = [...new Set(assignments.map(d=>d.time).filter(Boolean))].sort();
+
+  if(!Object.keys(byRoom).length) {
+    el.innerHTML='<div style="padding:3rem;text-align:center;color:var(--g4);font-style:italic">Keine Räume konfiguriert.</div>'; return;
+  }
+
+  el.innerHTML = `
+    <div style="font-size:13px;font-weight:600;color:var(--ub);margin-bottom:1rem">${todayLabel}</div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr>
+          <th style="padding:8px 12px;background:var(--ub);color:#fff;text-align:left;border-radius:var(--r) 0 0 0">Raum</th>
+          ${allTimes.map(t=>`<th style="padding:8px 12px;background:var(--ub);color:#fff;text-align:center;white-space:nowrap">${t}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${Object.entries(byRoom).map(([room, items],ri)=>`
+          <tr style="background:${ri%2?'#fff':'var(--g1)'}">
+            <td style="padding:8px 12px;font-weight:700;color:var(--g6);white-space:nowrap">📍 ${room}</td>
+            ${allTimes.map(t=>{
+              const hit = items.find(i=>i.time===t);
+              if(!hit) return `<td style="padding:8px;text-align:center;color:var(--g3)">—</td>`;
+              return `<td style="padding:6px 8px;text-align:center">
+                <div style="background:var(--t1bg);border:1px solid var(--t1bd);border-radius:4px;padding:4px 6px">
+                  <div style="font-size:10px;font-weight:700;color:var(--t1c)">${hit.measure}</div>
+                  <div style="font-size:10px;color:var(--g5)">${hit.person||'—'}</div>
+                </div>
+              </td>`;
+            }).join('')}
+          </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+}
+
+function rpRenderWeek() {
+  const el = document.getElementById('rp-content'); if(!el) return;
+  const assignments = rpGetWeekAssignments(cW);
+  const mo = wMon(cW);
+  const DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
+
+  const allRooms = [...new Set([...Object.values(ROOMS).map(r=>r.name), ...assignments.map(a=>a.room).filter(Boolean)])].sort();
+
+  if(!allRooms.length) {
+    el.innerHTML='<div style="padding:3rem;text-align:center;color:var(--g4);font-style:italic">Keine Räume konfiguriert.</div>'; return;
+  }
+
+  el.innerHTML = `
+    <div style="font-size:12px;color:var(--g5);margin-bottom:1rem">KW ${kw(mo)} · ${fD(mo)} – ${fD(wDay(cW,3))}</div>
+    <div style="display:grid;grid-template-columns:auto repeat(4,1fr);gap:1px;background:var(--g2);border-radius:var(--r);overflow:hidden">
+      <div style="background:var(--ub);padding:10px 14px;font-size:11px;font-weight:700;color:#fff">Raum</div>
+      ${DAYS.map(d=>`<div style="background:var(--ub);padding:10px 8px;font-size:11px;font-weight:700;color:#fff;text-align:center">${d.label.slice(0,2)}<br><span style="font-weight:400;opacity:.75">${fDs(wDay(cW,d.off))}</span></div>`).join('')}
+      ${allRooms.map((room,ri)=>`
+        <div style="background:${ri%2?'var(--g1)':'#fff'};padding:8px 14px;font-size:12px;font-weight:700;color:var(--g6);border-top:1px solid var(--g2)">📍 ${room}</div>
+        ${DAYS.map(d=>{
+          const items = assignments.filter(a=>a.room===room && a.day===d.label);
+          if(!items.length) return `<div style="background:${ri%2?'var(--g1)':'#fff'};padding:6px;border-top:1px solid var(--g2);text-align:center;color:var(--g3);font-size:11px">—</div>`;
+          return `<div style="background:${ri%2?'var(--g1)':'#fff'};padding:6px;border-top:1px solid var(--g2)">
+            ${items.map(a=>`<div style="background:var(--t1bg);border:1px solid var(--t1bd);border-radius:4px;padding:3px 6px;margin-bottom:3px;font-size:10px">
+              <span style="font-weight:700;color:var(--t1c)">${a.time}</span> ${a.measure}<br>
+              <span style="color:var(--g5)">${a.person||'—'}</span>
+            </div>`).join('')}
+          </div>`;
+        }).join('')}`).join('')}
+    </div>`;
+}
 function setSync(ok,lbl){ document.getElementById('sdot').style.background=ok?'#4CAF80':'#F0C040'; document.getElementById('slbl').textContent=lbl||(ok?'Synchronisiert':'Getrennt'); }
 function toast(msg,err=false){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast'+(err?' err':''); setTimeout(()=>t.classList.add('show'),10); setTimeout(()=>t.classList.remove('show'),3200); }
 </script>
@@ -3044,11 +3301,12 @@ function goTab(name,btn){
   if(btn) btn.classList.add('on');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('tab-'+name).classList.add('on');
-  const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export',abwesenheit:'Abwesenheiten',studio:'Studio & Training'};
+  const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export',abwesenheit:'Abwesenheiten',raumplan:'Live Raumplan',studio:'Studio & Training'};
   document.getElementById('bcc').textContent=L[name]||name;
   if(name==='team'){tW=cW;renderTaskTab();}
   if(name==='abwesenheit'){renderAbsentCal();}
   if(name==='studio'){spRenderProbanden();}
+  if(name==='raumplan'){rpRender();}
 }
 
 function setTermin(t, btn) {
