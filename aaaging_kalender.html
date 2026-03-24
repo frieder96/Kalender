@@ -934,6 +934,30 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
   </main>
 </div>
 
+<!-- SLOT BELEGEN MODAL -->
+<div class="ov" id="slot-assign-modal" onclick="if(event.target===this)closeSlotAssign()">
+  <div class="modal">
+    <div class="mhdr" style="background:var(--ub)"><span class="mtitle" id="slot-assign-title">Slot belegen</span><button class="mclose" onclick="closeSlotAssign()">×</button></div>
+    <div class="mbody">
+      <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="slot-assign-info"></div>
+      <div class="fg">
+        <label class="fl">Bestehenden Probanden zuweisen</label>
+        <select class="fi" id="slot-assign-pid">
+          <option value="">— Proband auswählen —</option>
+        </select>
+      </div>
+      <div style="border-top:1px solid var(--g2);margin:14px 0 10px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--g4)">oder</span>
+        <button class="btn btn-sm" onclick="slotAssignOpenNew()" style="font-size:11px">+ Neuen Probanden anlegen</button>
+      </div>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-sm" onclick="closeSlotAssign()">Abbrechen</button>
+      <button class="btn btn-sm btn-p" onclick="saveSlotAssign()">Zuweisen</button>
+    </div>
+  </div>
+</div>
+
 <!-- WEEK JUMP -->
 <div class="wjov" id="wjov" onclick="if(event.target===this)closeWJ()">
   <div class="wjbox">
@@ -1878,7 +1902,76 @@ window.openAddProband = () => {
 
 window.openAddProbandSlot = (w, termin, day, slot) => {
   if(!isAdmin()){toast('Keine Berechtigung',true);return;}
+  // Store context for saving
+  window._slotCtx = {w, termin, day, slot};
+
+  // Build label
+  const slotDef = termin==='T0' ? T0.find(s=>s.slot===slot)
+    : termin==='T1' ? (day==='Montag'||day==='Dienstag' ? T11.find(s=>s.slot===slot) : T12.find(s=>s.slot===slot))
+    : null;
+  const timeStr = slotDef ? ` · ${slotDef.blutStart}` : '';
+  document.getElementById('slot-assign-title').textContent = `Slot belegen — ${termin}`;
+  document.getElementById('slot-assign-info').textContent = `${day} · KW ${kw(wMon(w))} · Slot ${slot}${timeStr}`;
+
+  // Fill dropdown with unassigned probands (no slot in this termin yet)
+  const assigned = new Set();
+  Object.values(P).forEach(p => {
+    if(termin==='T0' && p.t0week!==undefined) assigned.add(p._id);
+    if(termin==='T1' && p.t1week!==undefined) assigned.add(p._id);
+    if(termin==='T2' && p.t2date) assigned.add(p._id);
+    if(termin==='T3' && p.t3date) assigned.add(p._id);
+  });
+  const opts = Object.values(P)
+    .sort((a,b)=>(a.lnr||'').localeCompare(b.lnr||''))
+    .map(p => {
+      const alreadyBooked = assigned.has(p._id);
+      return `<option value="${p._id}" ${alreadyBooked?'disabled style="color:var(--g4)"':''}>${p.lnr}${p.pid?' · '+p.pid:''}${alreadyBooked?' (bereits gebucht)':''}</option>`;
+    }).join('');
+  document.getElementById('slot-assign-pid').innerHTML = '<option value="">— Proband auswählen —</option>' + opts;
+
+  document.getElementById('slot-assign-modal').classList.add('open');
+};
+
+window.closeSlotAssign = () => {
+  document.getElementById('slot-assign-modal').classList.remove('open');
+  window._slotCtx = null;
+};
+
+window.saveSlotAssign = async () => {
+  const ctx = window._slotCtx; if(!ctx) return;
+  const probandId = document.getElementById('slot-assign-pid').value;
+  if(!probandId){toast('Bitte einen Probanden auswählen',true);return;}
+  const p = Object.values(P).find(x=>x._id===probandId);
+  if(!p){toast('Proband nicht gefunden',true);return;}
+  const {w, termin, day, slot} = ctx;
+
+  // Build update based on termin
+  let update = {};
+  if(termin==='T0'){
+    update = {t0week:w, t0day:day, t0slot:slot};
+  } else if(termin==='T1'){
+    if(day==='Montag'||day==='Dienstag'){
+      update = {t1week:w, t1day11:day, t1slot11:slot,
+        // keep existing T1.2 if set
+        ...(p.t1day12 ? {t1day12:p.t1day12, t1slot12:p.t1slot12} : {})};
+    } else {
+      update = {t1week:w, t1day12:day, t1slot12:slot,
+        ...(p.t1day11 ? {t1day11:p.t1day11, t1slot11:p.t1slot11} : {})};
+    }
+  }
+
+  try {
+    await updateDoc(doc(db,'probanden',probandId), {...update, updated:Date.now()});
+    closeSlotAssign(); toast('Slot belegt ✓');
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+
+window.slotAssignOpenNew = () => {
+  closeSlotAssign();
+  const ctx = window._slotCtx;
   openAddProband();
+  if(!ctx) return;
+  const {w, termin, day, slot} = ctx;
   if(termin==='T0'){ document.getElementById('ip-t0week').value=w; document.getElementById('ip-t0day').value=day; updT0Slots(); document.getElementById('ip-t0slot').value=slot; }
   else if(termin==='T1'){
     document.getElementById('ip-t1week').value=w;
