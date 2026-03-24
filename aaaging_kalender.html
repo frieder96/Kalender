@@ -1722,26 +1722,58 @@ function renderGesamt() {
       if (p) { events.push({type:'T0', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
     });
 
-    // T1.1 slots
+    // T1.1 slots — loop ALL T11 slots, match by booked day (not slot.day property)
     if (day==='Montag'||day==='Dienstag') {
-      T11.filter(s=>s.day===day).forEach(s => {
+      T11.forEach(s => {
         const p = byT11(cW, day, s.slot);
         if (p) { events.push({type:'T1.1', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
       });
     // T1.2 slots
     } else {
-      T12.filter(s=>s.day===day).forEach(s => {
+      T12.forEach(s => {
         const p = byT12(cW, day, s.slot);
         if (p) { events.push({type:'T1.2', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
       });
     }
 
-    // T2 — flexible date, match by day of week in cW
+    // T2 slots
     const dayDate = wDay(cW, DOFF_MAP[day]);
     const dayStr = dayDate.toISOString().split('T')[0];
+    if (day==='Montag'||day==='Dienstag') {
+      T21.forEach(s => {
+        const p = byT21(cW, day, s.slot);
+        if (p) { events.push({type:'T2.1', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
+      });
+    } else if (day==='Mittwoch'||day==='Donnerstag') {
+      T22.forEach(s => {
+        const p = byT22(cW, day, s.slot);
+        if (p) { events.push({type:'T2.2', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
+      });
+    }
+    // T2 flexible date fallback
     ps.forEach(p => {
-      if (p.t2date===dayStr) { events.push({type:'T2', time:p.t2time||'', pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
-      if (p.t3date===dayStr) { events.push({type:'T3', time:p.t3time||'', pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
+      if (p.t2date===dayStr && p.t2slot11===undefined && p.t2slot12===undefined) {
+        events.push({type:'T2', time:p.t2time||'', pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++;
+      }
+    });
+
+    // T3 slots
+    if (day==='Montag'||day==='Dienstag') {
+      T31.forEach(s => {
+        const p = byT31(cW, day, s.slot);
+        if (p) { events.push({type:'T3.1', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
+      });
+    } else if (day==='Mittwoch'||day==='Donnerstag') {
+      T32.forEach(s => {
+        const p = byT32(cW, day, s.slot);
+        if (p) { events.push({type:'T3.2', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
+      });
+    }
+    // T3 flexible date fallback
+    ps.forEach(p => {
+      if (p.t3date===dayStr && p.t3slot11===undefined && p.t3slot12===undefined) {
+        events.push({type:'T3', time:p.t3time||'', pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++;
+      }
     });
 
     // 24h Recalls on this day
