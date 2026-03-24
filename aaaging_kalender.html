@@ -1169,6 +1169,7 @@ const DOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3};
 
 // ── STATE ─────────────────────────
 let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={};
+window._P = () => P;
 let cW=0, curTermin='T0';
 let eId=null, recallEditId=null, assignKey=null, tW=0;
 let sperrenEditId=null, sperrenDay=null, sperrenSlot=null, sperrenTermin=null;
@@ -1576,7 +1577,7 @@ function updStats() {
   if(el) el.textContent=`${ps.length} Probanden in der Datenbank`;
 }
 
-function renderAll() { renderWeek(); renderTable(); updStats(); buildWJList(); }
+function renderAll() { renderWeek(); renderTable(); updStats(); buildWJList(); if(window.spEmit) window.spEmit(); }
 
 // ── PROBAND MODAL ─────────────────
 function buildWeekSel(id) {
@@ -2229,7 +2230,10 @@ function spSetSync(ok){
   if(el){el.textContent=ok?'● Synchronisiert':'● Verbinde…';el.style.color=ok?'#2E9E7A':'#C8873A';}
 }
 
-function spGetProbands(){ return Object.values(SP_PROBANDS).sort((a,b)=>a.name.localeCompare(b.name)); }
+function spGetProbands(){
+  // Use AAAging probands directly — no separate studio list needed
+  return Object.values(window._P ? window._P() : {}).sort((a,b)=>a.pid.localeCompare(b.pid));
+}
 function spSKey(sid,di,h,wo){ return `s${sid}_d${di}_h${h}_w${wo}`; }
 function spGetSD(sid,di,h,wo){ return SP_SLOTS_DATA[spSKey(sid,di,h,wo)]||{members:[],trainer:null,attendance:[]}; }
 
@@ -2239,12 +2243,12 @@ function spGetWeekDates(off=0){
   return Array.from({length:4},(_,i)=>{const d=new Date(monday);d.setDate(monday.getDate()+i);return d;});
 }
 function spFmtDate(d){ return `${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}`; }
-function spCountAll(name){
+function spCountAll(pid){
   let c=0;
   for(const k of Object.keys(SP_SLOTS_DATA)){
     const s=SP_SLOTS_DATA[k];
-    if(!s.members||!s.members.includes(name)) continue;
-    const idx=s.members.indexOf(name),att=s.attendance&&s.attendance[idx];
+    if(!s.members||!s.members.includes(pid)) continue;
+    const idx=s.members.indexOf(pid),att=s.attendance&&s.attendance[idx];
     if(att!=='absent') c++;
   }
   return c;
@@ -2303,29 +2307,30 @@ function spRenderProbanden(){
   root.innerHTML=`<div class="pv-wrap">
     <div class="pv-header">
       <h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800">Probanden <span style="font-size:14px;color:#BBB;font-weight:400;font-family:monospace">${probands.length}</span></h2>
-      ${isAdmin()?'<button class="pv-add-btn" onclick="spOpenProbandModal(null)">+ Proband anlegen</button>':''}
+      <span style="font-size:12px;color:var(--g5)">Wird automatisch aus Probandenverwaltung befüllt</span>
     </div>
-    <input class="pv-search" placeholder="Name suchen…" oninput="spFilterP(this.value)">
+    <input class="pv-search" placeholder="P-ID oder Laufnummer suchen…" oninput="spFilterP(this.value)">
     <div id="sp-prows">${probands.length?probands.map(p=>{
-      const count=spCountAll(p.name),pct=Math.min(count/SP_TOTAL,1),color=spPColor(count,SP_TOTAL);
-      const init=p.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-      const meta=[p.age?p.age+' J':'',p.gender==='w'?'♀':p.gender==='m'?'♂':'',p.note].filter(Boolean).join(' · ');
+      const name = p.pid + (p.lnr ? ' · ' + p.lnr : '');
+      const count = spCountAll(p.pid);
+      const pct = Math.min(count/SP_TOTAL,1), color=spPColor(count,SP_TOTAL);
+      const meta = [p.t0week!==undefined?'T0 ✓':'', p.t1week!==undefined?'T1 ✓':'', p.notiz].filter(Boolean).join(' · ');
       return `<div class="proband-row">
-        <div class="proband-avatar">${init}</div>
-        <div class="proband-info"><div class="proband-name">${p.name}</div><div class="proband-meta">${meta||'—'}</div></div>
+        <div class="proband-avatar" style="font-size:10px">${p.pid}</div>
+        <div class="proband-info">
+          <div class="proband-name">${p.pid} <span style="font-size:12px;color:#6b7a99;font-family:monospace">${p.lnr||''}</span></div>
+          <div class="proband-meta">${meta||'—'}</div>
+        </div>
         <div class="proband-stats">
           <div class="proband-progress">
-            <div class="count" style="color:${color}">${count}</div><div class="label">/ ${SP_TOTAL} EIN.</div>
+            <div class="count" style="color:${color}">${count}</div>
+            <div class="label">/ ${SP_TOTAL} EIN.</div>
             <div class="mini-progress"><div class="mini-progress-fill" style="width:${pct*100}%;background:${color}"></div></div>
           </div>
-          ${isAdmin()?`<div style="display:flex;gap:5px">
-            <button class="btn btn-xs" onclick="spOpenProbandModal('${p._id}')">✎</button>
-            <button class="btn btn-xs btn-d" onclick="spDelProband('${p._id}')">✕</button>
-            <button class="btn btn-xs" style="background:#1A1A2E;color:#fff;border-color:#1A1A2E" onclick="spSwitch('sp-5rm',null);spSelectClient('${p._id}')">5RM →</button>
-          </div>`:''}
+          <button class="btn btn-xs" style="background:#1A1A2E;color:#fff;border-color:#1A1A2E" onclick="spSwitch('sp-5rm',null);spSelectClient('${p._id}')">5RM →</button>
         </div>
       </div>`;
-    }).join(''):'<div style="text-align:center;padding:3rem;color:#CCC;font-size:13px">Noch keine Probanden angelegt.</div>'}</div>
+    }).join(''):'<div style="text-align:center;padding:3rem;color:#CCC;font-size:13px">Noch keine Probanden in der Probandenverwaltung.</div>'}</div>
   </div>`;
 }
 window.spFilterP=q=>document.querySelectorAll('#sp-prows .proband-row').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(q.toLowerCase())?'':'none';});
@@ -2426,14 +2431,14 @@ function spRenderCalendar(){
         </div>`;
       }).join('')+`</div></div>`;
   } else {
-    const all=spGetProbands().map(p=>({...p,count:spCountAll(p.name)})).sort((a,b)=>b.count-a.count);
+    const all=spGetProbands().map(p=>({...p,count:spCountAll(p.pid)})).sort((a,b)=>b.count-a.count);
     content=`<div style="padding:20px">
       <h3 style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;margin-bottom:16px">Kalenderfortschritt</h3>
       ${all.map((p,i)=>{
         const pct=Math.min(p.count/SP_TOTAL,1),color=spPColor(p.count,SP_TOTAL);
         return `<div style="padding:12px 16px;background:#fff;border-radius:10px;border:1px solid #E8E4DE;margin-bottom:8px;display:flex;align-items:center;gap:12px">
           <span style="font-size:11px;color:#CCC;width:20px">${i+1}</span>
-          <span style="font-size:13px;font-weight:500;flex:1">${p.name}</span>
+          <span style="font-size:13px;font-weight:500;flex:1">${p.pid} <span style="font-size:11px;color:#999;font-family:monospace">${p.lnr||''}</span></span>
           <span style="font-size:13px;font-weight:700;color:${color};font-family:monospace">${p.count}/${SP_TOTAL}</span>
         </div>`;
       }).join('')}
@@ -2479,7 +2484,7 @@ window.spOpenSlotModal=(di,h)=>{
     </div>`;
   }).join('');
 
-  const acOptions=probands.filter(p=>!data.members.includes(p.name)).map(p=>`<option value="${p.name}">${p.name}</option>`).join('');
+  const acOptions=probands.filter(p=>!data.members.includes(p.pid)).map(p=>`<option value="${p.pid}">${p.pid} · ${p.lnr||''}</option>`).join('');
 
   document.getElementById('sp-slot-modal').innerHTML=`
     <div style="margin-bottom:18px">
@@ -2601,23 +2606,26 @@ function sp5rmRound(v){return Math.round(v/2.5)*2.5;}
 
 function spRenderClientList(){
   const el=document.getElementById('sp-clientList'); if(!el) return;
-  const p=Object.values(SP_PROBANDS).sort((a,b)=>a.name.localeCompare(b.name));
-  if(!p.length){el.innerHTML='<div style="font-size:.75rem;color:rgba(255,255,255,.4);padding:.5rem">Noch keine Probanden.<br>Bitte unter „Probanden\" anlegen.</div>';return;}
+  const p=spGetProbands();
+  if(!p.length){el.innerHTML='<div style="font-size:.75rem;color:rgba(255,255,255,.4);padding:.5rem">Noch keine Probanden.</div>';return;}
   el.innerHTML=p.map(c=>{
-    const s=c.sessions||[],last=s.length?new Date(s[s.length-1].date).toLocaleDateString('de-AT'):'Kein Test';
-    const init=c.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+    const sp=SP_PROBANDS[c._id]||{};
+    const s=sp.sessions||[],last=s.length?new Date(s[s.length-1].date).toLocaleDateString('de-AT'):'Kein Test';
     return `<div class="client-item${sp5rmClientId===c._id?' active':''}" onclick="spSelectClient('${c._id}')">
-      <div class="client-avatar">${init}</div>
-      <div class="client-info"><div class="cname">${c.name}</div><div class="cmeta">${c.age?c.age+' J · ':''}${last}</div></div>
+      <div class="client-avatar" style="font-size:9px">${c.pid}</div>
+      <div class="client-info"><div class="cname">${c.pid} · ${c.lnr||''}</div><div class="cmeta">${last}</div></div>
     </div>`;
   }).join('');
 }
 window.spSelectClient=(id)=>{
-  sp5rmClientId=id; const c=SP_PROBANDS[id]; if(!c) return;
+  sp5rmClientId=id;
+  // Look up in AAAging probands first, fall back to sp_probands
+  const c=window._P?window._P()[id]:null;
+  if(!c) return;
   document.getElementById('sp-welcomeScreen').style.display='none';
   document.getElementById('sp-clientView').style.display='block';
-  document.getElementById('sp-cvName').textContent=c.name;
-  document.getElementById('sp-cvMeta').textContent=[c.age?c.age+' Jahre':'',c.note].filter(Boolean).join(' · ')||'—';
+  document.getElementById('sp-cvName').textContent=`${c.pid} · ${c.lnr||''}`;
+  document.getElementById('sp-cvMeta').textContent=c.notiz||'Keine Notizen';
   spRenderClientList(); spSwitchTab5rm(sp5rmTab);
 };
 window.spSwitchTab5rm=(tab)=>{
@@ -2681,7 +2689,9 @@ window.sp5rmCalc=exId=>{
   sp5rmUpdateTable();
 };
 window.spSaveSession=async()=>{
-  const c=SP_PROBANDS[sp5rmClientId]; if(!c) return;
+  // Get AAAging proband for display, use sp_probands for session storage
+  const aaProband = window._P ? window._P()[sp5rmClientId] : null; if(!aaProband) return;
+  const c = SP_PROBANDS[sp5rmClientId] || {_id: sp5rmClientId, sessions:[]};
   const date=document.getElementById('sp-testDate')?.value;
   const note=document.getElementById('sp-testNote')?.value.trim();
   const results={}; let hasData=false;
@@ -2693,12 +2703,12 @@ window.spSaveSession=async()=>{
   if(!hasData){toast('Bitte mindestens eine Übung ausfüllen',true);return;}
   const sessions=[...(c.sessions||[]),{id:Date.now().toString(),date,note,results}].sort((a,b)=>a.date.localeCompare(b.date));
   try{
-    await window._updateDoc(window._doc(window.db,'sp_probands',c._id),{sessions,updated:Date.now()});
+    await window._setDoc(window._doc(window.db,'sp_probands',sp5rmClientId),{sessions,pid:aaProband.pid,lnr:aaProband.lnr||'',updated:Date.now()});
     toast('Test gespeichert ✓'); spSwitchTab5rm('history');
   }catch(e){toast('Fehler: '+e.message,true);}
 };
 function sp5rmRenderHistory(){
-  const c=SP_PROBANDS[sp5rmClientId];
+  const c=SP_PROBANDS[sp5rmClientId]||{sessions:[]};
   const el=document.getElementById('sp-historyContent'); if(!el) return;
   if(!c?.sessions?.length){el.innerHTML='<div class="history-empty">Noch keine Tests gespeichert.</div>';return;}
   el.innerHTML=[...c.sessions].reverse().map(s=>{
@@ -2726,13 +2736,13 @@ window.sp5rmToggle=id=>{
 };
 window.sp5rmDelSession=async id=>{
   if(!confirm('Test löschen?')) return;
-  const c=SP_PROBANDS[sp5rmClientId]; if(!c) return;
+  const c=SP_PROBANDS[sp5rmClientId]||{};
   const sessions=(c.sessions||[]).filter(s=>s.id!==id);
-  try{await window._updateDoc(window._doc(window.db,'sp_probands',c._id),{sessions,updated:Date.now()});sp5rmRenderHistory();}
+  try{await window._setDoc(window._doc(window.db,'sp_probands',sp5rmClientId),{...c,sessions,updated:Date.now()});sp5rmRenderHistory();}
   catch(e){toast('Fehler: '+e.message,true);}
 };
 function sp5rmRenderProgress(){
-  const c=SP_PROBANDS[sp5rmClientId];
+  const c=SP_PROBANDS[sp5rmClientId]||{sessions:[]};
   const el=document.getElementById('sp-progressContent'); if(!el) return;
   if(!c?.sessions||c.sessions.length<2){el.innerHTML='<div class="history-empty">Mindestens 2 Tests nötig.</div>';return;}
   const sessions=[...c.sessions].sort((a,b)=>a.date.localeCompare(b.date));
