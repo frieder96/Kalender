@@ -788,6 +788,21 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         </div>
       </div>
 
+      <!-- TRAINING EXPORT -->
+      <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-bottom:1.5rem">
+        <div style="background:#1A4A2A;padding:14px 16px"><div style="font-family:'Source Serif 4',serif;font-size:16px;font-weight:600;color:#fff">Trainingsprotokoll Export</div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Alle Übungen · Sätze · Wiederholungen · Gewichte</div></div>
+        <div style="padding:16px">
+          <div style="font-size:12.5px;color:var(--g5);margin-bottom:14px">Proband · Studio · Datum · Übung · Satz 1–3 (Wdhl./kg) · Notiz</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+            <span style="font-size:12px;font-weight:600;color:var(--g6)">Zeitraum:</span>
+            <button class="btn btn-sm" id="train-exp-btn-p1" onclick="exportTraining('phase1')" style="background:#1A4A2A;color:#fff;border-color:#1A4A2A">Phase 1 (Wo. 1–18)</button>
+            <button class="btn btn-sm" id="train-exp-btn-p2" onclick="exportTraining('phase2')">Phase 2 (Wo. 19–48)</button>
+            <button class="btn btn-sm" id="train-exp-btn-all" onclick="exportTraining('all')">Alle Daten</button>
+          </div>
+          <div style="font-size:11px;color:var(--g4);font-family:monospace" id="training-export-count"></div>
+        </div>
+      </div>
+
       <!-- IMPORT -->
       <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-bottom:1.5rem">
         <div style="background:#1A4A1A;padding:14px 16px"><div style="font-family:'Source Serif 4',serif;font-size:16px;font-weight:600;color:#fff">Probanden importieren (CSV)</div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Neue Probanden aus CSV hinzufügen — bestehende bleiben unverändert</div></div>
@@ -2755,6 +2770,84 @@ window.exportRecalls = () => {
   dlCSV([h,...rows],tsFile('AAAging_Recalls')); toast('Recalls exportiert ✓');
 };
 
+window.exportTraining = (range) => {
+  const logs = Object.values(SP_TRAINING_LOGS);
+  if(!logs.length){toast('Keine Trainingsdaten vorhanden',true);return;}
+
+  // Determine first log week for phase boundary
+  const firstWo = logs.length ? Math.min(...logs.map(l=>typeof l.wo==='number'?l.wo:Infinity)) : 0;
+
+  // Filter by range
+  let filtered = logs;
+  let label = 'Alle';
+  if(range==='phase1'){
+    filtered = logs.filter(l=>typeof l.wo==='number' && (l.wo-firstWo)<18);
+    label = 'Phase1_Wo1-18';
+  } else if(range==='phase2'){
+    filtered = logs.filter(l=>typeof l.wo==='number' && (l.wo-firstWo)>=18 && (l.wo-firstWo)<48);
+    label = 'Phase2_Wo19-48';
+  }
+
+  if(!filtered.length){toast('Keine Daten für diesen Zeitraum',true);return;}
+
+  // Build flat rows: one row per proband × exercise × set
+  const headers = [
+    'Proband','P-ID','Laufnr.',
+    'Studio','Woche','KW','Datum','Tag','Uhrzeit',
+    'Phase','Übung',
+    'Satz 1 Wdhl.','Satz 1 kg',
+    'Satz 2 Wdhl.','Satz 2 kg',
+    'Satz 3 Wdhl.','Satz 3 kg',
+    'Notiz'
+  ];
+
+  const SP_DAY_NAMES_MAP = {1:'Montag',2:'Dienstag',3:'Mittwoch',4:'Donnerstag'};
+  const SP_HOURS_MAP = h => `${h}:00`;
+
+  const rows = [];
+  filtered.sort((a,b)=>(a.wo??0)-(b.wo??0)||(a.di??0)-(b.di??0)).forEach(log => {
+    const probandName = log.proband || '';
+    const proband = Object.values(P).find(p=>p.pid===probandName||p.lnr===probandName);
+    const studio = SP_STUDIOS.find(s=>s.id===log.sid);
+    const phase = firstWo===Infinity ? 1 : ((log.wo-firstWo)<18?1:2);
+
+    // Get date from week offset
+    let dateStr = '', dayName = SP_DAY_NAMES_MAP[log.di]||'', kwNum = '';
+    try {
+      const dates = spGetWeekDates(log.wo);
+      const d = dates[(log.di||1)-1];
+      if(d){ dateStr = fD(d); kwNum = String(kw(d)); }
+    } catch(e){}
+
+    (log.exercises||[]).forEach(ex => {
+      const s = ex.sets||[];
+      rows.push([
+        probandName,
+        proband?.pid||'',
+        proband?.lnr||'',
+        studio?.name||`Studio ${log.sid}`,
+        log.wo??'',
+        kwNum,
+        dateStr,
+        dayName,
+        SP_HOURS_MAP(log.h||0),
+        `Phase ${phase}`,
+        ex.name||'',
+        s[0]?.reps||'', s[0]?.weight||'',
+        s[1]?.reps||'', s[1]?.weight||'',
+        s[2]?.reps||'', s[2]?.weight||'',
+        ex.note||''
+      ]);
+    });
+  });
+
+  if(!rows.length){toast('Keine Übungsdaten vorhanden',true);return;}
+  dlXLSX(headers, rows, tsFile(`AAAging_Training_${label}`,'xlsx'), 'Training');
+  const countEl = document.getElementById('training-export-count');
+  if(countEl) countEl.textContent = `${rows.length} Zeilen exportiert · ${filtered.length} Einheiten`;
+  toast('Trainingsdaten exportiert ✓');
+};
+
 // ── EEG BOOKING ───────────────────
 let _eegBookCtx = null;
 window.openEEGBookModal = (w, day, slot) => {
@@ -3179,9 +3272,11 @@ window.spOpenSlotModal=(di,h)=>{
   const memberRows=data.members.map((name,i)=>{
     const att=(data.attendance&&data.attendance[i])||'pending';
     const attCfg={pending:{icon:'○',bg:'#F8F5F0',border:'#E0DDD8',color:'#AAA'},present:{icon:'✔',bg:'#f0faf4',border:'#2E9E7A',color:'#2E9E7A'},absent:{icon:'✘',bg:'#fff5f5',border:'#C04A6A',color:'#C04A6A'}}[att];
+    const hasLog = !!spGetTrainLog(spActiveStudio,di,h,spWeekOff,name);
     return `<div style="background:${attCfg.bg};border-radius:8px;border:1px solid ${attCfg.border};padding:9px 12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
       <span style="font-size:13px">${i+1}. ${name}</span>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:6px;align-items:center">
+        <button onclick="spOpenTrainingLog(${spActiveStudio},${di},${h},${spWeekOff},'${name.replace(/'/g,"\\'")}',this)" style="background:${hasLog?'#003975':'#fff'};border:1px solid #003975;border-radius:6px;color:${hasLog?'#fff':'#003975'};font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer" title="Trainingsprotokoll">📋</button>
         ${isAdmin()?`<button onclick="spToggleAtt(${i},'${att}')" style="background:none;border:1px solid ${attCfg.border};border-radius:6px;color:${attCfg.color};font-weight:700;font-size:14px;width:30px;height:28px;cursor:pointer">${attCfg.icon}</button>`:''}
         <span style="font-size:10px;font-family:monospace;color:${spPColor(spCountAll(name),SP_TOTAL)}">${spCountAll(name)}/${SP_TOTAL}</span>
         ${isAdmin()?`<button onclick="spRemoveBooking('member',${i})" style="background:none;border:none;color:#CCC;font-size:16px;cursor:pointer">×</button>`:''}
@@ -3230,10 +3325,7 @@ window.spOpenSlotModal=(di,h)=>{
       </div>
       <button onclick="spAddBooking()" style="width:100%;padding:11px;border-radius:8px;border:none;background:${studio.color};color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;font-family:monospace;cursor:pointer">+ BESTÄTIGEN</button>
     </div>`:''}
-    ${data.members.length>0?`<div style="border-top:1px solid #EAE7E2;padding-top:14px;margin-top:4px">
-      <div style="font-size:9px;color:#BBB;letter-spacing:2px;margin-bottom:10px">TRAININGSPROTOKOLL</div>
-      <button onclick="spOpenTrainingLog(${spActiveStudio},${di},${h},${spWeekOff})" style="width:100%;padding:11px;border-radius:8px;border:1px solid #003975;background:#fff;color:#003975;font-size:12px;font-weight:700;letter-spacing:1px;font-family:monospace;cursor:pointer">📋 PROTOKOLL EINTRAGEN / ANSEHEN</button>
-    </div>`:''}
+
     <div style="text-align:right;margin-top:12px"><button onclick="spCloseSlot()" style="background:none;border:1px solid #DDD;border-radius:8px;padding:8px 16px;font-family:sans-serif;font-size:13px;color:#999;cursor:pointer">Schließen</button></div>`;
 
   document.getElementById('sp-slot-overlay').style.display='flex';
@@ -3272,19 +3364,19 @@ function spGetTemplate(weekOff) {
   return phase===1 ? SP_TEMPLATE_PHASE1 : SP_TEMPLATE_PHASE2;
 }
 
-function spTrainLogKey(sid, di, h, wo) { return `t_s${sid}_d${di}_h${h}_w${wo}`; }
+function spTrainLogKey(sid, di, h, wo, proband) { const p=(proband||'').replace(/[^a-zA-Z0-9]/g,'_'); return `t_s${sid}_d${di}_h${h}_w${wo}_p${p}`; }
 
-function spGetTrainLog(sid, di, h, wo) {
-  const key = spTrainLogKey(sid,di,h,wo);
+function spGetTrainLog(sid, di, h, wo, proband) {
+  const key = spTrainLogKey(sid,di,h,wo,proband||'');
   return Object.values(SP_TRAINING_LOGS).find(l=>l.key===key) || null;
 }
 
 let _spTrainCtx = null;
-window.spOpenTrainingLog = (sid, di, h, wo) => {
-  _spTrainCtx = {sid,di,h,wo};
+window.spOpenTrainingLog = (sid, di, h, wo, proband, btn) => {
+  _spTrainCtx = {sid,di,h,wo,proband};
   const studio = SP_STUDIOS.find(s=>s.id===sid);
   const data = spGetSD(sid,di,h,wo);
-  const existing = spGetTrainLog(sid,di,h,wo);
+  const existing = spGetTrainLog(sid,di,h,wo,proband);
   const template = spGetTemplate(wo);
   const phase = spGetPhase(wo);
   const weekDates = spGetWeekDates(wo);
@@ -3331,7 +3423,7 @@ window.spOpenTrainingLog = (sid, di, h, wo) => {
       <div>
         <div style="font-size:9px;color:${studio.color};letter-spacing:3px;font-weight:600">${studio.name.toUpperCase()}</div>
         <div style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif">${SP_DAY_NAMES[di]} ${h}:00 · ${dateStr}</div>
-        <div style="font-size:11px;color:#BBB;margin-top:2px">Phase ${phase} · ${data.members.length} Probanden</div>
+        <div style="font-size:11px;color:#BBB;margin-top:2px">Phase ${phase} · ${proband||'Unbekannt'}</div>
       </div>
       <button onclick="spCloseTrainModal()" style="background:none;border:none;font-size:22px;color:#BBB;cursor:pointer">×</button>
     </div>
@@ -3368,13 +3460,13 @@ window.spAddCustomEx = () => {
   inp.value='';
   // Re-render with new exercise
   const ctx=_spTrainCtx;
-  spOpenTrainingLog(ctx.sid,ctx.di,ctx.h,ctx.wo);
+  spOpenTrainingLog(ctx.sid,ctx.di,ctx.h,ctx.wo,ctx.proband);
 };
 
 window.spRemoveCustomEx = (ei) => {
   window._spTrainExNames = (window._spTrainExNames||[]).filter((_,i)=>i!==ei);
   const ctx=_spTrainCtx;
-  spOpenTrainingLog(ctx.sid,ctx.di,ctx.h,ctx.wo);
+  spOpenTrainingLog(ctx.sid,ctx.di,ctx.h,ctx.wo,ctx.proband);
 };
 
 window.spSaveTrainLog = async () => {
@@ -3389,9 +3481,9 @@ window.spSaveTrainLog = async () => {
     const note = container.querySelector(`[data-ex="${ei}"][data-field="note"]`)?.value||'';
     return {name, sets, note};
   });
-  const key = spTrainLogKey(ctx.sid,ctx.di,ctx.h,ctx.wo);
-  const existing = spGetTrainLog(ctx.sid,ctx.di,ctx.h,ctx.wo);
-  const data = {key,sid:ctx.sid,di:ctx.di,h:ctx.h,wo:ctx.wo,exercises,updated:Date.now()};
+  const key = spTrainLogKey(ctx.sid,ctx.di,ctx.h,ctx.wo,ctx.proband);
+  const existing = spGetTrainLog(ctx.sid,ctx.di,ctx.h,ctx.wo,ctx.proband);
+  const data = {key,sid:ctx.sid,di:ctx.di,h:ctx.h,wo:ctx.wo,proband:ctx.proband||'',exercises,updated:Date.now()};
   try {
     if(existing) await window._updateDoc(window._doc(window.db,'training_logs',existing._id),data);
     else await window._addDoc(window._col(window.db,'training_logs'),{...data,created:Date.now()});
