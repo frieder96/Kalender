@@ -713,7 +713,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <div class="phdr">
         <div><div class="ptitle">Probandenverwaltung</div><div class="psub">Alle Termine pro Proband · T0 · T1 · T2 · T3 · 24h Recalls</div></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-sm" onclick="exportCSV()">Export CSV</button>
+          <button class="btn btn-sm" onclick="exportCSV()">Export Excel</button>
           <label class="btn btn-sm" style="cursor:pointer" title="CSV mit Spalten P-ID und Laufnummer">
             ↑ Import CSV
             <input type="file" accept=".csv" style="display:none" onchange="importCSV(this)">
@@ -778,7 +778,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh)">
           <div style="background:var(--ub);padding:14px 16px"><div style="font-family:'Source Serif 4',serif;font-size:16px;font-weight:600;color:#fff">Probanden-Export</div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Alle Probanden mit allen Terminen</div></div>
           <div style="padding:16px"><div style="font-size:12.5px;color:var(--g5);margin-bottom:14px">P-ID · Laufnr. · T0 · T1 · T2 · T3 · Notizen</div>
-          <button class="btn btn-p btn-sm" onclick="exportProbanden()">↓ Probanden herunterladen (CSV)</button>
+          <button class="btn btn-p btn-sm" onclick="exportProbanden()">↓ Probanden herunterladen (Excel)</button>
           <div style="margin-top:8px;font-size:11px;color:var(--g4);font-family:monospace" id="probanden-count"></div></div>
         </div>
         <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh)">
@@ -2614,12 +2614,70 @@ window.deleteSperren = async () => {
 const tsFile = prefix => { const n=new Date(),p=x=>String(x).padStart(2,'0'); return `${prefix}_${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}_${p(n.getHours())}${p(n.getMinutes())}.csv`; };
 const dlCSV  = (rows,fn) => { const csv=rows.map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})); a.download=fn; a.click(); };
 
+function dlXLSX(headers, rows, filename, sheetName='Daten') {
+  if(typeof XLSX === 'undefined'){ toast('XLSX nicht geladen',true); return; }
+  const wsData = [headers, ...rows];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  // Auto column widths
+  const colWidths = headers.map((h,ci) => {
+    const maxLen = Math.max(String(h).length, ...rows.map(r=>String(r[ci]||'').length));
+    return {wch: Math.min(Math.max(maxLen+2, 8), 30)};
+  });
+  ws['!cols'] = colWidths;
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, filename);
+}
+
+
 window.exportProbanden = () => {
-  const ps=Object.values(P).sort((a,b)=>a.lnr.localeCompare(b.lnr));
+  const ps = Object.values(P).sort((a,b) => (a.lnr||'').localeCompare(b.lnr||''));
   if(!ps.length){toast('Keine Probanden',true);return;}
-  const h=['P-ID','Laufnr.','T0 KW','T0 Tag','T0 Slot','T1 KW','T1.1 Tag','T1.1 Slot','T1.2 Tag','T1.2 Slot','T2 Datum','T2 Zeit','T3 Datum','T3 Zeit','Notiz'];
-  const rows=ps.map(p=>[p.pid,p.lnr,p.t0week!==undefined?kw(wMon(p.t0week)):'',p.t0day||'',p.t0slot||'',p.t1week!==undefined?kw(wMon(p.t1week)):'',p.t1day11||'',p.t1slot11||'',p.t1day12||'',p.t1slot12||'',p.t2date||'',p.t2time||'',p.t3date||'',p.t3time||'',p.notiz||'']);
-  dlCSV([h,...rows],tsFile('AAAging_Probanden')); toast('Export heruntergeladen ✓');
+
+  const slotTime = (slots, slot) => slots.find(s=>s.slot===slot)?.blutStart || '';
+  const kwStr = w => w!==undefined ? String(kw(wMon(w))) : '';
+  const dayDate = (w, day) => {
+    if(w===undefined||!day) return '';
+    const d = wDay(w, {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4}[day]||0);
+    return d ? fD(d) : '';
+  };
+
+  const h = [
+    'P-ID','Laufnr.',
+    'T0 KW','T0 Datum','T0 Tag','T0 Slot','T0 Uhrzeit',
+    'T1 KW',
+    'T1.1 Datum','T1.1 Tag','T1.1 Slot','T1.1 Uhrzeit',
+    'T1.2 Datum','T1.2 Tag','T1.2 Slot','T1.2 Uhrzeit',
+    'T2 KW',
+    'T2.1 Datum','T2.1 Tag','T2.1 Slot','T2.1 Uhrzeit',
+    'T2.2 Datum','T2.2 Tag','T2.2 Slot','T2.2 Uhrzeit',
+    'T3 KW',
+    'T3.1 Datum','T3.1 Tag','T3.1 Slot','T3.1 Uhrzeit',
+    'T3.2 Datum','T3.2 Tag','T3.2 Slot','T3.2 Uhrzeit',
+    'Notiz'
+  ];
+
+  const rows = ps.map(p => [
+    p.pid||'', p.lnr||'',
+    // T0
+    kwStr(p.t0week), dayDate(p.t0week,p.t0day), p.t0day||'', p.t0slot||'', slotTime(T0, p.t0slot),
+    // T1
+    kwStr(p.t1week),
+    dayDate(p.t1week,p.t1day11), p.t1day11||'', p.t1slot11||'', slotTime(T11, p.t1slot11),
+    dayDate(p.t1week,p.t1day12), p.t1day12||'', p.t1slot12||'', slotTime(T12, p.t1slot12),
+    // T2
+    kwStr(p.t2week),
+    dayDate(p.t2week,p.t2day11), p.t2day11||'', p.t2slot11||'', slotTime(T21, p.t2slot11),
+    dayDate(p.t2week,p.t2day12), p.t2day12||'', p.t2slot12||'', slotTime(T22, p.t2slot12),
+    // T3
+    kwStr(p.t3week),
+    dayDate(p.t3week,p.t3day11), p.t3day11||'', p.t3slot11||'', slotTime(T31, p.t3slot11),
+    dayDate(p.t3week,p.t3day12), p.t3day12||'', p.t3slot12||'', slotTime(T32, p.t3slot12),
+    p.notiz||''
+  ]);
+
+  dlXLSX(h, rows, tsFile('AAAging_Probanden','xlsx'), 'Probanden');
+  toast('Export heruntergeladen ✓');
 };
 
 window.exportCSV = window.exportProbanden;
