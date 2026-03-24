@@ -860,6 +860,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
           <button class="sp-snav-btn on" onclick="spSwitch('sp-probanden',this)">👥 Probanden</button>
           <button class="sp-snav-btn"    onclick="spSwitch('sp-calendar',this)">📅 Buchungskalender</button>
           <button class="sp-snav-btn"    onclick="spSwitch('sp-5rm',this)">💪 5RM Diagnostik</button>
+          ${window.isAdmin && window.isAdmin() ? '<button class="sp-snav-btn" onclick="spOpenTemplateManager()">⚙️ Übungs-Templates</button>' : ''}
         </div>
 
         <div id="sp-probanden"><div id="sp-pv-react-root"></div></div>
@@ -2897,7 +2898,7 @@ const SP_HOURS = [11,12,13,14,15];
 const SP_MAX = 5;
 const SP_TOTAL = 96;
 
-let SP_PROBANDS = {}, SP_SLOTS_DATA = {};
+let SP_PROBANDS = {}, SP_SLOTS_DATA = {}, SP_TRAINING_LOGS = {}, SP_TRAINING_TEMPLATES = {};
 let sp_listeners = [];
 function spEmit(){ sp_listeners.forEach(fn=>fn()); }
 window.spOnChange = fn => sp_listeners.push(fn);
@@ -2913,6 +2914,16 @@ function spStartListeners(){
   window._onSnap(window._col(_db,'sp_slots'), snap=>{
     SP_SLOTS_DATA={};
     snap.forEach(d=>{SP_SLOTS_DATA[d.id]={...d.data(),_id:d.id};});
+    spEmit();
+  });
+  window._onSnap(window._col(_db,'training_logs'), snap=>{
+    SP_TRAINING_LOGS={};
+    snap.forEach(d=>{SP_TRAINING_LOGS[d.id]={...d.data(),_id:d.id};});
+    spEmit();
+  });
+  window._onSnap(window._col(_db,'training_templates'), snap=>{
+    SP_TRAINING_TEMPLATES={};
+    snap.forEach(d=>{SP_TRAINING_TEMPLATES[d.id]={...d.data(),_id:d.id};});
     spEmit();
   });
 }
@@ -3217,11 +3228,245 @@ window.spOpenSlotModal=(di,h)=>{
       </div>
       <button onclick="spAddBooking()" style="width:100%;padding:11px;border-radius:8px;border:none;background:${studio.color};color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;font-family:monospace;cursor:pointer">+ BESTÄTIGEN</button>
     </div>`:''}
+    ${data.members.length>0?`<div style="border-top:1px solid #EAE7E2;padding-top:14px;margin-top:4px">
+      <div style="font-size:9px;color:#BBB;letter-spacing:2px;margin-bottom:10px">TRAININGSPROTOKOLL</div>
+      <button onclick="spOpenTrainingLog(${spActiveStudio},${di},${h},${spWeekOff})" style="width:100%;padding:11px;border-radius:8px;border:1px solid #003975;background:#fff;color:#003975;font-size:12px;font-weight:700;letter-spacing:1px;font-family:monospace;cursor:pointer">📋 PROTOKOLL EINTRAGEN / ANSEHEN</button>
+    </div>`:''}
     <div style="text-align:right;margin-top:12px"><button onclick="spCloseSlot()" style="background:none;border:1px solid #DDD;border-radius:8px;padding:8px 16px;font-family:sans-serif;font-size:13px;color:#999;cursor:pointer">Schließen</button></div>`;
 
   document.getElementById('sp-slot-overlay').style.display='flex';
 };
 window.spCloseSlot=()=>{ document.getElementById('sp-slot-overlay').style.display='none'; };
+
+// ── TRAINING PROTOCOL SYSTEM ──────────────────────────────────────
+// Default templates: Phase 1 (weeks 1-18), Phase 2 (week 19+)
+const SP_TEMPLATE_PHASE1 = [
+  'A1 Brustpresse', 'A2 Rudern',
+  'B1 Beinpresse', 'B2 Beinbeuger',
+  'C1 Bauch', 'C2 Freier Rückenstrecker',
+  'D1 Schulterpresse', 'D2 Latzug'
+];
+const SP_TEMPLATE_PHASE2 = [
+  'A1 Brustpresse', 'A2 Rudern',
+  'B1 Beinpresse', 'B2 Beinbeuger',
+  'C1 Bauch', 'C2 Freier Rückenstrecker',
+  'D1 Schulterpresse', 'D2 Latzug'
+];
+
+function spGetPhase(weekOff) {
+  // Phase boundary: first 18 weeks from the earliest training log entry
+  const logs = Object.values(SP_TRAINING_LOGS);
+  if(!logs.length) return 1; // no logs yet → Phase 1
+  const firstWo = Math.min(...logs.map(l => typeof l.wo === 'number' ? l.wo : Infinity));
+  if(firstWo === Infinity) return 1;
+  return (weekOff - firstWo) < 18 ? 1 : 2;
+}
+
+function spGetTemplate(weekOff) {
+  // Check for custom templates in Firebase first
+  const phase = spGetPhase(weekOff);
+  const custom = Object.values(SP_TRAINING_TEMPLATES).find(t=>t.phase===phase);
+  if(custom && custom.exercises?.length) return custom.exercises;
+  return phase===1 ? SP_TEMPLATE_PHASE1 : SP_TEMPLATE_PHASE2;
+}
+
+function spTrainLogKey(sid, di, h, wo) { return `t_s${sid}_d${di}_h${h}_w${wo}`; }
+
+function spGetTrainLog(sid, di, h, wo) {
+  const key = spTrainLogKey(sid,di,h,wo);
+  return Object.values(SP_TRAINING_LOGS).find(l=>l.key===key) || null;
+}
+
+let _spTrainCtx = null;
+window.spOpenTrainingLog = (sid, di, h, wo) => {
+  _spTrainCtx = {sid,di,h,wo};
+  const studio = SP_STUDIOS.find(s=>s.id===sid);
+  const data = spGetSD(sid,di,h,wo);
+  const existing = spGetTrainLog(sid,di,h,wo);
+  const template = spGetTemplate(wo);
+  const phase = spGetPhase(wo);
+  const weekDates = spGetWeekDates(wo);
+  const dateStr = spFmtDate(weekDates[di-1]);
+
+  // Build exercise rows — combine template + any custom exercises saved
+  const savedExercises = existing?.exercises || [];
+  const allExNames = [...new Set([...template, ...savedExercises.map(e=>e.name)])];
+
+  const exRows = allExNames.map((name, ei) => {
+    const saved = savedExercises.find(e=>e.name===name);
+    const sets = saved?.sets || [{reps:'',weight:''},{reps:'',weight:''},{reps:'',weight:''}];
+    const note = saved?.note || '';
+    return `<div class="train-ex-row" id="tex-${ei}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:12px;font-weight:700;color:#1A1A1A;flex:1">${name}</span>
+        ${isAdmin()?`<button onclick="spRemoveCustomEx(${ei})" style="background:none;border:none;color:#CCC;font-size:14px;cursor:pointer" title="Entfernen">×</button>`:''}
+      </div>
+      <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:4px 8px;align-items:center;margin-bottom:4px">
+        <span style="font-size:9px;color:#AAA;letter-spacing:1px">SATZ</span>
+        <span style="font-size:9px;color:#AAA;letter-spacing:1px">WDHL</span>
+        <span style="font-size:9px;color:#AAA;letter-spacing:1px">KG</span>
+        ${sets.map((s,si)=>`
+        <span style="font-size:11px;color:#BBB;font-family:monospace">${si+1}</span>
+        <input type="number" min="0" placeholder="—" value="${s.reps||''}"
+          style="padding:5px 7px;border:1px solid #E8E4DE;border-radius:6px;font-family:monospace;font-size:12px;width:100%;outline:none"
+          ${isAdmin()?'':`disabled`}
+          data-ex="${ei}" data-set="${si}" data-field="reps">
+        <input type="number" min="0" step="0.5" placeholder="—" value="${s.weight||''}"
+          style="padding:5px 7px;border:1px solid #E8E4DE;border-radius:6px;font-family:monospace;font-size:12px;width:100%;outline:none"
+          ${isAdmin()?'':`disabled`}
+          data-ex="${ei}" data-set="${si}" data-field="weight">`).join('')}
+      </div>
+      <input type="text" placeholder="Notiz (optional)" value="${note}"
+        style="width:100%;padding:5px 8px;border:1px solid #E8E4DE;border-radius:6px;font-size:11px;color:#666;outline:none;margin-top:2px"
+        ${isAdmin()?'':`disabled`}
+        data-ex="${ei}" data-field="note">
+    </div>`;
+  }).join('<hr style="border:none;border-top:1px solid #EAE7E2;margin:10px 0">');
+
+  const modal = document.getElementById('sp-train-modal');
+  modal.innerHTML = `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:9px;color:${studio.color};letter-spacing:3px;font-weight:600">${studio.name.toUpperCase()}</div>
+        <div style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif">${SP_DAY_NAMES[di]} ${h}:00 · ${dateStr}</div>
+        <div style="font-size:11px;color:#BBB;margin-top:2px">Phase ${phase} · ${data.members.length} Probanden</div>
+      </div>
+      <button onclick="spCloseTrainModal()" style="background:none;border:none;font-size:22px;color:#BBB;cursor:pointer">×</button>
+    </div>
+
+    <div style="font-size:10px;font-weight:700;color:#888;letter-spacing:1px;margin-bottom:10px">ÜBUNGEN</div>
+    <div id="sp-train-exercises">${exRows}</div>
+
+    ${isAdmin()?`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #EAE7E2">
+      <div style="display:flex;gap:8px">
+        <input id="sp-train-new-ex" type="text" placeholder="Neue Übung hinzufügen…"
+          style="flex:1;padding:9px 12px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none"
+          onkeydown="if(event.key==='Enter')spAddCustomEx()">
+        <button onclick="spAddCustomEx()" style="padding:9px 14px;border-radius:8px;border:none;background:#003975;color:#fff;font-size:12px;font-weight:700;cursor:pointer">+ Hinzufügen</button>
+      </div>
+    </div>`:''}
+
+    ${isAdmin()?`<div style="display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid #EAE7E2">
+      <button onclick="spSaveTrainLog()" style="flex:1;padding:11px;border-radius:8px;border:none;background:#003975;color:#fff;font-size:12px;font-weight:700;cursor:pointer">💾 Protokoll speichern</button>
+      ${existing?`<button onclick="spDeleteTrainLog('${existing._id}')" style="padding:11px 14px;border-radius:8px;border:1px solid #E8C0C8;background:#FDF2F4;color:#C8102E;font-size:12px;font-weight:700;cursor:pointer">Löschen</button>`:''}
+    </div>`:`<div style="margin-top:12px;padding:8px 12px;background:#F5F5F5;border-radius:8px;font-size:11px;color:#888;text-align:center">Nur Admin kann Protokolle bearbeiten</div>`}
+  `;
+
+  document.getElementById('sp-train-overlay').style.display='flex';
+  // Store exercise list for save
+  window._spTrainExNames = allExNames;
+};
+
+window.spCloseTrainModal = () => { document.getElementById('sp-train-overlay').style.display='none'; };
+
+window.spAddCustomEx = () => {
+  const inp = document.getElementById('sp-train-new-ex');
+  const name = inp?.value.trim(); if(!name) return;
+  window._spTrainExNames = [...(window._spTrainExNames||[]), name];
+  inp.value='';
+  // Re-render with new exercise
+  const ctx=_spTrainCtx;
+  spOpenTrainingLog(ctx.sid,ctx.di,ctx.h,ctx.wo);
+};
+
+window.spRemoveCustomEx = (ei) => {
+  window._spTrainExNames = (window._spTrainExNames||[]).filter((_,i)=>i!==ei);
+  const ctx=_spTrainCtx;
+  spOpenTrainingLog(ctx.sid,ctx.di,ctx.h,ctx.wo);
+};
+
+window.spSaveTrainLog = async () => {
+  const ctx=_spTrainCtx; if(!ctx) return;
+  const exNames = window._spTrainExNames || [];
+  const container = document.getElementById('sp-train-exercises');
+  const exercises = exNames.map((name,ei)=>{
+    const sets=[0,1,2].map(si=>({
+      reps: container.querySelector(`[data-ex="${ei}"][data-set="${si}"][data-field="reps"]`)?.value||'',
+      weight: container.querySelector(`[data-ex="${ei}"][data-set="${si}"][data-field="weight"]`)?.value||''
+    }));
+    const note = container.querySelector(`[data-ex="${ei}"][data-field="note"]`)?.value||'';
+    return {name, sets, note};
+  });
+  const key = spTrainLogKey(ctx.sid,ctx.di,ctx.h,ctx.wo);
+  const existing = spGetTrainLog(ctx.sid,ctx.di,ctx.h,ctx.wo);
+  const data = {key,sid:ctx.sid,di:ctx.di,h:ctx.h,wo:ctx.wo,exercises,updated:Date.now()};
+  try {
+    if(existing) await window._updateDoc(window._doc(window.db,'training_logs',existing._id),data);
+    else await window._addDoc(window._col(window.db,'training_logs'),{...data,created:Date.now()});
+    spCloseTrainModal(); toast('Protokoll gespeichert ✓');
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+
+window.spDeleteTrainLog = async (id) => {
+  if(!confirm('Protokoll wirklich löschen?')) return;
+  try { await window._deleteDoc(window._doc(window.db,'training_logs',id)); spCloseTrainModal(); toast('Protokoll gelöscht'); }
+  catch(e){toast('Fehler: '+e.message,true);}
+};
+
+// Template management
+window.spOpenTemplateManager = () => {
+  const phase1 = spGetTemplate(-1);
+  const phase2 = (() => {
+    const custom = Object.values(SP_TRAINING_TEMPLATES).find(t=>t.phase===2);
+    return custom?.exercises?.length ? custom.exercises : SP_TEMPLATE_PHASE2;
+  })();
+  const modal = document.getElementById('sp-train-modal');
+  modal.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif">Übungs-Templates</div>
+      <button onclick="spCloseTrainModal()" style="background:none;border:none;font-size:22px;color:#BBB;cursor:pointer">×</button>
+    </div>
+    ${[{phase:1,label:'Phase 1 (Wochen 1–18)',exs:phase1},{phase:2,label:'Phase 2 (ab Woche 19)',exs:phase2}].map(({phase,label,exs})=>`
+      <div style="margin-bottom:20px">
+        <div style="font-size:10px;font-weight:700;color:#888;letter-spacing:1px;margin-bottom:8px">${label.toUpperCase()}</div>
+        <div id="tmpl-list-${phase}">${exs.map((e,i)=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#F8F5F0;border-radius:6px;margin-bottom:4px">
+            <span style="flex:1;font-size:12px">${e}</span>
+            <button onclick="spRemoveTemplateEx(${phase},${i})" style="background:none;border:none;color:#CCC;cursor:pointer;font-size:14px">×</button>
+          </div>`).join('')}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input id="tmpl-new-${phase}" type="text" placeholder="Neue Übung…"
+            style="flex:1;padding:8px 10px;border:1px solid #DDD;border-radius:6px;font-size:12px;outline:none"
+            onkeydown="if(event.key==='Enter')spAddTemplateEx(${phase})">
+          <button onclick="spAddTemplateEx(${phase})" style="padding:8px 12px;background:#003975;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">+</button>
+        </div>
+        <button onclick="spSaveTemplate(${phase})" style="width:100%;margin-top:8px;padding:9px;background:#003975;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">💾 Phase ${phase} speichern</button>
+      </div>
+    `).join('')}
+  `;
+  window._spTmplExs = {1:[...phase1],2:[...phase2]};
+  document.getElementById('sp-train-overlay').style.display='flex';
+};
+
+window.spAddTemplateEx = (phase) => {
+  const inp = document.getElementById(`tmpl-new-${phase}`);
+  const name=inp?.value.trim(); if(!name) return;
+  window._spTmplExs[phase].push(name);
+  inp.value='';
+  spRenderTemplateList(phase);
+};
+window.spRemoveTemplateEx = (phase,i) => {
+  window._spTmplExs[phase].splice(i,1);
+  spRenderTemplateList(phase);
+};
+function spRenderTemplateList(phase){
+  const el=document.getElementById(`tmpl-list-${phase}`); if(!el) return;
+  el.innerHTML=window._spTmplExs[phase].map((e,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#F8F5F0;border-radius:6px;margin-bottom:4px">
+      <span style="flex:1;font-size:12px">${e}</span>
+      <button onclick="spRemoveTemplateEx(${phase},${i})" style="background:none;border:none;color:#CCC;cursor:pointer;font-size:14px">×</button>
+    </div>`).join('');
+}
+window.spSaveTemplate = async (phase) => {
+  const exercises = window._spTmplExs[phase];
+  const existing = Object.values(SP_TRAINING_TEMPLATES).find(t=>t.phase===phase);
+  try {
+    if(existing) await window._updateDoc(window._doc(window.db,'training_templates',existing._id),{phase,exercises,updated:Date.now()});
+    else await window._addDoc(window._col(window.db,'training_templates'),{phase,exercises,created:Date.now()});
+    toast(`Phase ${phase} Template gespeichert ✓`);
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
 
 window.spAddBooking=async()=>{
   const name=document.getElementById('sp-book-name')?.value.trim(); if(!name) return;
@@ -3472,6 +3717,11 @@ window.spExportAllExcel=()=>{
 <!-- Slot Modal Overlay -->
 <div id="sp-slot-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:600;align-items:center;justify-content:center;backdrop-filter:blur(8px)" onclick="if(event.target===this)spCloseSlot()">
   <div class="modal-card" id="sp-slot-modal" style="max-height:80vh;overflow-y:auto"></div>
+</div>
+
+<!-- Training Protocol Overlay -->
+<div id="sp-train-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:700;align-items:center;justify-content:center;backdrop-filter:blur(8px)" onclick="if(event.target===this)spCloseTrainModal()">
+  <div id="sp-train-modal" style="background:#fff;border-radius:16px;padding:24px;width:min(540px,95vw);max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)"></div>
 </div>
 
 <!-- Placeholder for calendar mount point -->
