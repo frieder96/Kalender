@@ -1305,12 +1305,8 @@ const byT32 = (w,day,slot) => Object.values(P).find(p=>p.t3week===w&&p.t3day12==
 const byEEG = (w,day,slot) => Object.values(EEG_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.slot===slot)||null;
 const byMRT = (w,day,slotIdx) => Object.values(MRT_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.slotIdx===slotIdx)||null;
 
-// Get MRT slot times for a given week+day
+// Get MRT slot times for a given week+day — always manual
 function getMrtSlotsForDay(w, day) {
-  const mon = wMon(w);
-  const isFixedPhase = mon >= MRT_CUTOFF;
-  if (isFixedPhase) return [MRT_FIXED_START];
-  const key = `${w}_${day}`.replace(/[^a-zA-Z0-9_]/g,'_');
   const stored = Object.values(MRT_SLOTS).find(s=>s.week===w&&s.day===day);
   return stored?.times || [];
 }
@@ -1616,7 +1612,6 @@ function renderMRTWeek() {
   const fri = wDay(cW,4);
   document.getElementById('wrange').textContent = `${fD(mo)} – ${fD(fri)}`;
 
-  const isFixedPhase = mo >= MRT_CUTOFF;
   const content = document.getElementById('cal-content');
   const hdrColor = 'var(--tmlrtc)';
 
@@ -1628,11 +1623,7 @@ function renderMRTWeek() {
   });
   document.getElementById('wfill').textContent = `${filled} / ${total} Slots belegt`;
 
-  const phaseHint = isFixedPhase
-    ? `<div style="font-size:11px;color:var(--g5);margin-bottom:8px">📅 Fixphase ab 04.05.2026 · 07:00–08:30</div>`
-    : `<div style="font-size:11px;color:#7A3D00;background:#FFF3E0;border:1px solid #FFCC80;border-radius:var(--r);padding:6px 10px;margin-bottom:10px">⚙️ Flexible Phase vor 04.05.2026 · Admin kann Startzeiten pro Tag eintragen</div>`;
-
-  content.innerHTML = phaseHint + `<div class="dgrid" style="grid-template-columns:repeat(5,1fr)">${MRT_DAYS.map(d => {
+  content.innerHTML = `<div class="dgrid" style="grid-template-columns:repeat(5,1fr)">${MRT_DAYS.map(d => {
     const date = wDay(cW, d.off);
     const times = getMrtSlotsForDay(cW, d.label);
     const dayFilled = times.filter((_,i)=>byMRT(cW,d.label,i)).length;
@@ -1646,7 +1637,7 @@ function renderMRTWeek() {
     const dayLockBtn = isAdmin()
       ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'MRT','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>` : '';
 
-    const addSlotBtn = isAdmin() && !isFixedPhase && !daySperre
+    const addSlotBtn = isAdmin() && !daySperre
       ? `<button class="btn btn-xs" style="margin:6px 0 4px;width:100%;font-size:10px" onclick="openAddMrtSlot(${cW},'${d.label}')">+ Slot hinzufügen</button>` : '';
 
     const slotCards = times.length === 0
@@ -1669,7 +1660,7 @@ function renderMRTWeek() {
 
           const lockIcon = isAdmin()
             ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'MRT','${d.label}',${i})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>` : '';
-          const delSlotBtn = isAdmin() && !isFixedPhase
+          const delSlotBtn = isAdmin()
             ? `<button class="slot-lock-btn" onclick="delMrtSlotTime(${cW},'${d.label}',${i})" title="Slot entfernen" style="color:#C8102E">✕</button>` : '';
 
           return `<div class="sc ${bk&&!isSp?'booked':''} ${isSp?'slot-blocked':''}">
