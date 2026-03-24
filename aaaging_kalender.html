@@ -2190,1320 +2190,507 @@ function setTermin(t, btn) {
 }
 </script>
 
-<!-- ══════════════════════════════════════════
-     STUDIO PLAN — Firebase Data Layer
-══════════════════════════════════════════ -->
-<script type="module">
-import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc }
-  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { getApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-
-const spDb = getFirestore(getApp());
-
-let SP_CLIENTS = [];
-let SP_SLOTS   = {};
-let spListeners = [];
-let spInitDone = false;
-
-function spEmit(){ spListeners.forEach(fn=>fn()); }
-
-window.SP = {
-  getProbands: ()=>SP_CLIENTS,
-  getSlots:    ()=>SP_SLOTS,
-  onChange:    fn=>{ spListeners.push(fn); },
-  emit:        spEmit,
-  saveProbands: async arr => {
-    // handled via individual docs — see spSaveProbandModal
-  },
-  saveSlots: async obj => {
-    // handled via individual slot docs — see persist
-  }
-};
-
-// Real-time listeners
-onSnapshot(collection(spDb,'studio_clients'), snap=>{
-  SP_CLIENTS=[]; snap.forEach(d=>{SP_CLIENTS.push({...d.data(),id:d.id,_fid:d.id});});
-  SP_CLIENTS.sort((a,b)=>a.name.localeCompare(b.name));
-  spEmit();
-});
-
-onSnapshot(collection(spDb,'studio_slots'), snap=>{
-  SP_SLOTS={};
-  snap.forEach(d=>{ SP_SLOTS[d.id]={...d.data()}; });
-  spEmit();
-});
-
-// Expose Firestore helpers to window for vanilla JS components
-window.spDb = spDb;
-window.spFirestore = { collection, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc };
-
-window.spInit = ()=>{
-  if(spInitDone) return;
-  spInitDone=true;
-  // React roots will mount automatically when script runs
-};
-</script>
-
-<!-- ══════════════════════════════════════════
-     STUDIO PLAN — Probanden React App
-══════════════════════════════════════════ -->
-<script type="text/babel">
-const { useState: spUseState, useEffect: spUseEffect, useMemo: spUseMemo, useRef: spUseRef } = React;
-
-const SP_STUDIOS = [
-  { id:1, name:"Studio 3. Bezirk",  color:"#C8873A", accent:"#9E6220", days:[1,2,3,4] },
-  { id:2, name:"Studio 20. Bezirk", color:"#2E9E7A", accent:"#1A7558", days:[1,2,3,4] },
-  { id:3, name:"Studio 14. Bezirk", color:"#C04A6A", accent:"#8F2845", days:[2,4] },
-];
-const SP_DAY_NAMES = ["","Montag","Dienstag","Mittwoch","Donnerstag"];
-const SP_DAY_SHORT = ["","Mo","Di","Mi","Do"];
-const SP_HOURS = [11,12,13,14,15];
-const SP_MAX_MEMBERS = 5;
-const SP_TOTAL_SESS = 96;
-
-function spGetWeekDates(off=0){
-  const now=new Date(), day=now.getDay();
-  const monday=new Date(now); monday.setDate(now.getDate()-day+(day===0?-6:1)+off*7);
-  return Array.from({length:4},(_,i)=>{ const d=new Date(monday); d.setDate(monday.getDate()+i); return d; });
-}
-function spFmtDate(d){ return `${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}`; }
-function spSKey(sid,di,h,wo){
-  // Use absolute week: year + ISO week
-  const dates=spGetWeekDates(wo);
-  const date=dates[di-1]||dates[0];
-  const t=new Date(date); t.setHours(0,0,0,0); t.setDate(t.getDate()+3-(t.getDay()||7));
-  const y1=new Date(t.getFullYear(),0,4);
-  const kw=1+Math.round(((t-y1)/86400000-3+(y1.getDay()||7))/7);
-  return `s${sid}_d${di}_h${h}_y${t.getFullYear()}_kw${kw}`;
-}
-function spCountAll(slots,name){
-  let c=0;
-  for(const k of Object.keys(slots)){
-    const s=slots[k]; if(!s.members||!s.members.includes(name)) continue;
-    const idx=s.members.indexOf(name);
-    const att=s.attendance&&s.attendance[idx];
-    if(att!=='absent') c++;
-  }
-  return c;
-}
-function spPColor(c,t){ const p=c/t; return p>=1?'#B8860B':p>=.75?'#2E9E7A':p>=.5?'#C8873A':p>=.25?'#888':'#BBB'; }
-function spCountCalSessions(slots,name){ return spCountAll(slots,name); }
-function spGetProgressColor(count,total){ return spPColor(count,total); }
-
-// ── Probanden App ──
-function SpProbandenApp(){
-  const [probands,setProbands]=spUseState(window.SP.getProbands());
-  const [search,setSearch]=spUseState('');
-  spUseEffect(()=>{ window.SP.onChange(()=>setProbands([...window.SP.getProbands()])); },[]);
-  const slots=window.SP.getSlots();
-  const filtered=probands.filter(p=>p.name.toLowerCase().includes(search.toLowerCase()));
-
-  async function deleteProband(id){
-    if(!confirm('Proband löschen?')) return;
-    await window.spFirestore.deleteDoc(window.spFirestore.doc(window.spDb,'studio_clients',id));
-  }
-
-  function getInitials(n){ return n.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase(); }
-  function genderLabel(g){ return g==='w'?'♀':g==='m'?'♂':g==='d'?'⚧':''; }
-
-  return (
-    <div className="pv-wrap fade-in">
-      <div className="pv-header">
-        <div>
-          <h2>Probanden</h2>
-          <div style={{fontSize:12,color:'#BBB',marginTop:4}}>{probands.length} Probanden · Studio-Verwaltung</div>
-        </div>
-        <button className="pv-add-btn" onClick={()=>spOpenProbandModal()}>+ Neuer Proband</button>
-      </div>
-      {probands.length>0&&<input className="pv-search" type="text" placeholder="Suchen..." value={search} onChange={e=>setSearch(e.target.value)}/>}
-      {filtered.length===0&&probands.length===0&&(
-        <div className="pv-empty"><div style={{fontSize:40,marginBottom:12}}>👥</div><p>Noch keine Probanden angelegt.</p></div>
-      )}
-      {filtered.map(p=>{
-        const calCount=spCountCalSessions(slots,p.name);
-        const pct=Math.min(calCount/SP_TOTAL_SESS,1);
-        const color=spGetProgressColor(calCount,SP_TOTAL_SESS);
-        return (
-          <div key={p.id} className="proband-row">
-            <div className="proband-avatar">{getInitials(p.name)}</div>
-            <div className="proband-info">
-              <div className="proband-name">{p.name}{genderLabel(p.gender)&&<span style={{marginLeft:6,fontSize:12,color:'#BBB'}}>{genderLabel(p.gender)}</span>}</div>
-              <div className="proband-meta">{[p.age&&`${p.age} Jahre`,p.note].filter(Boolean).join(' · ')||'Keine Angaben'}</div>
-            </div>
-            <div className="proband-stats">
-              <div style={{textAlign:'right'}}>
-                <div style={{fontSize:11,color:'#BBB',letterSpacing:1,marginBottom:4}}>EINHEITEN</div>
-                <div style={{fontFamily:"'DM Mono',monospace",fontSize:15,fontWeight:700,color}}>{calCount}<span style={{fontSize:11,color:'#CCC',fontWeight:400}}>/{SP_TOTAL_SESS}</span></div>
-                <div className="mini-progress" style={{marginLeft:'auto'}}><div className="mini-progress-fill" style={{width:`${pct*100}%`,background:color}}/></div>
-              </div>
-              <button className="pv-action-btn" onClick={()=>spOpenProbandModal(p)}>Bearbeiten</button>
-              <button className="pv-action-btn" onClick={()=>{spSwitchTab('sp-5rm',null);setTimeout(()=>spSelectClient(p.id),100);}} style={{background:'var(--sp-accent-light)',borderColor:'var(--sp-accent)',color:'var(--sp-accent)'}}>💪 5RM</button>
-              <button className="pv-delete-btn" onClick={()=>deleteProband(p.id)}>×</button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-ReactDOM.createRoot(document.getElementById('sp-pv-react-root')).render(<SpProbandenApp/>);
-
-// ── Calendar App ──
-function SpCalendarApp(){
-  const [activeStudio,setActiveStudio]=spUseState(1);
-  const [weekOff,setWeekOff]=spUseState(0);
-  const [slots,setSlots]=spUseState(window.SP.getSlots());
-  const [probands,setProbands]=spUseState(window.SP.getProbands());
-  const [modal,setModal]=spUseState(null);
-  const [bookingName,setBookingName]=spUseState('');
-  const [bookingRole,setBookingRole]=spUseState('member');
-  const [showAC,setShowAC]=spUseState(false);
-  const [calTab,setCalTab]=spUseState('calendar');
-  const inputRef=spUseRef(null);
-
-  spUseEffect(()=>{ window.SP.onChange(()=>{ setSlots({...window.SP.getSlots()}); setProbands([...window.SP.getProbands()]); }); },[]);
-
-  const studio=SP_STUDIOS.find(s=>s.id===activeStudio);
-  const weekDates=spGetWeekDates(weekOff);
-
-  async function persist(ns){
-    setSlots(ns);
-    // Save changed slots to Firebase
-    const changed=Object.entries(ns).filter(([k,v])=>JSON.stringify(v)!==JSON.stringify(slots[k]));
-    for(const [k,v] of changed){
-      const ref=window.spFirestore.doc(window.spDb,'studio_slots',k);
-      await window.spFirestore.setDoc(ref,v);
-    }
-  }
-
-  function getSD(sid,di,h){ return slots[spSKey(sid,di,h,weekOff)]||{members:[],trainer:null}; }
-  function openModal(di,h){ setModal({di,h,data:getSD(activeStudio,di,h)}); setBookingName(''); setBookingRole('member'); setShowAC(false); }
-
-  const acList=bookingRole==='member'&&bookingName.trim()
-    ?probands.filter(p=>p.name.toLowerCase().includes(bookingName.toLowerCase())&&modal&&!modal.data.members.includes(p.name)):[];
-
-  async function addBooking(nameOverride){
-    const name=(nameOverride||bookingName).trim(); if(!name||!modal) return;
-    const key=spSKey(activeStudio,modal.di,modal.h,weekOff);
-    const data=getSD(activeStudio,modal.di,modal.h);
-    let newData;
-    if(bookingRole==='trainer'){ if(data.trainer) return; newData={...data,trainer:name}; }
-    else { if(data.members.length>=SP_MAX_MEMBERS||data.members.includes(name)) return; newData={...data,members:[...data.members,name],attendance:[...(data.attendance||data.members.map(()=>'pending')),'pending']}; }
-    const ns={...slots,[key]:newData};
-    persist(ns); setModal({...modal,data:newData}); setBookingName(''); setShowAC(false);
-  }
-
-  async function removeBooking(type,index){
-    if(!modal) return;
-    const key=spSKey(activeStudio,modal.di,modal.h,weekOff);
-    const data=getSD(activeStudio,modal.di,modal.h);
-    let newData;
-    if(type==='trainer') newData={...data,trainer:null};
-    else { newData={...data,members:data.members.filter((_,i)=>i!==index),attendance:(data.attendance||data.members.map(()=>'pending')).filter((_,i)=>i!==index)}; }
-    const ns={...slots,[key]:newData};
-    persist(ns); setModal({...modal,data:newData});
-  }
-
-  async function toggleAttendance(mi,cur){
-    if(!modal) return;
-    const key=spSKey(activeStudio,modal.di,modal.h,weekOff);
-    const data=getSD(activeStudio,modal.di,modal.h);
-    const att=[...(data.attendance||data.members.map(()=>'pending'))];
-    const cycle=['pending','present','absent'];
-    att[mi]=cycle[(cycle.indexOf(cur)+1)%3];
-    const newData={...data,attendance:att};
-    const ns={...slots,[key]:newData};
-    persist(ns); setModal({...modal,data:newData});
-  }
-
-  const todayStr=new Date().toDateString();
-  const isDisabled=(role)=>!bookingName.trim()||(role==='member'&&modal&&modal.data.members.length>=SP_MAX_MEMBERS)||(role==='trainer'&&modal&&modal.data.trainer);
-
-  const calProbands=spUseMemo(()=>{
-    const map={};
-    for(const key of Object.keys(slots)){ const s=slots[key]; if(s.members) for(const n of s.members){ if(!map[n])map[n]=0; map[n]++; } }
-    const result=probands.map(p=>({...p,calCount:map[p.name]||0}));
-    Object.entries(map).forEach(([name,count])=>{ if(!result.find(p=>p.name===name)) result.push({id:'u-'+name,name,calCount:count}); });
-    return result.sort((a,b)=>b.calCount-a.calCount);
-  },[slots,probands]);
-
-  return (
-    <div>
-      <div className="cal-toolbar">
-        <div className="cal-subtabs">
-          {[['calendar','📅 Kalender'],['alle','🏢 Alle Studios'],['probanden','👥 Probanden']].map(([k,l])=>(
-            <button key={k} className={`cal-subtab${calTab===k?' active':''}`} onClick={()=>setCalTab(k)}
-              style={calTab===k?{background:k==='alle'?'#555':studio.color,color:'#fff'}:{}}>{l}</button>
-          ))}
-        </div>
-        {calTab==='calendar'&&(
-          <div className="studio-tabs">
-            {SP_STUDIOS.map(s=>(
-              <button key={s.id} className={`studio-tab${activeStudio===s.id?' active':''}`} onClick={()=>setActiveStudio(s.id)}
-                style={activeStudio===s.id?{background:s.color,color:'#fff',borderColor:s.color}:{}}>{s.name.toUpperCase()}</button>
-            ))}
-          </div>
-        )}
-        {(calTab==='calendar'||calTab==='alle')&&(
-          <div className="week-nav">
-            <button className="week-btn" onClick={()=>setWeekOff(w=>w-1)}>←</button>
-            <div style={{textAlign:'center',minWidth:72}}>
-              <div style={{fontSize:10,color:'#BBB',letterSpacing:2}}>WOCHE</div>
-              <div style={{fontSize:13,color:weekOff===0?studio.color:'#888',fontFamily:"'DM Mono',monospace"}}>{weekOff===0?'AKTUELL':weekOff>0?`+${weekOff}`:weekOff}</div>
-            </div>
-            <button className="week-btn" onClick={()=>setWeekOff(w=>w+1)}>→</button>
-            {weekOff!==0&&<button className="week-btn" onClick={()=>setWeekOff(0)} style={{fontSize:10,color:studio.color}}>HEUTE</button>}
-          </div>
-        )}
-      </div>
-
-      {calTab==='calendar'&&(
-        <div className="cal-wrap fade-in">
-          <div style={{minWidth:580}}>
-            <div style={{display:'grid',gridTemplateColumns:'64px repeat(4,1fr)',gap:6,marginBottom:6}}>
-              <div/>
-              {weekDates.map((date,i)=>{
-                const dn=i+1,isAvail=studio.days.includes(dn),isToday=date.toDateString()===todayStr;
-                return <div key={i} style={{textAlign:'center',padding:'10px 4px',borderRadius:10,background:isToday?`${studio.color}18`:'#fff',border:`1px solid ${isToday?studio.color:'#E8E4DE'}`,opacity:isAvail?1:0.3}}>
-                  <div style={{fontSize:9,color:'#BBB',letterSpacing:2}}>{SP_DAY_SHORT[dn]}</div>
-                  <div style={{fontSize:15,fontWeight:500,color:isToday?studio.color:'#2A2A2A',marginTop:2}}>{spFmtDate(date)}</div>
-                </div>;
-              })}
-            </div>
-            {SP_HOURS.map(hour=>(
-              <div key={hour} style={{display:'grid',gridTemplateColumns:'64px repeat(4,1fr)',gap:6,marginBottom:6}}>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',paddingRight:10,color:'#CCC',fontSize:11,fontFamily:"'DM Mono',monospace"}}>{hour}:00</div>
-                {[1,2,3,4].map(di=>{
-                  const isAvail=studio.days.includes(di);
-                  if(!isAvail) return <div key={di} style={{height:76,background:'#F0EDE8',borderRadius:10,border:'1px solid #EAE7E2',display:'flex',alignItems:'center',justifyContent:'center'}}><div style={{width:16,height:1,background:'#DDD9D3'}}/></div>;
-                  const data=getSD(activeStudio,di,hour),mc=data.members.length,fill=mc/SP_MAX_MEMBERS,isFull=mc>=SP_MAX_MEMBERS;
-                  return <button key={di} className="slot-btn" onClick={()=>openModal(di,hour)} style={{height:76,borderRadius:10,border:`1px solid ${isFull?studio.color+'88':mc>0?studio.color+'44':'#E8E4DE'}`,background:mc>0?`linear-gradient(to top,${studio.color}18 0%,#fff 100%)`:'#fff',padding:'8px 10px',display:'flex',flexDirection:'column',justifyContent:'space-between',position:'relative',overflow:'hidden'}}>
-                    <div style={{position:'absolute',bottom:0,left:0,right:0,height:`${fill*100}%`,background:`${studio.color}0C`}}/>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',position:'relative'}}>
-                      <div style={{fontSize:10,color:isFull?studio.color:'#CCC',fontFamily:"'DM Mono',monospace"}}>{mc}/{SP_MAX_MEMBERS}</div>
-                      {data.trainer&&<div style={{fontSize:8,background:studio.color,color:'#fff',padding:'2px 5px',borderRadius:3,fontWeight:700}}>T</div>}
-                    </div>
-                    <div style={{position:'relative'}}>
-                      {mc>0&&<div style={{fontSize:9,color:'#999',marginBottom:4,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{data.members[0]}{mc>1?` +${mc-1}`:''}</div>}
-                      <div style={{display:'flex',gap:3}}>{Array.from({length:SP_MAX_MEMBERS}).map((_,i)=>{const att2=data.attendance&&data.attendance[i];const dc=i>=mc?'#E5E2DD':att2==='present'?'#2E9E7A':att2==='absent'?'#C04A6A':studio.color;return <div key={i} style={{width:6,height:6,borderRadius:'50%',background:dc}}/>;})}</div>
-                    </div>
-                  </button>;
-                })}
-              </div>
-            ))}
-          </div>
-          <div className="cal-legend">
-            <div><span style={{color:studio.color}}>●</span> {studio.name}</div>
-            <div>Tage: <span style={{color:'#888'}}>{studio.days.map(d=>SP_DAY_SHORT[d]).join(', ')}</span></div>
-            <div>Zeit: <span style={{color:'#888'}}>11:00–16:00</span></div>
-            <div>Programm: <span style={{color:'#888'}}>48 Wochen · 96 Einheiten</span></div>
-          </div>
-        </div>
-      )}
-
-      {calTab==='alle'&&(
-        <div className="cal-wrap fade-in">
-          <div style={{display:'grid',gridTemplate:`auto / 64px repeat(4,1fr)`,gap:6,marginBottom:6}}>
-            <div/>{weekDates.map((date,i)=><div key={i} style={{textAlign:'center',padding:'8px 4px',borderRadius:8,background:'#fff',border:'1px solid #E8E4DE',fontSize:13,fontWeight:500}}>{SP_DAY_SHORT[i+1]} {spFmtDate(date)}</div>)}
-          </div>
-          {SP_STUDIOS.map(st=>(
-            <React.Fragment key={st.id}>
-              <div style={{display:'grid',gridTemplateColumns:'64px repeat(4,1fr)',gap:6,marginBottom:2}}>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',paddingRight:8}}><div style={{fontSize:9,color:st.color,fontFamily:"'DM Mono',monospace",letterSpacing:1,fontWeight:700,writingMode:'vertical-lr',transform:'rotate(180deg)'}}>{st.id}</div></div>
-                {[1,2,3,4].map(di=>{
-                  if(!st.days.includes(di)) return <div key={di} style={{height:12}}/>;
-                  return <div key={di} style={{height:12,background:`${st.color}20`,borderRadius:3,border:`1px solid ${st.color}40`}}/>;
-                })}
-              </div>
-              {SP_HOURS.map(hour=>(
-                <div key={hour} style={{display:'grid',gridTemplateColumns:'64px repeat(4,1fr)',gap:6,marginBottom:4}}>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',paddingRight:10,color:'#CCC',fontSize:10,fontFamily:"'DM Mono',monospace"}}>{hour}:00</div>
-                  {[1,2,3,4].map(di=>{
-                    if(!st.days.includes(di)) return <div key={di} style={{height:44,background:'#F8F5F0',borderRadius:8,border:'1px solid #EAE7E2'}}/>;
-                    const data=slots[spSKey(st.id,di,hour,weekOff)]||{members:[],trainer:null},mc=data.members.length;
-                    return <div key={di} style={{height:44,borderRadius:8,border:`1px solid ${mc>0?st.color+'55':'#E8E4DE'}`,background:mc>0?`${st.color}12`:'#fff',padding:'6px 8px',display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer'}} onClick={()=>{setActiveStudio(st.id);setCalTab('calendar');openModal(di,hour);}}>
-                      <div style={{fontSize:9,color:mc>=SP_MAX_MEMBERS?st.color:'#CCC',fontFamily:"'DM Mono',monospace"}}>{mc}/{SP_MAX_MEMBERS}</div>
-                      <div style={{display:'flex',gap:2}}>{Array.from({length:SP_MAX_MEMBERS}).map((_,i)=><div key={i} style={{width:5,height:5,borderRadius:'50%',background:i<mc?st.color:'#E5E2DD'}}/>)}</div>
-                    </div>;
-                  })}
-                </div>
-              ))}
-            </React.Fragment>
-          ))}
-        </div>
-      )}
-
-      {calTab==='probanden'&&(
-        <div className="cal-probanden fade-in">
-          <div style={{marginBottom:20}}>
-            <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800}}>PROBANDEN – FORTSCHRITT</h2>
-            <div style={{fontSize:11,color:'#BBB',marginTop:2}}>{probands.length} Probanden · Ziel: {SP_TOTAL_SESS} Einheiten</div>
-          </div>
-          {calProbands.map(({id,name,calCount},i)=>{
-            const pct=Math.min(calCount/SP_TOTAL_SESS,1),color=spPColor(calCount,SP_TOTAL_SESS);
-            return <div key={id} style={{padding:'14px 18px',background:'#fff',borderRadius:12,border:'1px solid #E8E4DE',marginBottom:8}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                <div style={{display:'flex',alignItems:'center',gap:12}}>
-                  <div style={{fontSize:10,color:'#CCC',width:24}}>{i+1}</div>
-                  <div style={{fontSize:13,color:'#2A2A2A',fontWeight:500}}>{name}</div>
-                </div>
-                <div style={{textAlign:'right'}}>
-                  <div style={{fontSize:14,fontWeight:700,color,fontFamily:"'DM Mono',monospace"}}>{calCount}<span style={{fontSize:11,color:'#CCC',fontWeight:400}}>/{SP_TOTAL_SESS}</span></div>
-                </div>
-              </div>
-              <div className="sp-progress-bar"><div className="sp-progress-fill" style={{width:`${pct*100}%`,background:color}}/></div>
-            </div>;
-          })}
-        </div>
-      )}
-
-      {modal&&(
-        <div className="sp-overlay" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
-          <div className="sp-modal-card">
-            <div style={{marginBottom:20}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                <div>
-                  <div style={{fontSize:9,color:studio.color,letterSpacing:3,marginBottom:4,fontWeight:600}}>{studio.name.toUpperCase()} / {SP_DAY_NAMES[modal.di].toUpperCase()}</div>
-                  <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800}}>{modal.h}:00 – {modal.h+1}:00</h2>
-                  <div style={{fontSize:11,color:'#BBB',marginTop:3}}>{spFmtDate(weekDates[modal.di-1])}</div>
-                </div>
-                <button onClick={()=>setModal(null)} style={{background:'none',border:'none',color:'#CCC',fontSize:22,cursor:'pointer'}}>×</button>
-              </div>
-            </div>
-            <div style={{marginBottom:14}}>
-              <div style={{fontSize:9,color:'#BBB',letterSpacing:2,marginBottom:8}}>TRAINER</div>
-              {modal.data.trainer
-                ?<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',background:`${studio.color}10`,border:`1px solid ${studio.color}33`,borderRadius:8}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}><div style={{width:7,height:7,borderRadius:'50%',background:studio.color}}/><span style={{fontSize:13}}>{modal.data.trainer}</span></div>
-                  <button className="remove-btn" onClick={()=>removeBooking('trainer')}>×</button>
-                </div>
-                :<div style={{padding:'10px 14px',background:'#F8F5F0',border:'1px dashed #DDD',borderRadius:8,fontSize:11,color:'#CCC',textAlign:'center'}}>Kein Trainer</div>
-              }
-            </div>
-            <div style={{marginBottom:20}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                <div style={{fontSize:9,color:'#BBB',letterSpacing:2}}>PROBANDEN</div>
-                <div style={{fontSize:11,color:modal.data.members.length>=SP_MAX_MEMBERS?studio.color:'#CCC',fontFamily:"'DM Mono',monospace"}}>{modal.data.members.length}/{SP_MAX_MEMBERS}</div>
-              </div>
-              <div style={{display:'flex',flexDirection:'column',gap:5}}>
-                {modal.data.members.map((name,i)=>{
-                  const count=spCountAll(slots,name),color=spPColor(count,SP_TOTAL_SESS),pct=Math.min(count/SP_TOTAL_SESS,1);
-                  const att=(modal.data.attendance&&modal.data.attendance[i])||'pending';
-                  const attCfg={pending:{icon:'○',bg:'#F8F5F0',border:'#E0DDD8',color:'#AAA'},present:{icon:'✔',bg:'#f0faf4',border:'#2E9E7A',color:'#2E9E7A'},absent:{icon:'✘',bg:'#fff5f5',border:'#C04A6A',color:'#C04A6A'}}[att];
-                  return <div key={i} style={{background:attCfg.bg,borderRadius:8,border:`1px solid ${attCfg.border}`,overflow:'hidden'}}>
-                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 12px'}}>
-                      <div style={{display:'flex',alignItems:'center',gap:10}}>
-                        <div style={{fontSize:10,color:'#CCC',width:14}}>{i+1}</div>
-                        <span style={{fontSize:13,textDecoration:att==='absent'?'line-through':'none',opacity:att==='absent'?0.5:1}}>{name}</span>
-                      </div>
-                      <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        <button onClick={()=>toggleAttendance(i,att)} style={{background:'none',border:`1px solid ${attCfg.border}`,borderRadius:6,color:attCfg.color,fontWeight:700,fontSize:14,width:30,height:28,cursor:'pointer'}}>{attCfg.icon}</button>
-                        <span style={{fontSize:10,color,fontWeight:600,fontFamily:"'DM Mono',monospace"}}>{count}/{SP_TOTAL_SESS}</span>
-                        <button className="remove-btn" onClick={()=>removeBooking('member',i)}>×</button>
-                      </div>
-                    </div>
-                    <div style={{height:2,background:'#EAE7E2'}}><div style={{height:'100%',width:`${pct*100}%`,background:color,transition:'width .3s'}}/></div>
-                  </div>;
-                })}
-                {modal.data.members.length===0&&<div style={{padding:'12px 14px',background:'#F8F5F0',border:'1px dashed #DDD',borderRadius:8,fontSize:11,color:'#CCC',textAlign:'center'}}>Keine Probanden</div>}
-              </div>
-            </div>
-            <div style={{borderTop:'1px solid #EAE7E2',paddingTop:16}}>
-              <div style={{fontSize:9,color:'#BBB',letterSpacing:2,marginBottom:10}}>BUCHUNG HINZUFÜGEN</div>
-              <div style={{display:'flex',gap:8,marginBottom:8}}>
-                <select value={bookingRole} onChange={e=>{setBookingRole(e.target.value);setShowAC(false);}} style={{flexShrink:0,width:110,background:'#fff',border:'1px solid #DDD',borderRadius:8,fontFamily:"'DM Mono',monospace",fontSize:13,padding:'10px 14px',outline:'none'}}>
-                  <option value="member">Proband</option>
-                  <option value="trainer">Trainer</option>
-                </select>
-                <div className="autocomplete-wrap" style={{flex:1}}>
-                  <input ref={inputRef} type="text" placeholder={bookingRole==='member'?'Name eingeben...':'Trainername...'}
-                    value={bookingName} onChange={e=>{setBookingName(e.target.value);setShowAC(true);}}
-                    onKeyDown={e=>{if(e.key==='Enter')addBooking();if(e.key==='Escape')setShowAC(false);}}
-                    onFocus={()=>setShowAC(true)}
-                    style={{width:'100%',background:'#fff',border:'1px solid #DDD',borderRadius:showAC&&acList.length>0?'8px 8px 0 0':'8px',fontFamily:"'DM Mono',monospace",fontSize:13,padding:'10px 14px',outline:'none'}}/>
-                  {showAC&&acList.length>0&&(
-                    <div className="autocomplete-list">
-                      {acList.map(p=><div key={p.id} className="autocomplete-item" onMouseDown={e=>{e.preventDefault();addBooking(p.name);}}>
-                        <span>{p.name}</span><span className="ac-count">{spCountAll(slots,p.name)}/{SP_TOTAL_SESS}</span>
-                      </div>)}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <button onClick={()=>addBooking()} disabled={isDisabled(bookingRole)} style={{width:'100%',padding:11,borderRadius:8,border:'none',background:isDisabled(bookingRole)?'#F0EDE8':studio.color,color:isDisabled(bookingRole)?'#CCC':'#fff',fontSize:11,fontWeight:700,letterSpacing:2,fontFamily:"'DM Mono',monospace",cursor:isDisabled(bookingRole)?'not-allowed':'pointer'}}>+ BESTÄTIGEN</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-ReactDOM.createRoot(document.getElementById('sp-cal-react-root')).render(<SpCalendarApp/>);
-</script>
-
-<!-- ══════════════════════════════════════════
-     STUDIO PLAN — Probanden Modal + 5RM Vanilla
-══════════════════════════════════════════ -->
-<script>
-let spEditingClientId = null;
-
-function spOpenProbandModal(p) {
-  spEditingClientId = p?.id || null;
-  document.getElementById('sp-pv-modal-title').textContent = p ? 'Proband bearbeiten' : 'Neuer Proband';
-  document.getElementById('sp-pv-name').value = p?.name || '';
-  document.getElementById('sp-pv-age').value  = p?.age  || '';
-  document.getElementById('sp-pv-gender').value = p?.gender || '';
-  document.getElementById('sp-pv-note').value  = p?.note  || '';
-  document.getElementById('sp-proband-modal-overlay').classList.add('open');
-}
-function spCloseProbandModal() { document.getElementById('sp-proband-modal-overlay').classList.remove('open'); }
-
-async function spSaveProbandModal() {
-  const name = document.getElementById('sp-pv-name').value.trim();
-  if (!name) { alert('Name ist Pflichtfeld'); return; }
-  const data = { name, age: parseInt(document.getElementById('sp-pv-age').value)||null, gender: document.getElementById('sp-pv-gender').value, note: document.getElementById('sp-pv-note').value.trim(), updated: Date.now() };
-  const { doc, addDoc, updateDoc, collection } = window.spFirestore;
-  if (spEditingClientId) {
-    // Find Firestore doc id
-    const p = window.SP.getProbands().find(x=>x.id===spEditingClientId||x._fid===spEditingClientId);
-    if (p) await updateDoc(doc(window.spDb,'studio_clients',p._fid||p.id), data);
-  } else {
-    await addDoc(collection(window.spDb,'studio_clients'), {...data, sessions:[], created:Date.now()});
-  }
-  spCloseProbandModal();
-}
-
-// 5RM
-const SP_EXERCISES = [
-  {id:"beinpresse",name:"Beinpresse",icon:"🦵"},{id:"brustpresse",name:"Brustpresse",icon:"🫁"},
-  {id:"brustdruecken",name:"Brustdrücken",icon:"💪"},{id:"rudern",name:"Rudern",icon:"🚣"},
-  {id:"latzug",name:"Lat-Zug",icon:"⬇️"},{id:"schulterpresse",name:"Schulterpresse",icon:"🏋️"},
-  {id:"beinbeuger",name:"Beinbeuger",icon:"🦿"},{id:"beinstrecker",name:"Beinstrecker",icon:"🦵"},
-  {id:"bauchgeraet",name:"Bauchgerät",icon:"🎯"},{id:"rueckenstrecker",name:"Rückenstrecker",icon:"🔙"},
-];
-
-let spActiveClientId = null;
-let spActiveTab5rm = 'test';
-let spActivePcts = JSON.parse(localStorage.getItem('sp_5rm_pcts')||'[60,65,70,75,80,85]');
-
-function spSavePcts() { localStorage.setItem('sp_5rm_pcts', JSON.stringify(spActivePcts)); }
-function spBrzycki(w,r){ return w/(1.0278-0.0278*r); }
-function spRoundKg(v){ return Math.round(v/2.5)*2.5; }
-
-window.SP.onChange(() => spRenderClientList());
-
-function spRenderClientList(){
-  const el=document.getElementById('sp-clientList'); if(!el) return;
-  const probands=window.SP.getProbands();
-  if(!probands.length){ el.innerHTML='<div style="font-size:.75rem;color:rgba(255,255,255,.4);padding:.5rem">Noch keine Probanden.</div>'; return; }
-  el.innerHTML=probands.map(c=>{
-    const sessions=c.sessions||[];
-    const last=sessions.length?new Date(sessions[sessions.length-1].date).toLocaleDateString('de-AT'):'Kein Test';
-    const initials=c.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-    return `<div class="client-item${spActiveClientId===c.id?' active':''}" onclick="spSelectClient('${c.id}')">
-      <div class="client-avatar">${initials}</div>
-      <div class="client-info"><div class="cname">${c.name}</div><div class="cmeta">${c.age?c.age+' J · ':''}${last}</div></div>
-    </div>`;
-  }).join('');
-}
-
-function spSelectClient(id){
-  spActiveClientId=id;
-  const c=window.SP.getProbands().find(x=>x.id===id||x._fid===id); if(!c) return;
-  document.getElementById('sp-welcomeScreen').style.display='none';
-  document.getElementById('sp-clientView').style.display='block';
-  document.getElementById('sp-cvName').textContent=c.name;
-  document.getElementById('sp-cvMeta').textContent=[c.age?c.age+' Jahre':'',c.note].filter(Boolean).join(' · ')||'Keine Angaben';
-  spRenderClientList();
-  spSwitchTab5rm(spActiveTab5rm);
-}
-
-function spSwitchTab5rm(tab){
-  spActiveTab5rm=tab;
-  ['test','history','progress'].forEach(t=>{
-    const el=document.getElementById('sp-tab-'+t); if(el) el.style.display=t===tab?'block':'none';
-  });
-  document.querySelectorAll('.tab-btn-5rm').forEach((btn,i)=>btn.classList.toggle('active',['test','history','progress'][i]===tab));
-  if(tab==='test') spRenderTestForm();
-  if(tab==='history') spRenderHistory();
-  if(tab==='progress') spRenderProgress();
-}
-
-function spRenderTestForm(){
-  document.getElementById('sp-testDate').value=new Date().toISOString().split('T')[0];
-  document.getElementById('sp-testNote').value='';
-  document.getElementById('sp-exerciseInputs').innerHTML=SP_EXERCISES.map(ex=>`
-    <div class="ex-input-card">
-      <div class="ex-name">${ex.icon} ${ex.name}</div>
-      <div class="ex-row">
-        <div class="field"><label>kg</label><input type="number" id="sp-w-${ex.id}" min="1" max="500" step="0.5" placeholder="—" oninput="spCalcLive('${ex.id}')"></div>
-        <span class="ex-unit">×</span>
-        <div class="field" style="max-width:72px"><label>Wdh.</label><input type="number" id="sp-r-${ex.id}" min="1" max="10" value="5" oninput="spCalcLive('${ex.id}')"></div>
-      </div>
-      <div class="ex-result" id="sp-res-${ex.id}">—</div>
-    </div>`).join('');
-  spRenderPctTags(); spUpdateLiveTable();
-}
-
-function spCalcLive(exId){
-  const w=parseFloat(document.getElementById('sp-w-'+exId)?.value),r=parseInt(document.getElementById('sp-r-'+exId)?.value);
-  const el=document.getElementById('sp-res-'+exId); if(!el) return;
-  if(w>0&&r>=1&&r<=10){el.textContent=`1RM ≈ ${spRoundKg(spBrzycki(w,r)).toFixed(1)} kg`;el.classList.add('has-value');}
-  else{el.textContent='—';el.classList.remove('has-value');}
-  spUpdateLiveTable();
-}
-
-function spRenderPctTags(){
-  const el=document.getElementById('sp-pctTags'); if(!el) return;
-  el.innerHTML=[...spActivePcts].sort((a,b)=>a-b).map(p=>`<span class="pct-tag">${p}%<button class="remove-pct" onclick="spRemovePct(${p})">×</button></span>`).join('');
-}
-function spAddPct(){
-  const inp=document.getElementById('sp-pctInput'); const val=parseInt(inp.value);
-  if(!val||val<1||val>100){inp.focus();return;}
-  if(!spActivePcts.includes(val)){spActivePcts.push(val);spActivePcts.sort((a,b)=>a-b);spSavePcts();spRenderPctTags();spUpdateLiveTable();}
-  inp.value=''; inp.focus();
-}
-function spRemovePct(p){spActivePcts=spActivePcts.filter(x=>x!==p);spSavePcts();spRenderPctTags();spUpdateLiveTable();}
-
-function spUpdateLiveTable(){
-  const rows=[];
-  SP_EXERCISES.forEach(ex=>{
-    const w=parseFloat(document.getElementById('sp-w-'+ex.id)?.value),r=parseInt(document.getElementById('sp-r-'+ex.id)?.value);
-    if(w>0&&r>=1&&r<=10) rows.push({ex,orm:spBrzycki(w,r),w,r});
-  });
-  const tbl=document.getElementById('sp-liveResults'),head=document.getElementById('sp-liveHead'),body=document.getElementById('sp-liveBody');
-  if(!tbl) return;
-  if(!rows.length){tbl.classList.remove('visible');return;}
-  tbl.classList.add('visible');
-  const sorted=[...spActivePcts].sort((a,b)=>a-b);
-  head.innerHTML=`<tr><th>Übung</th><th>5RM</th><th>1RM</th>${sorted.map(p=>`<th class="pct-col">${p}%</th>`).join('')}</tr>`;
-  body.innerHTML=rows.map(({ex,orm,w,r})=>`<tr><td class="ex-cell">${ex.icon} ${ex.name}</td><td style="font-family:'DM Mono',monospace;color:var(--sp-muted)">${w}×${r}</td><td class="orm-cell">${spRoundKg(orm).toFixed(1)} kg</td>${sorted.map(p=>`<td class="pct-cell">${spRoundKg(orm*p/100).toFixed(1)} kg</td>`).join('')}</tr>`).join('');
-}
-
-async function spSaveSession(){
-  const c=window.SP.getProbands().find(x=>x.id===spActiveClientId||x._fid===spActiveClientId); if(!c) return;
-  const date=document.getElementById('sp-testDate').value;
-  const note=document.getElementById('sp-testNote').value.trim();
-  const results={};let hasData=false;
-  SP_EXERCISES.forEach(ex=>{
-    const w=parseFloat(document.getElementById('sp-w-'+ex.id)?.value),r=parseInt(document.getElementById('sp-r-'+ex.id)?.value);
-    if(w>0&&r>=1&&r<=10){results[ex.id]={weight:w,reps:r,orm:parseFloat(spBrzycki(w,r).toFixed(2))};hasData=true;}
-  });
-  if(!hasData){alert('Bitte mindestens eine Übung ausfüllen.');return;}
-  const session={date,note,results,id:Date.now().toString()};
-  const sessions=[...(c.sessions||[]),session];
-  await window.spFirestore.updateDoc(window.spFirestore.doc(window.spDb,'studio_clients',c._fid||c.id),{sessions});
-  alert('Test gespeichert ✓');
-  spSwitchTab5rm('history');
-}
-
-function spRenderHistory(){
-  const c=window.SP.getProbands().find(x=>x.id===spActiveClientId||x._fid===spActiveClientId); if(!c) return;
-  const sessions=(c.sessions||[]).slice().reverse();
-  const el=document.getElementById('sp-historyContent'); if(!el) return;
-  if(!sessions.length){el.innerHTML='<div class="history-empty">Keine Tests vorhanden.</div>';return;}
-  el.innerHTML=sessions.map((s,i)=>`
-    <div class="session-card">
-      <div class="session-header" onclick="this.nextElementSibling.classList.toggle('open')">
-        <div><div class="date">${new Date(s.date).toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'})}</div>${s.note?`<div class="note">${s.note}</div>`:''}</div>
-        <button class="del-session" onclick="spDelSession('${s.id}',event)">🗑 Löschen</button>
-      </div>
-      <div class="session-body">
-        <table class="session-table"><thead><tr><th>Übung</th><th>5RM</th><th>1RM (Brzycki)</th></tr></thead><tbody>
-          ${SP_EXERCISES.filter(ex=>s.results[ex.id]).map(ex=>`<tr><td>${ex.icon} ${ex.name}</td><td style="font-family:'DM Mono',monospace">${s.results[ex.id].weight}×${s.results[ex.id].reps}</td><td>${spRoundKg(s.results[ex.id].orm).toFixed(1)} kg</td></tr>`).join('')}
-        </tbody></table>
-      </div>
-    </div>`).join('');
-}
-
-async function spDelSession(sid,e){
-  e.stopPropagation();
-  if(!confirm('Test löschen?')) return;
-  const c=window.SP.getProbands().find(x=>x.id===spActiveClientId||x._fid===spActiveClientId); if(!c) return;
-  const sessions=(c.sessions||[]).filter(s=>s.id!==sid);
-  await window.spFirestore.updateDoc(window.spFirestore.doc(window.spDb,'studio_clients',c._fid||c.id),{sessions});
-  spRenderHistory();
-}
-
-function spRenderProgress(){
-  const c=window.SP.getProbands().find(x=>x.id===spActiveClientId||x._fid===spActiveClientId); if(!c) return;
-  const sessions=c.sessions||[];
-  const el=document.getElementById('sp-progressContent'); if(!el) return;
-  if(sessions.length<2){el.innerHTML='<div style="color:var(--sp-muted);padding:2rem;text-align:center">Mindestens 2 Tests für Fortschrittsanzeige erforderlich.</div>';return;}
-  const exercisesWithData=SP_EXERCISES.filter(ex=>sessions.some(s=>s.results[ex.id]));
-  el.innerHTML=`<div class="progress-section"><div class="progress-grid">${exercisesWithData.map(ex=>{
-    const pts=sessions.filter(s=>s.results[ex.id]).map(s=>({date:s.date,orm:s.results[ex.id].orm}));
-    const first=pts[0],last=pts[pts.length-1];
-    const diff=spRoundKg(last.orm)-spRoundKg(first.orm);
-    const trend=diff>0?`<span class="trend up">↑ +${diff.toFixed(1)} kg</span>`:diff<0?`<span class="trend down">↓ ${diff.toFixed(1)} kg</span>`:`<span class="trend flat">→ ±0</span>`;
-    return `<div class="progress-card">
-      <div class="ex-title"><span>${ex.icon} ${ex.name}</span>${trend}</div>
-      <svg class="sparkline" viewBox="0 0 200 50">${(()=>{
-        const orms=pts.map(p=>spRoundKg(p.orm));
-        const min=Math.min(...orms),max=Math.max(...orms),range=max-min||1;
-        const pts2=orms.map((v,i)=>`${(i/(orms.length-1))*190+5},${45-(v-min)/range*40}`).join(' ');
-        return `<polyline points="${pts2}" fill="none" stroke="var(--sp-accent)" stroke-width="1.5" stroke-linejoin="round"/>${orms.map((v,i)=>`<circle cx="${(i/(orms.length-1))*190+5}" cy="${45-(v-min)/range*40}" r="3" fill="var(--sp-accent)"/>`).join('')}`;
-      })()}</svg>
-      <div class="progress-values"><span>${new Date(first.date).toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'})}: ${spRoundKg(first.orm).toFixed(1)} kg</span><span class="current">${spRoundKg(last.orm).toFixed(1)} kg</span></div>
-    </div>`;
-  }).join('')}</div></div>`;
-}
-
-function spExportClientExcel(){
-  const c=window.SP.getProbands().find(x=>x.id===spActiveClientId||x._fid===spActiveClientId); if(!c||!window.XLSX) return;
-  const wb=XLSX.utils.book_new();
-  (c.sessions||[]).forEach(s=>{
-    const rows=[['Übung','Gewicht (kg)','Wdh.','1RM (kg)'],...SP_EXERCISES.filter(ex=>s.results[ex.id]).map(ex=>[ex.name,s.results[ex.id].weight,s.results[ex.id].reps,spRoundKg(s.results[ex.id].orm).toFixed(1)])];
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),new Date(s.date).toLocaleDateString('de-AT').replace(/\./g,'-').substring(0,10));
-  });
-  XLSX.writeFile(wb,`5RM_${c.name.replace(/\s+/g,'_')}.xlsx`);
-}
-
-function spExportAllExcel(){
-  const probands=window.SP.getProbands(); if(!probands.length||!window.XLSX) return;
-  const wb=XLSX.utils.book_new();
-  const rows=[['Name','Alter','Tests','Letzte Messung'],...probands.map(p=>[p.name,p.age||'—',(p.sessions||[]).length,(p.sessions||[]).length?new Date(p.sessions[p.sessions.length-1].date).toLocaleDateString('de-AT'):'—'])];
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Übersicht');
-  XLSX.writeFile(wb,'5RM_Alle_Probanden.xlsx');
-}
-</script>
 <!-- ═══════════════════════════════════════════
-     STUDIO & TRAINING — Firebase integration
+     STUDIO & TRAINING — Firebase + React
 ═══════════════════════════════════════════ -->
 <script>
 // ── STUDIO CONFIG ──────────────────────────
 const SP_STUDIOS = [
-  { id:1, name:'Studio 3. Bezirk',  color:'#C8873A', accent:'#9E6220', days:[1,2,3,4] },
-  { id:2, name:'Studio 20. Bezirk', color:'#2E9E7A', accent:'#1A7558', days:[1,2,3,4] },
-  { id:3, name:'Studio 14. Bezirk', color:'#C04A6A', accent:'#8F2845', days:[2,4] },
+  { id:1, name:'Studio 3. Bezirk',  color:'#C8873A', days:[1,2,3,4] },
+  { id:2, name:'Studio 20. Bezirk', color:'#2E9E7A', days:[1,2,3,4] },
+  { id:3, name:'Studio 14. Bezirk', color:'#C04A6A', days:[2,4] },
 ];
-const SP_DAY_NAMES = ['','Montag','Dienstag','Mittwoch','Donnerstag'];
 const SP_DAY_SHORT = ['','Mo','Di','Mi','Do'];
-const SP_HOURS     = [11,12,13,14,15];
-const SP_MAX       = 5;
-const SP_TOTAL     = 96;
+const SP_DAY_NAMES = ['','Montag','Dienstag','Mittwoch','Donnerstag'];
+const SP_HOURS = [11,12,13,14,15];
+const SP_MAX = 5;
+const SP_TOTAL = 96;
 
-// ── STUDIO STATE ───────────────────────────
-let SP_PROBANDS = {};  // { id: {name,age,gender,note,sessions:[]} }
-let SP_SLOTS    = {};  // { key: {members:[],trainer,attendance:[]} }
-let SP_LISTENERS = [];
-let sp_unsubP = null, sp_unsubS = null;
+let SP_PROBANDS = {}, SP_SLOTS_DATA = {};
+let sp_listeners = [];
+function spEmit(){ sp_listeners.forEach(fn=>fn()); }
+window.spOnChange = fn => sp_listeners.push(fn);
 
-function spEmit() { SP_LISTENERS.forEach(fn => fn()); }
-window.spOnChange = fn => { SP_LISTENERS.push(fn); };
-
-// ── FIREBASE LISTENERS ─────────────────────
-function spStartListeners() {
-  if (!db) return;
-  sp_unsubP = onSnapshot(collection(db,'sp_probands'), snap => {
-    SP_PROBANDS = {};
-    snap.forEach(d => { SP_PROBANDS[d.id] = {...d.data(), _id:d.id}; });
-    spEmit();
+// Start Firestore listeners for studio data
+function spStartListeners(){
+  if(!db) return;
+  onSnapshot(collection(db,'sp_probands'), snap=>{
+    SP_PROBANDS={};
+    snap.forEach(d=>{SP_PROBANDS[d.id]={...d.data(),_id:d.id};});
+    spEmit(); spSetSync(true);
   });
-  sp_unsubS = onSnapshot(collection(db,'sp_slots'), snap => {
-    SP_SLOTS = {};
-    snap.forEach(d => { SP_SLOTS[d.id] = {...d.data(), _id:d.id}; });
+  onSnapshot(collection(db,'sp_slots'), snap=>{
+    SP_SLOTS_DATA={};
+    snap.forEach(d=>{SP_SLOTS_DATA[d.id]={...d.data(),_id:d.id};});
     spEmit();
   });
 }
 
-// ── DATA ACCESS ────────────────────────────
-function spGetProbands() { return Object.values(SP_PROBANDS).sort((a,b)=>a.name.localeCompare(b.name)); }
-function spGetSlots()    { return SP_SLOTS; }
+function spSetSync(ok){
+  const el=document.getElementById('sp-sync-lbl');
+  if(el){el.textContent=ok?'● Synchronisiert':'● Verbinde…';el.style.color=ok?'#2E9E7A':'#C8873A';}
+}
+
+function spGetProbands(){ return Object.values(SP_PROBANDS).sort((a,b)=>a.name.localeCompare(b.name)); }
 function spSKey(sid,di,h,wo){ return `s${sid}_d${di}_h${h}_w${wo}`; }
+function spGetSD(sid,di,h,wo){ return SP_SLOTS_DATA[spSKey(sid,di,h,wo)]||{members:[],trainer:null,attendance:[]}; }
 
-async function spSaveProband(data) {
-  if (data._id) {
-    const {_id,...rest} = data;
-    await updateDoc(doc(db,'sp_probands',_id), {...rest, updated:Date.now()});
-  } else {
-    await addDoc(collection(db,'sp_probands'), {...data, created:Date.now(), updated:Date.now()});
-  }
-}
-async function spDeleteProband(id) {
-  await deleteDoc(doc(db,'sp_probands',id));
-}
-async function spSaveSlot(key, data) {
-  await setDoc(doc(db,'sp_slots',key), {key, ...data, updated:Date.now()});
-}
-
-// ── SYNC STATUS ────────────────────────────
-function spSetSync(ok) {
-  const el = document.getElementById('sp-sync-lbl');
-  if (el) el.textContent = ok ? '● Synchronisiert' : '● Verbindung…';
-  if (el) el.style.color = ok ? '#2E9E7A' : '#C8873A';
-}
-
-// ── WEEK UTILS ─────────────────────────────
-function spGetWeekDates(off=0) {
-  const now=new Date(), day=now.getDay();
+function spGetWeekDates(off=0){
+  const now=new Date(),day=now.getDay();
   const monday=new Date(now); monday.setDate(now.getDate()-day+(day===0?-6:1)+off*7);
-  return Array.from({length:4},(_,i)=>{ const d=new Date(monday); d.setDate(monday.getDate()+i); return d; });
+  return Array.from({length:4},(_,i)=>{const d=new Date(monday);d.setDate(monday.getDate()+i);return d;});
 }
 function spFmtDate(d){ return `${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}`; }
-function spCountAll(name) {
+function spCountAll(name){
   let c=0;
-  for (const k of Object.keys(SP_SLOTS)) {
-    const s=SP_SLOTS[k];
-    if (!s.members||!s.members.includes(name)) continue;
-    const idx=s.members.indexOf(name);
-    const att=s.attendance&&s.attendance[idx];
-    if (att!=='absent') c++;
+  for(const k of Object.keys(SP_SLOTS_DATA)){
+    const s=SP_SLOTS_DATA[k];
+    if(!s.members||!s.members.includes(name)) continue;
+    const idx=s.members.indexOf(name),att=s.attendance&&s.attendance[idx];
+    if(att!=='absent') c++;
   }
   return c;
 }
 function spPColor(c,t){ const p=c/t; return p>=1?'#B8860B':p>=.75?'#2E9E7A':p>=.5?'#C8873A':p>=.25?'#888':'#BBB'; }
 
 // ── SUB-TAB SWITCH ─────────────────────────
-window.spSwitch = (id, btn) => {
-  ['sp-probanden','sp-calendar','sp-5rm'].forEach(t => {
+window.spSwitch=(id,btn)=>{
+  ['sp-probanden','sp-calendar','sp-5rm'].forEach(t=>{
     const el=document.getElementById(t); if(el) el.style.display=t===id?'block':'none';
   });
   document.querySelectorAll('.sp-snav-btn').forEach(b=>b.classList.remove('on'));
   if(btn) btn.classList.add('on');
   if(id==='sp-probanden') spRenderProbanden();
-  if(id==='sp-calendar')  spMountCalendar();
+  if(id==='sp-calendar')  spRenderCalendar();
   if(id==='sp-5rm')       spRenderClientList();
 };
 
 // ── PROBAND MODAL ──────────────────────────
-let spEditId = null;
-window.spOpenProbandModal = (id) => {
-  spEditId = id||null;
-  const p = id ? SP_PROBANDS[id] : null;
-  document.getElementById('sp-pv-modal-title').textContent = p ? 'Proband bearbeiten' : 'Neuer Proband';
-  document.getElementById('sp-pv-name').value   = p?.name||'';
-  document.getElementById('sp-pv-age').value    = p?.age||'';
-  document.getElementById('sp-pv-gender').value = p?.gender||'';
-  document.getElementById('sp-pv-note').value   = p?.note||'';
+let spEditId=null;
+window.spOpenProbandModal=(id)=>{
+  if(!isAdmin()){toast('Keine Berechtigung',true);return;}
+  spEditId=id||null;
+  const p=id?SP_PROBANDS[id]:null;
+  document.getElementById('sp-pv-modal-title').textContent=p?'Proband bearbeiten':'Neuer Proband';
+  document.getElementById('sp-pv-name').value=p?.name||'';
+  document.getElementById('sp-pv-age').value=p?.age||'';
+  document.getElementById('sp-pv-gender').value=p?.gender||'';
+  document.getElementById('sp-pv-note').value=p?.note||'';
   document.getElementById('sp-proband-modal-overlay').classList.add('open');
 };
-window.spCloseProbandModal = () => {
-  document.getElementById('sp-proband-modal-overlay').classList.remove('open');
-  spEditId=null;
+window.spCloseProbandModal=()=>{
+  document.getElementById('sp-proband-modal-overlay').classList.remove('open'); spEditId=null;
 };
-window.spSaveProbandModal = async () => {
-  const name = document.getElementById('sp-pv-name').value.trim();
-  if (!name) { toast('Name ist Pflicht', true); return; }
-  const data = {
-    name,
-    age:    parseInt(document.getElementById('sp-pv-age').value)||null,
-    gender: document.getElementById('sp-pv-gender').value,
-    note:   document.getElementById('sp-pv-note').value.trim(),
-    sessions: spEditId ? (SP_PROBANDS[spEditId]?.sessions||[]) : [],
-  };
-  if (spEditId) data._id = spEditId;
-  try { await spSaveProband(data); spCloseProbandModal(); toast(spEditId?'Proband aktualisiert ✓':'Proband angelegt ✓'); }
-  catch(e) { toast('Fehler: '+e.message, true); }
+window.spSaveProbandModal=async()=>{
+  const name=document.getElementById('sp-pv-name').value.trim();
+  if(!name){toast('Name ist Pflicht',true);return;}
+  const data={name,age:parseInt(document.getElementById('sp-pv-age').value)||null,
+    gender:document.getElementById('sp-pv-gender').value,note:document.getElementById('sp-pv-note').value.trim(),
+    sessions:spEditId?(SP_PROBANDS[spEditId]?.sessions||[]):[]};
+  try{
+    if(spEditId) await updateDoc(doc(db,'sp_probands',spEditId),{...data,updated:Date.now()});
+    else await addDoc(collection(db,'sp_probands'),{...data,created:Date.now(),updated:Date.now()});
+    spCloseProbandModal(); toast(spEditId?'Proband aktualisiert ✓':'Proband angelegt ✓');
+  }catch(e){toast('Fehler: '+e.message,true);}
+};
+window.spDelProband=async(id)=>{
+  if(!confirm('Proband wirklich löschen?')) return;
+  try{await deleteDoc(doc(db,'sp_probands',id));toast('Gelöscht');}catch(e){toast('Fehler: '+e.message,true);}
 };
 
 // ── PROBAND LIST ───────────────────────────
-function spRenderProbanden() {
-  const root = document.getElementById('sp-pv-react-root');
-  if (!root) return;
-  const probands = spGetProbands();
-  const adminBtn = isAdmin() ? `<button class="pv-add-btn" onclick="spOpenProbandModal(null)">+ Proband anlegen</button>` : '';
-  const rows = probands.length ? probands.map(p => {
-    const count = spCountAll(p.name);
-    const pct   = Math.min(count/SP_TOTAL,1);
-    const color = spPColor(count,SP_TOTAL);
-    const init  = p.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-    const meta  = [p.age?p.age+' J':'', p.gender==='w'?'♀':p.gender==='m'?'♂':p.gender==='d'?'⚧':'', p.note].filter(Boolean).join(' · ');
-    return `<div class="proband-row">
-      <div class="proband-avatar">${init}</div>
-      <div class="proband-info">
-        <div class="proband-name">${p.name}</div>
-        <div class="proband-meta">${meta||'—'}</div>
-      </div>
-      <div class="proband-stats">
-        <div class="proband-progress">
-          <div class="count" style="color:${color}">${count}</div>
-          <div class="label">/ ${SP_TOTAL} EIN.</div>
-          <div class="mini-progress"><div class="mini-progress-fill" style="width:${pct*100}%;background:${color}"></div></div>
-        </div>
-        ${isAdmin()?`<div style="display:flex;gap:5px">
-          <button class="btn btn-xs" onclick="spOpenProbandModal('${p._id}')">✎</button>
-          <button class="btn btn-xs btn-d" onclick="spDelProband('${p._id}')">✕</button>
-          <button class="btn btn-xs" style="background:#1A1A2E;color:#fff;border-color:#1A1A2E" onclick="spSwitch('sp-5rm',null);spSelectClient('${p._id}')">5RM</button>
-        </div>`:''}
-      </div>
-    </div>`;
-  }).join('') : '<div style="text-align:center;padding:3rem;color:#CCC;font-size:13px">Noch keine Probanden angelegt.</div>';
-
-  root.innerHTML = `<div class="pv-wrap">
+function spRenderProbanden(){
+  const root=document.getElementById('sp-pv-react-root'); if(!root) return;
+  const probands=spGetProbands();
+  root.innerHTML=`<div class="pv-wrap">
     <div class="pv-header">
-      <h2>Probanden <span style="font-size:14px;color:#BBB;font-family:monospace;font-weight:400">${probands.length}</span></h2>
-      ${adminBtn}
+      <h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800">Probanden <span style="font-size:14px;color:#BBB;font-weight:400;font-family:monospace">${probands.length}</span></h2>
+      ${isAdmin()?'<button class="pv-add-btn" onclick="spOpenProbandModal(null)">+ Proband anlegen</button>':''}
     </div>
-    <input class="pv-search" placeholder="Name suchen…" oninput="spFilterProbanden(this.value)">
-    <div id="sp-proband-rows">${rows}</div>
+    <input class="pv-search" placeholder="Name suchen…" oninput="spFilterP(this.value)">
+    <div id="sp-prows">${probands.length?probands.map(p=>{
+      const count=spCountAll(p.name),pct=Math.min(count/SP_TOTAL,1),color=spPColor(count,SP_TOTAL);
+      const init=p.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+      const meta=[p.age?p.age+' J':'',p.gender==='w'?'♀':p.gender==='m'?'♂':'',p.note].filter(Boolean).join(' · ');
+      return `<div class="proband-row">
+        <div class="proband-avatar">${init}</div>
+        <div class="proband-info"><div class="proband-name">${p.name}</div><div class="proband-meta">${meta||'—'}</div></div>
+        <div class="proband-stats">
+          <div class="proband-progress">
+            <div class="count" style="color:${color}">${count}</div><div class="label">/ ${SP_TOTAL} EIN.</div>
+            <div class="mini-progress"><div class="mini-progress-fill" style="width:${pct*100}%;background:${color}"></div></div>
+          </div>
+          ${isAdmin()?`<div style="display:flex;gap:5px">
+            <button class="btn btn-xs" onclick="spOpenProbandModal('${p._id}')">✎</button>
+            <button class="btn btn-xs btn-d" onclick="spDelProband('${p._id}')">✕</button>
+            <button class="btn btn-xs" style="background:#1A1A2E;color:#fff;border-color:#1A1A2E" onclick="spSwitch('sp-5rm',null);spSelectClient('${p._id}')">5RM →</button>
+          </div>`:''}
+        </div>
+      </div>`;
+    }).join(''):'<div style="text-align:center;padding:3rem;color:#CCC;font-size:13px">Noch keine Probanden angelegt.</div>'}</div>
   </div>`;
 }
+window.spFilterP=q=>document.querySelectorAll('#sp-prows .proband-row').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(q.toLowerCase())?'':'none';});
 
-window.spFilterProbanden = (q) => {
-  document.querySelectorAll('#sp-proband-rows .proband-row').forEach(row => {
-    row.style.display = row.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
-  });
-};
-window.spDelProband = async (id) => {
-  if (!confirm('Proband wirklich löschen?')) return;
-  try { await spDeleteProband(id); toast('Proband gelöscht'); } catch(e) { toast('Fehler: '+e.message,true); }
-};
+// ── CALENDAR ───────────────────────────────
+let spWeekOff=0, spActiveStudio=1, spCalTab='calendar', spModal=null;
 
-// ── CALENDAR (React) ───────────────────────
-let spCalMounted = false;
-function spMountCalendar() {
-  if (spCalMounted) return;
-  spCalMounted = true;
-  const root = document.getElementById('sp-cal-react-root');
-  if (!root) return;
-  ReactDOM.createRoot(root).render(React.createElement(SpCalendarApp));
+function spRenderCalendar(){
+  const root=document.getElementById('sp-cal-root'); if(!root) return;
+  const studio=SP_STUDIOS.find(s=>s.id===spActiveStudio);
+  const weekDates=spGetWeekDates(spWeekOff);
+  const today=new Date().toDateString();
+
+  // Toolbar
+  const studioTabs=SP_STUDIOS.map(s=>`<button class="studio-tab${spActiveStudio===s.id?' active':''}"
+    onclick="spActiveStudio=${s.id};spRenderCalendar()"
+    style="${spActiveStudio===s.id?`background:${s.color};color:#fff;border-color:${s.color}`:''}">
+    ${s.name.toUpperCase()}</button>`).join('');
+
+  const calSubTabs=[['calendar','📅 Kalender'],['alle','🏢 Alle Studios'],['probanden','👥 Probanden']].map(([k,l])=>
+    `<button class="cal-subtab${spCalTab===k?' active':''}"
+      onclick="spCalTab='${k}';spRenderCalendar()"
+      style="${spCalTab===k?`background:${k==='alle'?'#555':studio.color};color:#fff`:''}">
+    ${l}</button>`).join('');
+
+  let content='';
+  if(spCalTab==='calendar'){
+    const dayHeaders=weekDates.map((date,i)=>{
+      const dn=i+1,isAvail=studio.days.includes(dn),isToday=date.toDateString()===today;
+      return `<div style="text-align:center;padding:10px 4px;border-radius:10px;background:${isToday?studio.color+'18':'#fff'};border:1px solid ${isToday?studio.color:'#E8E4DE'};opacity:${isAvail?1:0.3}">
+        <div style="font-size:9px;color:#BBB;letter-spacing:2px">${SP_DAY_SHORT[dn]}</div>
+        <div style="font-size:15px;font-weight:500;color:${isToday?studio.color:'#2A2A2A'};margin-top:2px">${spFmtDate(date)}</div>
+      </div>`;
+    }).join('');
+
+    const hourRows=SP_HOURS.map(hour=>{
+      const cells=[1,2,3,4].map(di=>{
+        if(!studio.days.includes(di)) return `<div style="height:76px;background:#F0EDE8;border-radius:10px;border:1px solid #EAE7E2;display:flex;align-items:center;justify-content:center"><div style="width:16px;height:1px;background:#DDD"></div></div>`;
+        const data=spGetSD(spActiveStudio,di,hour,spWeekOff),mc=data.members.length,isFull=mc>=SP_MAX;
+        const dots=Array.from({length:SP_MAX}).map((_,i)=>{
+          const att=data.attendance&&data.attendance[i];
+          const c=i>=mc?'#E5E2DD':att==='present'?'#2E9E7A':att==='absent'?'#C04A6A':studio.color;
+          return `<div style="width:6px;height:6px;border-radius:50%;background:${c}"></div>`;
+        }).join('');
+        return `<button onclick="spOpenSlotModal(${di},${hour})" style="height:76px;border-radius:10px;border:1px solid ${isFull?studio.color+'88':mc>0?studio.color+'44':'#E8E4DE'};background:${mc>0?`linear-gradient(to top,${studio.color}18 0%,#fff 100%)`:'#fff'};padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;cursor:pointer;width:100%">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <span style="font-size:10px;color:${isFull?studio.color:'#CCC'};font-family:monospace">${mc}/${SP_MAX}</span>
+            ${data.trainer?`<span style="font-size:8px;background:${studio.color};color:#fff;padding:2px 5px;border-radius:3px;font-weight:700">T</span>`:''}
+          </div>
+          ${mc>0?`<div style="font-size:9px;color:#999;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${data.members[0]}${mc>1?` +${mc-1}`:''}</div>`:''}
+          <div style="display:flex;gap:3px">${dots}</div>
+        </button>`;
+      }).join('');
+      return `<div style="display:grid;grid-template-columns:64px repeat(4,1fr);gap:6px;margin-bottom:6px">
+        <div style="display:flex;align-items:center;justify-content:flex-end;padding-right:10px;color:#CCC;font-size:11px;font-family:monospace">${hour}:00</div>
+        ${cells}
+      </div>`;
+    }).join('');
+
+    content=`<div style="overflow-x:auto;padding:16px 20px">
+      <div style="min-width:580px">
+        <div style="display:grid;grid-template-columns:64px repeat(4,1fr);gap:6px;margin-bottom:6px">
+          <div></div>${dayHeaders}
+        </div>
+        ${hourRows}
+      </div>
+      <div class="cal-legend">
+        <div><span style="color:${studio.color}">●</span> ${studio.name}</div>
+        <div>Tage: <span style="color:#888">${studio.days.map(d=>SP_DAY_SHORT[d]).join(', ')}</span></div>
+        <div>Zeit: <span style="color:#888">11:00–16:00</span></div>
+      </div>
+    </div>`;
+  } else if(spCalTab==='alle'){
+    content=`<div style="overflow-x:auto;padding:16px 20px"><div style="min-width:600px">`+
+      SP_STUDIOS.map(s=>{
+        const sdates=spGetWeekDates(spWeekOff);
+        const dh=sdates.map((date,i)=>{
+          const dn=i+1,isToday=date.toDateString()===today,isAvail=s.days.includes(dn);
+          return `<div style="text-align:center;padding:6px 4px;border-radius:8px;background:${isToday?s.color+'18':'#fff'};border:1px solid ${isToday?s.color:'#E8E4DE'};opacity:${isAvail?1:0.25};font-size:11px;color:${isToday?s.color:'#AAA'};font-family:monospace">${SP_DAY_SHORT[dn]} ${spFmtDate(date)}</div>`;
+        }).join('');
+        const hrs=SP_HOURS.map(hour=>{
+          const cells=[1,2,3,4].map(di=>{
+            if(!s.days.includes(di)) return `<div style="height:48px;background:#F5F2ED;border-radius:8px;border:1px solid #EAE7E2"></div>`;
+            const data=SP_SLOTS_DATA[spSKey(s.id,di,hour,spWeekOff)]||{members:[],trainer:null};
+            const mc=data.members.length,isFull=mc>=SP_MAX;
+            return `<div style="height:48px;border-radius:8px;position:relative;overflow:hidden;border:1px solid ${isFull?s.color+'88':mc>0?s.color+'44':'#E8E4DE'};background:${mc>0?`linear-gradient(to top,${s.color}18 0%,#fff 100%)`:'#fff'};padding:5px 8px;font-size:9px;color:#888">${mc>0?data.members[0]:''}</div>`;
+          }).join('');
+          return `<div style="display:grid;grid-template-columns:56px repeat(4,1fr);gap:5px;margin-bottom:5px">
+            <div style="display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#CCC;font-size:10px;font-family:monospace">${hour}:00</div>${cells}</div>`;
+        }).join('');
+        return `<div style="margin-bottom:24px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <div style="width:10px;height:10px;border-radius:50%;background:${s.color}"></div>
+            <span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:${s.color}">${s.name.toUpperCase()}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:56px repeat(4,1fr);gap:5px;margin-bottom:5px"><div></div>${dh}</div>
+          ${hrs}
+        </div>`;
+      }).join('')+`</div></div>`;
+  } else {
+    const all=spGetProbands().map(p=>({...p,count:spCountAll(p.name)})).sort((a,b)=>b.count-a.count);
+    content=`<div style="padding:20px">
+      <h3 style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;margin-bottom:16px">Kalenderfortschritt</h3>
+      ${all.map((p,i)=>{
+        const pct=Math.min(p.count/SP_TOTAL,1),color=spPColor(p.count,SP_TOTAL);
+        return `<div style="padding:12px 16px;background:#fff;border-radius:10px;border:1px solid #E8E4DE;margin-bottom:8px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:11px;color:#CCC;width:20px">${i+1}</span>
+          <span style="font-size:13px;font-weight:500;flex:1">${p.name}</span>
+          <span style="font-size:13px;font-weight:700;color:${color};font-family:monospace">${p.count}/${SP_TOTAL}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  root.innerHTML=`
+    <div class="cal-toolbar">
+      <div class="cal-subtabs">${calSubTabs}</div>
+      ${spCalTab==='calendar'?`<div class="studio-tabs">${studioTabs}</div>`:''}
+      ${spCalTab!=='probanden'?`<div class="week-nav">
+        <button class="week-btn" onclick="spWeekOff--;spRenderCalendar()">←</button>
+        <div style="text-align:center;min-width:72px">
+          <div style="font-size:10px;color:#BBB;letter-spacing:2px">WOCHE</div>
+          <div style="font-size:13px;color:${spWeekOff===0?studio.color:'#888'};font-family:monospace">${spWeekOff===0?'AKTUELL':spWeekOff>0?'+'+spWeekOff:spWeekOff}</div>
+        </div>
+        <button class="week-btn" onclick="spWeekOff++;spRenderCalendar()">→</button>
+        ${spWeekOff!==0?`<button class="week-btn" onclick="spWeekOff=0;spRenderCalendar()" style="font-size:10px;color:${studio.color}">HEUTE</button>`:''}
+      </div>`:''}
+    </div>
+    ${content}`;
 }
 
-function SpCalendarApp() {
-  const [activeStudio, setActiveStudio] = React.useState(1);
-  const [weekOff, setWeekOff]           = React.useState(0);
-  const [slots, setSlots]               = React.useState({...SP_SLOTS});
-  const [probands, setProbands]         = React.useState(spGetProbands());
-  const [modal, setModal]               = React.useState(null);
-  const [bookingName, setBookingName]   = React.useState('');
-  const [bookingRole, setBookingRole]   = React.useState('member');
-  const [showAC, setShowAC]             = React.useState(false);
-  const [calTab, setCalTab]             = React.useState('calendar');
-  const inputRef = React.useRef(null);
+// ── SLOT MODAL ─────────────────────────────
+let spSlotDi=null, spSlotH=null;
+window.spOpenSlotModal=(di,h)=>{
+  spSlotDi=di; spSlotH=h;
+  const studio=SP_STUDIOS.find(s=>s.id===spActiveStudio);
+  const data=spGetSD(spActiveStudio,di,h,spWeekOff);
+  const weekDates=spGetWeekDates(spWeekOff);
+  const probands=spGetProbands();
 
-  React.useEffect(() => {
-    const update = () => { setSlots({...SP_SLOTS}); setProbands(spGetProbands()); };
-    window.spOnChange(update);
-  }, []);
+  const memberRows=data.members.map((name,i)=>{
+    const att=(data.attendance&&data.attendance[i])||'pending';
+    const attCfg={pending:{icon:'○',bg:'#F8F5F0',border:'#E0DDD8',color:'#AAA'},present:{icon:'✔',bg:'#f0faf4',border:'#2E9E7A',color:'#2E9E7A'},absent:{icon:'✘',bg:'#fff5f5',border:'#C04A6A',color:'#C04A6A'}}[att];
+    return `<div style="background:${attCfg.bg};border-radius:8px;border:1px solid ${attCfg.border};padding:9px 12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+      <span style="font-size:13px">${i+1}. ${name}</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        ${isAdmin()?`<button onclick="spToggleAtt(${i},'${att}')" style="background:none;border:1px solid ${attCfg.border};border-radius:6px;color:${attCfg.color};font-weight:700;font-size:14px;width:30px;height:28px;cursor:pointer">${attCfg.icon}</button>`:''}
+        <span style="font-size:10px;font-family:monospace;color:${spPColor(spCountAll(name),SP_TOTAL)}">${spCountAll(name)}/${SP_TOTAL}</span>
+        ${isAdmin()?`<button onclick="spRemoveBooking('member',${i})" style="background:none;border:none;color:#CCC;font-size:16px;cursor:pointer">×</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
 
-  const studio     = SP_STUDIOS.find(s=>s.id===activeStudio);
-  const weekDates  = spGetWeekDates(weekOff);
-  const todayStr   = new Date().toDateString();
+  const acOptions=probands.filter(p=>!data.members.includes(p.name)).map(p=>`<option value="${p.name}">${p.name}</option>`).join('');
 
-  function getSD(sid,di,h){ return slots[spSKey(sid,di,h,weekOff)]||{members:[],trainer:null,attendance:[]}; }
+  document.getElementById('sp-slot-modal').innerHTML=`
+    <div style="margin-bottom:18px">
+      <div style="font-size:9px;color:${studio.color};letter-spacing:3px;margin-bottom:4px;font-weight:600">${studio.name.toUpperCase()} / ${SP_DAY_NAMES[di].toUpperCase()}</div>
+      <h2 style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800">${h}:00 – ${h+1}:00</h2>
+      <div style="font-size:11px;color:#BBB;margin-top:3px">${spFmtDate(weekDates[di-1])}</div>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:9px;color:#BBB;letter-spacing:2px;margin-bottom:8px">TRAINER</div>
+      ${data.trainer
+        ?`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:${studio.color}10;border:1px solid ${studio.color}33;border-radius:8px">
+            <span style="font-size:13px">${data.trainer}</span>
+            ${isAdmin()?`<button onclick="spRemoveBooking('trainer',0)" style="background:none;border:none;color:#CCC;font-size:16px;cursor:pointer">×</button>`:''}
+          </div>`
+        :`<div style="padding:10px 14px;background:#F8F5F0;border:1px dashed #DDD;border-radius:8px;font-size:11px;color:#CCC;text-align:center">Kein Trainer gebucht</div>`}
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:9px;color:#BBB;letter-spacing:2px">PROBANDEN</div>
+        <div style="font-size:11px;color:${data.members.length>=SP_MAX?studio.color:'#CCC'};font-family:monospace">${data.members.length}/${SP_MAX}</div>
+      </div>
+      ${memberRows}
+      ${data.members.length===0?'<div style="padding:12px;background:#F8F5F0;border:1px dashed #DDD;border-radius:8px;font-size:11px;color:#CCC;text-align:center">Keine Probanden gebucht</div>':''}
+    </div>
+    ${isAdmin()?`<div style="border-top:1px solid #EAE7E2;padding-top:14px">
+      <div style="font-size:9px;color:#BBB;letter-spacing:2px;margin-bottom:10px">BUCHUNG HINZUFÜGEN</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <select id="sp-book-role" style="width:110px;padding:10px 12px;border:1px solid #DDD;border-radius:8px;font-family:monospace;font-size:13px;background:#fff;outline:none">
+          <option value="member">Proband</option>
+          <option value="trainer">Trainer</option>
+        </select>
+        <div style="flex:1;position:relative">
+          <input id="sp-book-name" list="sp-book-ac" type="text" placeholder="Name eingeben…"
+            style="width:100%;padding:10px 14px;border:1px solid #DDD;border-radius:8px;font-family:monospace;font-size:13px;outline:none"
+            onkeydown="if(event.key==='Enter')spAddBooking()">
+          <datalist id="sp-book-ac">${acOptions}</datalist>
+        </div>
+      </div>
+      <button onclick="spAddBooking()" style="width:100%;padding:11px;border-radius:8px;border:none;background:${studio.color};color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;font-family:monospace;cursor:pointer">+ BESTÄTIGEN</button>
+    </div>`:''}
+    <div style="text-align:right;margin-top:12px"><button onclick="spCloseSlot()" style="background:none;border:1px solid #DDD;border-radius:8px;padding:8px 16px;font-family:sans-serif;font-size:13px;color:#999;cursor:pointer">Schließen</button></div>`;
 
-  function openModal(di,h){ setModal({di,h,data:getSD(activeStudio,di,h)}); setBookingName(''); setBookingRole('member'); setShowAC(false); }
+  document.getElementById('sp-slot-overlay').style.display='flex';
+};
+window.spCloseSlot=()=>{ document.getElementById('sp-slot-overlay').style.display='none'; };
 
-  async function addBooking(nameOverride) {
-    const name=(nameOverride||bookingName).trim();
-    if (!name||!modal) return;
-    const key=spSKey(activeStudio,modal.di,modal.h,weekOff);
-    const data=getSD(activeStudio,modal.di,modal.h);
-    let newData;
-    if (bookingRole==='trainer') {
-      if (data.trainer) return;
-      newData={...data,trainer:name};
-    } else {
-      if (data.members.length>=SP_MAX||data.members.includes(name)) return;
-      const newAtt=[...(data.attendance||data.members.map(()=>'pending')),'pending'];
-      newData={...data,members:[...data.members,name],attendance:newAtt};
-    }
-    await spSaveSlot(key, newData);
-    setModal({...modal,data:newData}); setBookingName(''); setShowAC(false);
+window.spAddBooking=async()=>{
+  const name=document.getElementById('sp-book-name')?.value.trim(); if(!name) return;
+  const role=document.getElementById('sp-book-role')?.value;
+  const key=spSKey(spActiveStudio,spSlotDi,spSlotH,spWeekOff);
+  const data=spGetSD(spActiveStudio,spSlotDi,spSlotH,spWeekOff);
+  let newData;
+  if(role==='trainer'){
+    if(data.trainer){toast('Bereits ein Trainer eingetragen',true);return;}
+    newData={...data,trainer:name};
+  } else {
+    if(data.members.length>=SP_MAX){toast('Slot voll',true);return;}
+    if(data.members.includes(name)){toast('Bereits eingetragen',true);return;}
+    newData={...data,members:[...data.members,name],attendance:[...(data.attendance||data.members.map(()=>'pending')),'pending']};
   }
+  try{
+    await setDoc(doc(db,'sp_slots',key),{key,...newData,updated:Date.now()});
+    document.getElementById('sp-book-name').value='';
+    spOpenSlotModal(spSlotDi,spSlotH);
+  }catch(e){toast('Fehler: '+e.message,true);}
+};
 
-  async function removeBooking(type,index) {
-    if (!modal) return;
-    const key=spSKey(activeStudio,modal.di,modal.h,weekOff);
-    const data=getSD(activeStudio,modal.di,modal.h);
-    let newData;
-    if (type==='trainer') newData={...data,trainer:null};
-    else {
-      const newMem=data.members.filter((_,i)=>i!==index);
-      const newAtt=(data.attendance||data.members.map(()=>'pending')).filter((_,i)=>i!==index);
-      newData={...data,members:newMem,attendance:newAtt};
-    }
-    await spSaveSlot(key, newData);
-    setModal({...modal,data:newData});
+window.spRemoveBooking=async(type,index)=>{
+  const key=spSKey(spActiveStudio,spSlotDi,spSlotH,spWeekOff);
+  const data=spGetSD(spActiveStudio,spSlotDi,spSlotH,spWeekOff);
+  let newData;
+  if(type==='trainer') newData={...data,trainer:null};
+  else {
+    const newMem=data.members.filter((_,i)=>i!==index);
+    const newAtt=(data.attendance||data.members.map(()=>'pending')).filter((_,i)=>i!==index);
+    newData={...data,members:newMem,attendance:newAtt};
   }
+  try{
+    await setDoc(doc(db,'sp_slots',key),{key,...newData,updated:Date.now()});
+    spOpenSlotModal(spSlotDi,spSlotH);
+  }catch(e){toast('Fehler: '+e.message,true);}
+};
 
-  async function toggleAttendance(memberIndex,currentStatus) {
-    if (!modal) return;
-    const key=spSKey(activeStudio,modal.di,modal.h,weekOff);
-    const data=getSD(activeStudio,modal.di,modal.h);
-    const att=[...(data.attendance||data.members.map(()=>'pending'))];
-    const cycle=['pending','present','absent'];
-    att[memberIndex]=cycle[(cycle.indexOf(currentStatus)+1)%3];
-    const newData={...data,attendance:att};
-    await spSaveSlot(key, newData);
-    setModal({...modal,data:newData});
-  }
+window.spToggleAtt=async(memberIndex,currentStatus)=>{
+  const key=spSKey(spActiveStudio,spSlotDi,spSlotH,spWeekOff);
+  const data=spGetSD(spActiveStudio,spSlotDi,spSlotH,spWeekOff);
+  const att=[...(data.attendance||data.members.map(()=>'pending'))];
+  const cycle=['pending','present','absent'];
+  att[memberIndex]=cycle[(cycle.indexOf(currentStatus)+1)%3];
+  try{
+    await setDoc(doc(db,'sp_slots',key),{key,...data,attendance:att,updated:Date.now()});
+    spOpenSlotModal(spSlotDi,spSlotH);
+  }catch(e){toast('Fehler: '+e.message,true);}
+};
 
-  const acList = bookingRole==='member' && bookingName.trim()
-    ? probands.filter(p=>p.name.toLowerCase().includes(bookingName.toLowerCase())&&modal&&!modal.data.members.includes(p.name))
-    : [];
-  const isDisabled=(role)=>!bookingName.trim()||(role==='member'&&modal&&modal.data.members.length>=SP_MAX)||(role==='trainer'&&modal&&modal.data.trainer);
-
-  const calProbands = React.useMemo(()=>{
-    const map={};
-    for (const k of Object.keys(slots)) { const s=slots[k]; if(s.members) for(const n of s.members){ if(!map[n])map[n]=0; map[n]++; } }
-    const result=probands.map(p=>({...p,calCount:map[p.name]||0}));
-    Object.entries(map).forEach(([name,count])=>{ if(!result.find(p=>p.name===name)) result.push({_id:'u-'+name,name,calCount:count}); });
-    return result.sort((a,b)=>b.calCount-a.calCount);
-  },[slots,probands]);
-
-  return React.createElement('div', null,
-    // Toolbar
-    React.createElement('div',{className:'cal-toolbar'},
-      React.createElement('div',{className:'cal-subtabs'},
-        [['calendar','📅 Kalender'],['alle','🏢 Alle Studios'],['probanden','👥 Probanden']].map(([k,l])=>
-          React.createElement('button',{key:k,className:`cal-subtab${calTab===k?' active':''}`,
-            onClick:()=>setCalTab(k),
-            style:calTab===k?{background:k==='alle'?'#555':studio.color,color:'#fff'}:{}},l)
-        )
-      ),
-      calTab==='calendar' && React.createElement('div',{className:'studio-tabs'},
-        SP_STUDIOS.map(s=>React.createElement('button',{key:s.id,className:`studio-tab${activeStudio===s.id?' active':''}`,
-          onClick:()=>setActiveStudio(s.id),
-          style:activeStudio===s.id?{background:s.color,color:'#fff',borderColor:s.color}:{}},
-          s.name.toUpperCase()))
-      ),
-      (calTab==='calendar'||calTab==='alle') && React.createElement('div',{className:'week-nav'},
-        React.createElement('button',{className:'week-btn',onClick:()=>setWeekOff(w=>w-1)},'←'),
-        React.createElement('div',{style:{textAlign:'center',minWidth:72}},
-          React.createElement('div',{style:{fontSize:10,color:'#BBB',letterSpacing:2}},'WOCHE'),
-          React.createElement('div',{style:{fontSize:13,color:weekOff===0?studio.color:'#888',fontFamily:"'DM Mono',monospace"}},weekOff===0?'AKTUELL':weekOff>0?`+${weekOff}`:weekOff)
-        ),
-        React.createElement('button',{className:'week-btn',onClick:()=>setWeekOff(w=>w+1)},'→'),
-        weekOff!==0&&React.createElement('button',{className:'week-btn',onClick:()=>setWeekOff(0),style:{fontSize:10,color:studio.color}},'HEUTE')
-      )
-    ),
-    // Calendar Grid
-    calTab==='calendar' && React.createElement('div',{className:'cal-wrap fade-in'},
-      React.createElement('div',{style:{minWidth:580}},
-        React.createElement('div',{style:{display:'grid',gridTemplateColumns:'64px repeat(4,1fr)',gap:6,marginBottom:6}},
-          React.createElement('div'),
-          ...weekDates.map((date,i)=>{
-            const dn=i+1,isAvail=studio.days.includes(dn),isToday=date.toDateString()===todayStr;
-            return React.createElement('div',{key:i,style:{textAlign:'center',padding:'10px 4px',borderRadius:10,
-              background:isToday?`${studio.color}18`:'#fff',
-              border:`1px solid ${isToday?studio.color:'#E8E4DE'}`,
-              opacity:isAvail?1:0.3}},
-              React.createElement('div',{style:{fontSize:9,color:'#BBB',letterSpacing:2}},SP_DAY_SHORT[dn]),
-              React.createElement('div',{style:{fontSize:15,fontWeight:500,color:isToday?studio.color:'#2A2A2A',marginTop:2}},spFmtDate(date))
-            );
-          })
-        ),
-        ...SP_HOURS.map(hour=>
-          React.createElement('div',{key:hour,style:{display:'grid',gridTemplateColumns:'64px repeat(4,1fr)',gap:6,marginBottom:6}},
-            React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'flex-end',paddingRight:10,color:'#CCC',fontSize:11,fontFamily:"'DM Mono',monospace"}},`${hour}:00`),
-            ...[1,2,3,4].map(di=>{
-              if (!studio.days.includes(di)) return React.createElement('div',{key:di,style:{height:76,background:'#F0EDE8',borderRadius:10,border:'1px solid #EAE7E2',display:'flex',alignItems:'center',justifyContent:'center'}},
-                React.createElement('div',{style:{width:16,height:1,background:'#DDD9D3'}})
-              );
-              const data=getSD(activeStudio,di,hour),mc=data.members.length,fill=mc/SP_MAX,isFull=mc>=SP_MAX;
-              return React.createElement('button',{key:di,className:'slot-btn',onClick:()=>openModal(di,hour),style:{
-                height:76,borderRadius:10,
-                border:`1px solid ${isFull?studio.color+'88':mc>0?studio.color+'44':'#E8E4DE'}`,
-                background:mc>0?`linear-gradient(to top,${studio.color}18 0%,#fff 100%)`:'#fff',
-                padding:'8px 10px',display:'flex',flexDirection:'column',justifyContent:'space-between',
-                position:'relative',overflow:'hidden'}},
-                React.createElement('div',{style:{position:'absolute',bottom:0,left:0,right:0,height:`${fill*100}%`,background:`${studio.color}0C`}}),
-                React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',position:'relative'}},
-                  React.createElement('div',{style:{fontSize:10,color:isFull?studio.color:'#CCC',fontFamily:"'DM Mono',monospace"}},`${mc}/${SP_MAX}`),
-                  data.trainer&&React.createElement('div',{style:{fontSize:8,background:studio.color,color:'#fff',padding:'2px 5px',borderRadius:3,fontWeight:700}},'T')
-                ),
-                React.createElement('div',{style:{position:'relative'}},
-                  mc>0&&React.createElement('div',{style:{fontSize:9,color:'#999',marginBottom:4,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},`${data.members[0]}${mc>1?` +${mc-1}`:''}`),
-                  React.createElement('div',{style:{display:'flex',gap:3}},
-                    ...Array.from({length:SP_MAX}).map((_,i)=>{
-                      const att2=data.attendance&&data.attendance[i];
-                      const dotColor=i>=mc?'#E5E2DD':att2==='present'?'#2E9E7A':att2==='absent'?'#C04A6A':studio.color;
-                      return React.createElement('div',{key:i,style:{width:6,height:6,borderRadius:'50%',background:dotColor}});
-                    })
-                  )
-                )
-              );
-            })
-          )
-        )
-      ),
-      React.createElement('div',{className:'cal-legend'},
-        React.createElement('div',null,React.createElement('span',{style:{color:studio.color}},'●'),' ',studio.name),
-        React.createElement('div',null,'Tage: ',React.createElement('span',{style:{color:'#888'}},studio.days.map(d=>SP_DAY_SHORT[d]).join(', '))),
-        React.createElement('div',null,'Zeit: ',React.createElement('span',{style:{color:'#888'}},'11:00–16:00')),
-        React.createElement('div',null,'Programm: ',React.createElement('span',{style:{color:'#888'}},'48 Wochen · 96 Einheiten'))
-      )
-    ),
-    // Alle Studios
-    calTab==='alle' && React.createElement('div',{className:'cal-wrap fade-in'},
-      React.createElement('div',{style:{minWidth:600}},
-        ...SP_STUDIOS.map(s=>
-          React.createElement('div',{key:s.id,style:{marginBottom:28}},
-            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:10,paddingLeft:4}},
-              React.createElement('div',{style:{width:10,height:10,borderRadius:'50%',background:s.color}}),
-              React.createElement('div',{style:{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:800,letterSpacing:1,color:s.color}},s.name.toUpperCase()),
-              React.createElement('div',{style:{fontSize:11,color:'#CCC',fontFamily:"'DM Mono',monospace"}},`${s.days.map(d=>SP_DAY_SHORT[d]).join(', ')} · 11:00–16:00`)
-            ),
-            React.createElement('div',{style:{display:'grid',gridTemplateColumns:'56px repeat(4,1fr)',gap:5}},
-              React.createElement('div'),
-              ...weekDates.map((date,i)=>{
-                const dn=i+1,isAvail=s.days.includes(dn),isToday=date.toDateString()===todayStr;
-                return React.createElement('div',{key:i,style:{textAlign:'center',padding:'6px 4px',borderRadius:8,
-                  background:isToday?`${s.color}18`:'#fff',border:`1px solid ${isToday?s.color:'#E8E4DE'}`,
-                  opacity:isAvail?1:0.25,fontSize:11,color:isToday?s.color:'#AAA',fontFamily:"'DM Mono',monospace"}},
-                  `${SP_DAY_SHORT[dn]} ${spFmtDate(date)}`
-                );
-              }),
-              ...SP_HOURS.map(hour=>
-                [React.createElement('div',{key:`h${hour}`,style:{display:'flex',alignItems:'center',justifyContent:'flex-end',paddingRight:8,color:'#CCC',fontSize:10,fontFamily:"'DM Mono',monospace"}},`${hour}:00`),
-                ...[1,2,3,4].map(di=>{
-                  if (!s.days.includes(di)) return React.createElement('div',{key:di,style:{height:52,background:'#F5F2ED',borderRadius:8,border:'1px solid #EAE7E2'}});
-                  const data=slots[spSKey(s.id,di,hour,weekOff)]||{members:[],trainer:null};
-                  const mc=data.members.length,fill=mc/SP_MAX,isFull=mc>=SP_MAX;
-                  return React.createElement('div',{key:di,style:{height:52,borderRadius:8,position:'relative',overflow:'hidden',
-                    border:`1px solid ${isFull?s.color+'88':mc>0?s.color+'44':'#E8E4DE'}`,
-                    background:mc>0?`linear-gradient(to top,${s.color}18 0%,#fff 100%)`:'#fff',padding:'5px 8px'}},
-                    React.createElement('div',{style:{position:'absolute',bottom:0,left:0,right:0,height:`${fill*100}%`,background:`${s.color}0C`}}),
-                    React.createElement('div',{style:{position:'relative',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}},
-                      React.createElement('div',{style:{fontSize:10,fontFamily:"'DM Mono',monospace",color:isFull?s.color:'#BBB'}}),`${mc}/${SP_MAX}`),
-                      data.trainer&&React.createElement('div',{style:{fontSize:8,background:s.color,color:'#fff',padding:'1px 4px',borderRadius:2,fontWeight:700}},'T'),
-                    mc>0&&React.createElement('div',{style:{position:'relative',fontSize:9,color:'#888',marginTop:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},`${data.members[0]}${mc>1?` +${mc-1}`:''}`),
-                    React.createElement('div',{style:{position:'relative',display:'flex',gap:2,marginTop:3}},
-                      ...Array.from({length:SP_MAX}).map((_,i)=>React.createElement('div',{key:i,style:{width:5,height:5,borderRadius:'50%',background:i<mc?s.color:'#E5E2DD'}}))
-                    )
-                  );
-                })]
-              ).flat()
-            )
-          )
-        )
-      )
-    ),
-    // Probanden Fortschritt
-    calTab==='probanden' && React.createElement('div',{className:'cal-probanden fade-in'},
-      React.createElement('div',{style:{marginBottom:20}},
-        React.createElement('h2',{style:{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800}},'PROBANDEN – KALENDERFORTSCHRITT'),
-        React.createElement('div',{style:{fontSize:11,color:'#BBB',marginTop:2}},`${probands.length} Probanden · Ziel: ${SP_TOTAL} Einheiten`)
-      ),
-      calProbands.length===0
-        ? React.createElement('div',{style:{textAlign:'center',padding:'60px 20px',color:'#CCC',fontSize:13}},'Noch keine Buchungen vorhanden')
-        : React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:8}},
-            ...calProbands.map(({_id,name,calCount},i)=>{
-              const pct=Math.min(calCount/SP_TOTAL,1),color=spPColor(calCount,SP_TOTAL),isComplete=calCount>=SP_TOTAL;
-              return React.createElement('div',{key:_id,style:{padding:'14px 18px',background:'#fff',borderRadius:12,border:`1px solid ${isComplete?'#B8860B44':'#E8E4DE'}`}},
-                React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}},
-                  React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12}},
-                    React.createElement('div',{style:{fontSize:10,color:'#CCC',width:24}},i+1),
-                    React.createElement('div',{style:{fontSize:13,fontWeight:500}},name),
-                    isComplete&&React.createElement('span',{className:'badge-complete'},'ABGESCHLOSSEN')
-                  ),
-                  React.createElement('div',{style:{textAlign:'right'}},
-                    React.createElement('div',{style:{fontSize:14,fontWeight:700,color,fontFamily:"'DM Mono',monospace"}},calCount,React.createElement('span',{style:{fontSize:11,color:'#CCC',fontWeight:400}},`/${SP_TOTAL}`)),
-                    React.createElement('div',{style:{fontSize:10,color:'#CCC'}},`${Math.round(pct*100)}%`)
-                  )
-                ),
-                React.createElement('div',{className:'progress-bar'},React.createElement('div',{className:'progress-fill',style:{width:`${pct*100}%`,background:color}})),
-                React.createElement('div',{style:{fontSize:10,color:'#CCC',marginTop:6}},isComplete?'Programm abgeschlossen 🎯':`Noch ${SP_TOTAL-calCount} Einheiten verbleibend`)
-              );
-            })
-          )
-    ),
-    // Booking Modal
-    modal && React.createElement('div',{className:'overlay',onClick:e=>e.target===e.currentTarget&&setModal(null)},
-      React.createElement('div',{className:'modal-card'},
-        React.createElement('div',{style:{marginBottom:20}},
-          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}},
-            React.createElement('div',null,
-              React.createElement('div',{style:{fontSize:9,color:studio.color,letterSpacing:3,marginBottom:4,fontWeight:600}},`${studio.name.toUpperCase()} / ${SP_DAY_NAMES[modal.di].toUpperCase()}`),
-              React.createElement('h2',{style:{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800}},`${modal.h}:00 – ${modal.h+1}:00`),
-              React.createElement('div',{style:{fontSize:11,color:'#BBB',marginTop:3}},spFmtDate(weekDates[modal.di-1]))
-            ),
-            React.createElement('button',{onClick:()=>setModal(null),style:{background:'none',border:'none',color:'#CCC',fontSize:22,cursor:'pointer'}},'×')
-          )
-        ),
-        // Trainer
-        React.createElement('div',{style:{marginBottom:14}},
-          React.createElement('div',{style:{fontSize:9,color:'#BBB',letterSpacing:2,marginBottom:8}},'TRAINER'),
-          modal.data.trainer
-            ? React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',background:`${studio.color}10`,border:`1px solid ${studio.color}33`,borderRadius:8}},
-                React.createElement('span',{style:{fontSize:13}},modal.data.trainer),
-                isAdmin()&&React.createElement('button',{className:'remove-btn',onClick:()=>removeBooking('trainer')},'×')
-              )
-            : React.createElement('div',{style:{padding:'10px 14px',background:'#F8F5F0',border:'1px dashed #DDD9D3',borderRadius:8,fontSize:11,color:'#CCC',textAlign:'center'}},'Kein Trainer gebucht')
-        ),
-        // Members
-        React.createElement('div',{style:{marginBottom:20}},
-          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}},
-            React.createElement('div',{style:{fontSize:9,color:'#BBB',letterSpacing:2}},'PROBANDEN'),
-            React.createElement('div',{style:{fontSize:11,color:modal.data.members.length>=SP_MAX?studio.color:'#CCC',fontFamily:"'DM Mono',monospace"}},`${modal.data.members.length}/${SP_MAX}`)
-          ),
-          React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:5}},
-            ...modal.data.members.map((name,i)=>{
-              const count=spCountAll(name),color=spPColor(count,SP_TOTAL),pct=Math.min(count/SP_TOTAL,1);
-              const att=(modal.data.attendance&&modal.data.attendance[i])||'pending';
-              const attCfg={pending:{icon:'○',bg:'#F8F5F0',border:'#E0DDD8',label:'Ungeprüft',color:'#AAA'},present:{icon:'✔',bg:'#f0faf4',border:'#2E9E7A',label:'Anwesend',color:'#2E9E7A'},absent:{icon:'✘',bg:'#fff5f5',border:'#C04A6A',label:'Abwesend',color:'#C04A6A'}}[att];
-              return React.createElement('div',{key:i,style:{background:attCfg.bg,borderRadius:8,border:`1px solid ${attCfg.border}`,overflow:'hidden'}},
-                React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 12px'}},
-                  React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
-                    React.createElement('div',{style:{fontSize:10,color:'#CCC',width:14}},i+1),
-                    React.createElement('span',{style:{fontSize:13,textDecoration:att==='absent'?'line-through':'none',opacity:att==='absent'?0.5:1}},name)
-                  ),
-                  React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
-                    isAdmin()&&React.createElement('button',{onClick:()=>toggleAttendance(i,att),title:attCfg.label,style:{background:'none',border:`1px solid ${attCfg.border}`,borderRadius:6,color:attCfg.color,fontWeight:700,fontSize:14,width:30,height:28,cursor:'pointer'}},attCfg.icon),
-                    React.createElement('span',{style:{fontSize:10,color,fontWeight:600,fontFamily:"'DM Mono',monospace"}},`${count}/${SP_TOTAL}`),
-                    isAdmin()&&React.createElement('button',{className:'remove-btn',onClick:()=>removeBooking('member',i)},'×')
-                  )
-                ),
-                React.createElement('div',{style:{height:2,background:'#EAE7E2'}},React.createElement('div',{style:{height:'100%',width:`${pct*100}%`,background:color,transition:'width .3s'}}))
-              );
-            }),
-            modal.data.members.length===0&&React.createElement('div',{style:{padding:'12px 14px',background:'#F8F5F0',border:'1px dashed #DDD9D3',borderRadius:8,fontSize:11,color:'#CCC',textAlign:'center'}},'Keine Probanden gebucht')
-          )
-        ),
-        // Add booking
-        isAdmin()&&React.createElement('div',{style:{borderTop:'1px solid #EAE7E2',paddingTop:16}},
-          React.createElement('div',{style:{fontSize:9,color:'#BBB',letterSpacing:2,marginBottom:10}},'BUCHUNG HINZUFÜGEN'),
-          React.createElement('div',{style:{display:'flex',gap:8,marginBottom:8}},
-            React.createElement('select',{value:bookingRole,onChange:e=>{setBookingRole(e.target.value);setShowAC(false);},style:{flexShrink:0,width:110,background:'#fff',border:'1px solid #DDD',borderRadius:8,fontFamily:"'DM Mono',monospace",fontSize:13,padding:'10px 14px',outline:'none'}},
-              React.createElement('option',{value:'member'},'Proband'),
-              React.createElement('option',{value:'trainer'},'Trainer')
-            ),
-            React.createElement('div',{className:'autocomplete-wrap',style:{flex:1}},
-              React.createElement('input',{ref:inputRef,type:'text',placeholder:bookingRole==='member'?'Name eingeben…':'Trainername…',
-                value:bookingName,
-                onChange:e=>{setBookingName(e.target.value);setShowAC(true);},
-                onKeyDown:e=>{if(e.key==='Enter')addBooking();if(e.key==='Escape')setShowAC(false);},
-                onFocus:()=>setShowAC(true),
-                style:{width:'100%',background:'#fff',border:'1px solid #DDD',borderRadius:showAC&&acList.length>0?'8px 8px 0 0':'8px',fontFamily:"'DM Mono',monospace",fontSize:13,padding:'10px 14px',outline:'none'}}),
-              showAC&&acList.length>0&&React.createElement('div',{className:'autocomplete-list'},
-                ...acList.map(p=>{
-                  const c=spCountAll(p.name);
-                  return React.createElement('div',{key:p._id,className:'autocomplete-item',onMouseDown:e=>{e.preventDefault();addBooking(p.name);}},
-                    React.createElement('span',null,p.name),
-                    React.createElement('span',{className:'ac-count'},`${c}/${SP_TOTAL}`)
-                  );
-                })
-              )
-            )
-          ),
-          React.createElement('button',{onClick:()=>addBooking(),disabled:isDisabled(bookingRole),style:{
-            width:'100%',padding:11,borderRadius:8,border:'none',
-            background:isDisabled(bookingRole)?'#F0EDE8':studio.color,
-            color:isDisabled(bookingRole)?'#CCC':'#fff',
-            fontSize:11,fontWeight:700,letterSpacing:2,fontFamily:"'DM Mono',monospace",
-            cursor:isDisabled(bookingRole)?'not-allowed':'pointer'}},
-          '+ BESTÄTIGEN')
-        )
-      )
-    )
-  );
-}
+// re-render on data change
+window.spOnChange(()=>{
+  if(document.getElementById('sp-probanden')?.style.display!=='none') spRenderProbanden();
+  if(document.getElementById('sp-calendar')?.style.display!=='none') spRenderCalendar();
+  spRenderClientList();
+  spSetSync(true);
+});
 </script>
 
-<!-- 5RM Diagnostik (vanilla JS) -->
+<!-- 5RM Diagnostik -->
 <script>
-const SP_EXERCISES = [
+const SP_EXERCISES=[
   {id:'beinpresse',name:'Beinpresse',icon:'🦵'},{id:'brustpresse',name:'Brustpresse',icon:'🫁'},
   {id:'brustdruecken',name:'Brustdrücken',icon:'💪'},{id:'rudern',name:'Rudern',icon:'🚣'},
   {id:'latzug',name:'Lat-Zug',icon:'⬇️'},{id:'schulterpresse',name:'Schulterpresse',icon:'🏋️'},
   {id:'beinbeuger',name:'Beinbeuger',icon:'🦿'},{id:'beinstrecker',name:'Beinstrecker',icon:'🦵'},
   {id:'bauchgeraet',name:'Bauchgerät',icon:'🎯'},{id:'rueckenstrecker',name:'Rückenstrecker',icon:'🔙'},
 ];
-let spActiveClientId=null, spActiveTab='test';
-let spActivePcts=JSON.parse(localStorage.getItem('sp_5rm_pcts')||'[60,65,70,75,80,85]');
-function spSavePcts(){ localStorage.setItem('sp_5rm_pcts',JSON.stringify(spActivePcts)); }
-function spBrzycki(w,r){ return w/(1.0278-0.0278*r); }
-function spRoundKg(v){ return Math.round(v/2.5)*2.5; }
+let sp5rmClientId=null,sp5rmTab='test';
+let sp5rmPcts=JSON.parse(localStorage.getItem('sp5rm_pcts')||'[60,65,70,75,80,85]');
+function sp5rmSavePcts(){localStorage.setItem('sp5rm_pcts',JSON.stringify(sp5rmPcts));}
+function sp5rmBrz(w,r){return w/(1.0278-0.0278*r);}
+function sp5rmRound(v){return Math.round(v/2.5)*2.5;}
 
 function spRenderClientList(){
   const el=document.getElementById('sp-clientList'); if(!el) return;
-  const probands=spGetProbands();
-  if(!probands.length){el.innerHTML='<div style="font-size:.75rem;color:rgba(255,255,255,.4);padding:.5rem">Noch keine Probanden.</div>';return;}
-  el.innerHTML=probands.map(c=>{
-    const sessions=c.sessions||[],last=sessions.length?new Date(sessions[sessions.length-1].date).toLocaleDateString('de-AT'):'Kein Test';
+  const p=Object.values(SP_PROBANDS).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!p.length){el.innerHTML='<div style="font-size:.75rem;color:rgba(255,255,255,.4);padding:.5rem">Noch keine Probanden.<br>Bitte unter „Probanden\" anlegen.</div>';return;}
+  el.innerHTML=p.map(c=>{
+    const s=c.sessions||[],last=s.length?new Date(s[s.length-1].date).toLocaleDateString('de-AT'):'Kein Test';
     const init=c.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-    return `<div class="client-item${spActiveClientId===c._id?' active':''}" onclick="spSelectClient('${c._id}')">
+    return `<div class="client-item${sp5rmClientId===c._id?' active':''}" onclick="spSelectClient('${c._id}')">
       <div class="client-avatar">${init}</div>
       <div class="client-info"><div class="cname">${c.name}</div><div class="cmeta">${c.age?c.age+' J · ':''}${last}</div></div>
     </div>`;
   }).join('');
 }
-window.spSelectClient = (id) => {
-  spActiveClientId=id;
-  const c=SP_PROBANDS[id]; if(!c) return;
+window.spSelectClient=(id)=>{
+  sp5rmClientId=id; const c=SP_PROBANDS[id]; if(!c) return;
   document.getElementById('sp-welcomeScreen').style.display='none';
   document.getElementById('sp-clientView').style.display='block';
   document.getElementById('sp-cvName').textContent=c.name;
-  document.getElementById('sp-cvMeta').textContent=[c.age?c.age+' Jahre':'',c.note].filter(Boolean).join(' · ')||'Keine weiteren Angaben';
-  spRenderClientList(); spSwitchTab5rm(spActiveTab);
+  document.getElementById('sp-cvMeta').textContent=[c.age?c.age+' Jahre':'',c.note].filter(Boolean).join(' · ')||'—';
+  spRenderClientList(); spSwitchTab5rm(sp5rmTab);
 };
-window.spSwitchTab5rm = (tab) => {
-  spActiveTab=tab;
+window.spSwitchTab5rm=(tab)=>{
+  sp5rmTab=tab;
   ['test','history','progress'].forEach(t=>{
     const el=document.getElementById('sp-tab-'+t); if(el) el.style.display=t===tab?'block':'none';
   });
-  document.querySelectorAll('.tab-btn-5rm').forEach((btn,i)=>{
-    btn.classList.toggle('active',['test','history','progress'][i]===tab);
-  });
-  if(tab==='test') spRenderTestForm();
-  if(tab==='history') spRenderHistory();
-  if(tab==='progress') spRenderProgress();
+  document.querySelectorAll('.tab-btn-5rm').forEach((b,i)=>b.classList.toggle('active',['test','history','progress'][i]===tab));
+  if(tab==='test') sp5rmRenderForm();
+  if(tab==='history') sp5rmRenderHistory();
+  if(tab==='progress') sp5rmRenderProgress();
 };
-function spRenderPctTags(){
+function sp5rmRenderPcts(){
   const el=document.getElementById('sp-pctTags'); if(!el) return;
-  el.innerHTML=[...spActivePcts].sort((a,b)=>a-b).map(p=>`<span class="pct-tag">${p}%<button class="remove-pct" onclick="spRemovePct(${p})">×</button></span>`).join('');
+  el.innerHTML=[...sp5rmPcts].sort((a,b)=>a-b).map(p=>`<span class="pct-tag">${p}%<button class="remove-pct" onclick="sp5rmRemovePct(${p})">×</button></span>`).join('');
 }
 window.spAddPct=()=>{
-  const inp=document.getElementById('sp-pctInput'); const val=parseInt(inp.value);
-  if(!val||val<1||val>100){inp.focus();return;}
-  if(!spActivePcts.includes(val)){spActivePcts.push(val);spActivePcts.sort((a,b)=>a-b);spSavePcts();spRenderPctTags();spUpdateLiveTable();}
+  const inp=document.getElementById('sp-pctInput'); const v=parseInt(inp.value);
+  if(!v||v<1||v>100){inp.focus();return;}
+  if(!sp5rmPcts.includes(v)){sp5rmPcts.push(v);sp5rmPcts.sort((a,b)=>a-b);sp5rmSavePcts();sp5rmRenderPcts();sp5rmUpdateTable();}
   inp.value='';inp.focus();
 };
-window.spRemovePct=p=>{spActivePcts=spActivePcts.filter(x=>x!==p);spSavePcts();spRenderPctTags();spUpdateLiveTable();};
-function spUpdateLiveTable(){
+window.sp5rmRemovePct=p=>{sp5rmPcts=sp5rmPcts.filter(x=>x!==p);sp5rmSavePcts();sp5rmRenderPcts();sp5rmUpdateTable();};
+function sp5rmUpdateTable(){
   const rows=[];
   SP_EXERCISES.forEach(ex=>{
-    const wEl=document.getElementById('spw-'+ex.id),rEl=document.getElementById('spr-'+ex.id);
+    const wEl=document.getElementById('sp5w-'+ex.id),rEl=document.getElementById('sp5r-'+ex.id);
     if(!wEl||!rEl) return;
     const w=parseFloat(wEl.value),r=parseInt(rEl.value);
-    if(w>0&&r>=1&&r<=10) rows.push({ex,orm:spBrzycki(w,r),w,r});
+    if(w>0&&r>=1&&r<=10) rows.push({ex,orm:sp5rmBrz(w,r),w,r});
   });
-  const tbl=document.getElementById('sp-liveResults');
-  const head=document.getElementById('sp-liveResultsHead');
-  const body=document.getElementById('sp-liveResultsBody');
+  const tbl=document.getElementById('sp-liveResults'),head=document.getElementById('sp-liveResultsHead'),body=document.getElementById('sp-liveResultsBody');
   if(!tbl||!head||!body) return;
   if(!rows.length){tbl.classList.remove('visible');return;}
   tbl.classList.add('visible');
-  const sorted=[...spActivePcts].sort((a,b)=>a-b);
-  head.innerHTML=`<tr><th>Übung</th><th>5RM</th><th>1RM (Brzycki)</th>${sorted.map(p=>`<th class="pct-col">${p}%</th>`).join('')}</tr>`;
-  body.innerHTML=rows.map(({ex,orm,w,r})=>`<tr><td class="ex-cell">${ex.icon} ${ex.name}</td><td style="font-family:'DM Mono',monospace;color:var(--g5)">${w} kg × ${r}</td><td class="orm-cell">${spRoundKg(orm).toFixed(1)} kg</td>${sorted.map(p=>`<td class="pct-cell">${spRoundKg(orm*p/100).toFixed(1)} kg</td>`).join('')}</tr>`).join('');
+  const sorted=[...sp5rmPcts].sort((a,b)=>a-b);
+  head.innerHTML=`<tr><th>Übung</th><th>5RM</th><th>1RM</th>${sorted.map(p=>`<th class="pct-col">${p}%</th>`).join('')}</tr>`;
+  body.innerHTML=rows.map(({ex,orm,w,r})=>`<tr><td class="ex-cell">${ex.icon} ${ex.name}</td><td style="font-family:monospace;color:#666">${w}kg×${r}</td><td class="orm-cell">${sp5rmRound(orm).toFixed(1)}kg</td>${sorted.map(p=>`<td class="pct-cell">${sp5rmRound(orm*p/100).toFixed(1)}kg</td>`).join('')}</tr>`).join('');
 }
-function spRenderTestForm(){
-  const today=new Date().toISOString().split('T')[0];
-  const tDate=document.getElementById('sp-testDate'); if(tDate) tDate.value=today;
-  const tNote=document.getElementById('sp-testNote'); if(tNote) tNote.value='';
-  const eInputs=document.getElementById('sp-exerciseInputs'); if(!eInputs) return;
-  eInputs.innerHTML=SP_EXERCISES.map(ex=>`
-    <div class="ex-input-card">
-      <div class="ex-name">${ex.icon} ${ex.name}</div>
-      <div class="ex-row">
-        <div class="field"><label>Gewicht kg</label><input type="number" id="spw-${ex.id}" min="1" max="500" step="0.5" placeholder="—" oninput="spCalcLive('${ex.id}')"></div>
-        <span class="ex-unit">×</span>
-        <div class="field" style="max-width:72px"><label>Wdh.</label><input type="number" id="spr-${ex.id}" min="1" max="10" value="5" oninput="spCalcLive('${ex.id}')"></div>
-      </div>
-      <div class="ex-result" id="spres-${ex.id}">—</div>
-    </div>`).join('');
-  spRenderPctTags(); spUpdateLiveTable();
+function sp5rmRenderForm(){
+  const td=document.getElementById('sp-testDate'); if(td) td.value=new Date().toISOString().split('T')[0];
+  const tn=document.getElementById('sp-testNote'); if(tn) tn.value='';
+  const ei=document.getElementById('sp-exerciseInputs'); if(!ei) return;
+  ei.innerHTML=SP_EXERCISES.map(ex=>`<div class="ex-input-card">
+    <div class="ex-name">${ex.icon} ${ex.name}</div>
+    <div class="ex-row">
+      <div class="field"><label>kg</label><input type="number" id="sp5w-${ex.id}" min="1" max="500" step="0.5" placeholder="—" oninput="sp5rmCalc('${ex.id}')"></div>
+      <span class="ex-unit">×</span>
+      <div class="field" style="max-width:72px"><label>Wdh.</label><input type="number" id="sp5r-${ex.id}" min="1" max="10" value="5" oninput="sp5rmCalc('${ex.id}')"></div>
+    </div>
+    <div class="ex-result" id="sp5res-${ex.id}">—</div>
+  </div>`).join('');
+  sp5rmRenderPcts(); sp5rmUpdateTable();
 }
-window.spCalcLive=exId=>{
-  const w=parseFloat(document.getElementById('spw-'+exId)?.value);
-  const r=parseInt(document.getElementById('spr-'+exId)?.value);
-  const el=document.getElementById('spres-'+exId); if(!el) return;
-  if(w>0&&r>=1&&r<=10){el.textContent=`1RM ≈ ${spRoundKg(spBrzycki(w,r)).toFixed(1)} kg`;el.classList.add('has-value');}
+window.sp5rmCalc=exId=>{
+  const w=parseFloat(document.getElementById('sp5w-'+exId)?.value);
+  const r=parseInt(document.getElementById('sp5r-'+exId)?.value);
+  const el=document.getElementById('sp5res-'+exId); if(!el) return;
+  if(w>0&&r>=1&&r<=10){el.textContent=`1RM ≈ ${sp5rmRound(sp5rmBrz(w,r)).toFixed(1)} kg`;el.classList.add('has-value');}
   else{el.textContent='—';el.classList.remove('has-value');}
-  spUpdateLiveTable();
+  sp5rmUpdateTable();
 };
 window.spSaveSession=async()=>{
-  const c=SP_PROBANDS[spActiveClientId]; if(!c) return;
+  const c=SP_PROBANDS[sp5rmClientId]; if(!c) return;
   const date=document.getElementById('sp-testDate')?.value;
   const note=document.getElementById('sp-testNote')?.value.trim();
   const results={}; let hasData=false;
   SP_EXERCISES.forEach(ex=>{
-    const w=parseFloat(document.getElementById('spw-'+ex.id)?.value);
-    const r=parseInt(document.getElementById('spr-'+ex.id)?.value);
-    if(w>0&&r>=1&&r<=10){results[ex.id]={weight:w,reps:r,orm:parseFloat(spBrzycki(w,r).toFixed(2))};hasData=true;}
+    const w=parseFloat(document.getElementById('sp5w-'+ex.id)?.value);
+    const r=parseInt(document.getElementById('sp5r-'+ex.id)?.value);
+    if(w>0&&r>=1&&r<=10){results[ex.id]={weight:w,reps:r,orm:parseFloat(sp5rmBrz(w,r).toFixed(2))};hasData=true;}
   });
   if(!hasData){toast('Bitte mindestens eine Übung ausfüllen',true);return;}
   const sessions=[...(c.sessions||[]),{id:Date.now().toString(),date,note,results}].sort((a,b)=>a.date.localeCompare(b.date));
@@ -3512,109 +2699,91 @@ window.spSaveSession=async()=>{
     toast('Test gespeichert ✓'); spSwitchTab5rm('history');
   }catch(e){toast('Fehler: '+e.message,true);}
 };
-function spRenderHistory(){
-  const c=SP_PROBANDS[spActiveClientId];
+function sp5rmRenderHistory(){
+  const c=SP_PROBANDS[sp5rmClientId];
   const el=document.getElementById('sp-historyContent'); if(!el) return;
-  if(!c||!c.sessions||!c.sessions.length){el.innerHTML='<div class="history-empty">Noch keine Tests gespeichert.</div>';return;}
+  if(!c?.sessions?.length){el.innerHTML='<div class="history-empty">Noch keine Tests gespeichert.</div>';return;}
   el.innerHTML=[...c.sessions].reverse().map(s=>{
     const rows=Object.entries(s.results).map(([exId,val])=>{
       const ex=SP_EXERCISES.find(e=>e.id===exId);
-      return `<tr><td>${ex?ex.icon+' '+ex.name:exId}</td><td>${val.weight} kg × ${val.reps} Wdh.</td><td>${spRoundKg(val.orm).toFixed(1)} kg</td></tr>`;
+      return `<tr><td>${ex?ex.icon+' '+ex.name:exId}</td><td>${val.weight}kg × ${val.reps}Wdh.</td><td>${sp5rmRound(val.orm).toFixed(1)}kg</td></tr>`;
     }).join('');
     return `<div class="session-card">
-      <div class="session-header" onclick="spToggleSession('${s.id}')">
+      <div class="session-header" onclick="sp5rmToggle('${s.id}')">
         <div><div class="date">📅 ${new Date(s.date+'T12:00:00').toLocaleDateString('de-AT',{day:'2-digit',month:'long',year:'numeric'})}</div>${s.note?`<div class="note">${s.note}</div>`:''}</div>
-        <div style="display:flex;align-items:center;gap:.75rem">
-          ${isAdmin()?`<button class="del-session" onclick="event.stopPropagation();spDeleteSession('${s.id}')">✕ Löschen</button>`:''}
-          <span id="sptog-${s.id}">▼</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${isAdmin()?`<button class="del-session" onclick="event.stopPropagation();sp5rmDelSession('${s.id}')">✕ Löschen</button>`:''}
+          <span id="sp5tog-${s.id}">▼</span>
         </div>
       </div>
-      <div class="session-body" id="spsb-${s.id}">
-        <table class="session-table"><thead><tr><th>Übung</th><th>5RM</th><th>1RM (Brzycki)</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="session-body" id="sp5sb-${s.id}">
+        <table class="session-table"><thead><tr><th>Übung</th><th>5RM</th><th>1RM</th></tr></thead><tbody>${rows}</tbody></table>
       </div>
     </div>`;
   }).join('');
 }
-window.spToggleSession=id=>{
-  const b=document.getElementById('spsb-'+id),t=document.getElementById('sptog-'+id);
+window.sp5rmToggle=id=>{
+  const b=document.getElementById('sp5sb-'+id),t=document.getElementById('sp5tog-'+id);
   if(b){b.classList.toggle('open');if(t)t.textContent=b.classList.contains('open')?'▲':'▼';}
 };
-window.spDeleteSession=async id=>{
+window.sp5rmDelSession=async id=>{
   if(!confirm('Test löschen?')) return;
-  const c=SP_PROBANDS[spActiveClientId]; if(!c) return;
+  const c=SP_PROBANDS[sp5rmClientId]; if(!c) return;
   const sessions=(c.sessions||[]).filter(s=>s.id!==id);
-  try{await updateDoc(doc(db,'sp_probands',c._id),{sessions,updated:Date.now()});spRenderHistory();}
+  try{await updateDoc(doc(db,'sp_probands',c._id),{sessions,updated:Date.now()});sp5rmRenderHistory();}
   catch(e){toast('Fehler: '+e.message,true);}
 };
-function spRenderProgress(){
-  const c=SP_PROBANDS[spActiveClientId];
+function sp5rmRenderProgress(){
+  const c=SP_PROBANDS[sp5rmClientId];
   const el=document.getElementById('sp-progressContent'); if(!el) return;
-  if(!c||!c.sessions||c.sessions.length<2){el.innerHTML='<div class="history-empty">Mindestens 2 Tests nötig.</div>';return;}
+  if(!c?.sessions||c.sessions.length<2){el.innerHTML='<div class="history-empty">Mindestens 2 Tests nötig.</div>';return;}
   const sessions=[...c.sessions].sort((a,b)=>a.date.localeCompare(b.date));
   const exData={}; SP_EXERCISES.forEach(ex=>{exData[ex.id]=[];});
   sessions.forEach(s=>Object.entries(s.results).forEach(([exId,val])=>exData[exId].push({date:s.date,orm:val.orm})));
   const cards=SP_EXERCISES.filter(ex=>exData[ex.id].length>=2).map(ex=>{
     const pts=exData[ex.id],first=pts[0].orm,last=pts[pts.length-1].orm,diff=last-first,pct=((diff/first)*100).toFixed(1);
-    const trendClass=diff>0.5?'up':diff<-0.5?'down':'flat',trendIcon=diff>0.5?'▲':diff<-0.5?'▼':'→';
+    const cls=diff>0.5?'up':diff<-0.5?'down':'flat',icon=diff>0.5?'▲':diff<-0.5?'▼':'→';
     const minV=Math.min(...pts.map(p=>p.orm))*.9,maxV=Math.max(...pts.map(p=>p.orm))*1.05;
     const W=200,H=50,toX=i=>pts.length===1?W/2:(i/(pts.length-1))*(W-20)+10,toY=v=>H-((v-minV)/(maxV-minV||1))*(H-10)-5;
     const pathD=pts.map((p,i)=>`${i===0?'M':'L'}${toX(i).toFixed(1)},${toY(p.orm).toFixed(1)}`).join(' ');
-    const dotColor=trendClass==='up'?'#4caf7d':trendClass==='down'?'#e05a4b':'#5fa8d3';
+    const dc=cls==='up'?'#4caf7d':cls==='down'?'#e05a4b':'#5fa8d3';
     return `<div class="progress-card">
-      <div class="ex-title"><span>${ex.icon} ${ex.name}</span><span class="trend ${trendClass}">${trendIcon} ${Math.abs(pct)}%</span></div>
+      <div class="ex-title"><span>${ex.icon} ${ex.name}</span><span class="trend ${cls}">${icon} ${Math.abs(pct)}%</span></div>
       <svg class="sparkline" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-        <path d="${pathD}" fill="none" stroke="${dotColor}" stroke-width="2" stroke-linejoin="round"/>
-        ${pts.map((p,i)=>`<circle cx="${toX(i).toFixed(1)}" cy="${toY(p.orm).toFixed(1)}" r="3" fill="${dotColor}"/>`).join('')}
+        <path d="${pathD}" fill="none" stroke="${dc}" stroke-width="2" stroke-linejoin="round"/>
+        ${pts.map((p,i)=>`<circle cx="${toX(i).toFixed(1)}" cy="${toY(p.orm).toFixed(1)}" r="3" fill="${dc}"/>`).join('')}
       </svg>
-      <div class="progress-values"><span>Start: ${spRoundKg(first).toFixed(1)} kg</span><span class="current">${spRoundKg(last).toFixed(1)} kg</span></div>
+      <div class="progress-values"><span>Start: ${sp5rmRound(first).toFixed(1)}kg</span><span class="current">${sp5rmRound(last).toFixed(1)}kg</span></div>
     </div>`;
   }).join('');
-  el.innerHTML=cards?`<div class="progress-section"><h3>Geschätzter 1RM Verlauf</h3><div class="progress-grid">${cards}</div></div>`:'<div class="history-empty">Noch nicht genug Daten für Diagramme.</div>';
+  el.innerHTML=cards?`<div class="progress-section"><h3>Geschätzter 1RM Verlauf</h3><div class="progress-grid">${cards}</div></div>`:'<div class="history-empty">Noch nicht genug Daten.</div>';
 }
-window.spExportClientExcel=()=>{
-  const c=SP_PROBANDS[spActiveClientId];
-  if(!c||!c.sessions||!c.sessions.length){toast('Keine Daten zum Exportieren',true);return;}
-  const wb=XLSX.utils.book_new();
-  const rows=[['Datum','Notiz','Übung','Gewicht (kg)','Wiederholungen','1RM Brzycki (kg)','70%','75%','80%','85%']];
-  c.sessions.forEach(s=>Object.entries(s.results).forEach(([exId,val])=>{
-    const ex=SP_EXERCISES.find(e=>e.id===exId),orm=val.orm;
-    rows.push([s.date,s.note||'',ex?ex.name:exId,val.weight,val.reps,parseFloat(spRoundKg(orm).toFixed(1)),parseFloat(spRoundKg(orm*.70).toFixed(1)),parseFloat(spRoundKg(orm*.75).toFixed(1)),parseFloat(spRoundKg(orm*.80).toFixed(1)),parseFloat(spRoundKg(orm*.85).toFixed(1))]);
-  }));
-  const ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=[14,18,18,14,14,16,10,10,10,10].map(w=>({wch:w}));
-  XLSX.utils.book_append_sheet(wb,ws,'Testergebnisse');
-  XLSX.writeFile(wb,`5RM_${c.name.replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
-};
 window.spExportAllExcel=()=>{
-  const probands=spGetProbands();
-  if(!probands.length){toast('Keine Probanden vorhanden',true);return;}
+  if(typeof XLSX==='undefined'){toast('XLSX nicht geladen',true);return;}
+  const p=Object.values(SP_PROBANDS);
+  if(!p.length){toast('Keine Probanden',true);return;}
   const wb=XLSX.utils.book_new();
-  const ov=[['Name','Alter','Geschlecht','Notiz','5RM-Tests','Letzter Test']];
-  probands.forEach(c=>{const s=c.sessions||[];ov.push([c.name,c.age||'',c.gender||'',c.note||'',s.length,s.length?s[s.length-1].date:'—']);});
-  const wsOv=XLSX.utils.aoa_to_sheet(ov); wsOv['!cols']=[{wch:20},{wch:8},{wch:10},{wch:24},{wch:12},{wch:14}];
-  XLSX.utils.book_append_sheet(wb,wsOv,'Übersicht');
-  probands.forEach(c=>{
-    if(!c.sessions||!c.sessions.length) return;
-    const rows=[['Datum','Notiz','Übung','Gewicht (kg)','Wdh.','1RM (kg)','75%','80%']];
-    c.sessions.forEach(s=>Object.entries(s.results).forEach(([exId,val])=>{
-      const ex=SP_EXERCISES.find(e=>e.id===exId),orm=val.orm;
-      rows.push([s.date,s.note||'',ex?ex.name:exId,val.weight,val.reps,parseFloat(spRoundKg(orm).toFixed(1)),parseFloat(spRoundKg(orm*.75).toFixed(1)),parseFloat(spRoundKg(orm*.80).toFixed(1))]);
-    }));
-    const ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=[12,16,16,12,8,12,10,10].map(w=>({wch:w}));
-    XLSX.utils.book_append_sheet(wb,ws,c.name.substring(0,28).replace(/[:\\/\[\]*?]/g,''));
-  });
-  XLSX.writeFile(wb,`5RM_Alle_Probanden_${new Date().toISOString().split('T')[0]}.xlsx`);
+  const ov=[['Name','Alter','Tests','Letzte Messung'],...p.map(c=>{const s=c.sessions||[];return[c.name,c.age||'',s.length,s.length?s[s.length-1].date:'—'];})];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ov),'Übersicht');
+  XLSX.writeFile(wb,`5RM_Alle_${new Date().toISOString().split('T')[0]}.xlsx`);
 };
-// re-render on data change
-window.spOnChange(()=>{
-  if(document.getElementById('sp-probanden')?.style.display!=='none') spRenderProbanden();
-  spRenderClientList();
-  if(spActiveClientId&&!SP_PROBANDS[spActiveClientId]){
-    spActiveClientId=null;
-    const ws=document.getElementById('sp-welcomeScreen'); if(ws) ws.style.display='block';
-    const cv=document.getElementById('sp-clientView'); if(cv) cv.style.display='none';
+</script>
+
+<!-- Slot Modal Overlay -->
+<div id="sp-slot-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:600;align-items:center;justify-content:center;backdrop-filter:blur(8px)" onclick="if(event.target===this)spCloseSlot()">
+  <div class="modal-card" id="sp-slot-modal" style="max-height:80vh;overflow-y:auto"></div>
+</div>
+
+<!-- Placeholder for calendar mount point -->
+<script>
+// Mount calendar render target after DOM is ready
+document.addEventListener('DOMContentLoaded', ()=>{
+  const calRoot = document.getElementById('sp-cal-react-root');
+  if(calRoot && !document.getElementById('sp-cal-root')){
+    calRoot.innerHTML = '<div id="sp-cal-root"></div>';
   }
-  spSetSync(true);
 });
 </script>
+
 </body>
 </html>
