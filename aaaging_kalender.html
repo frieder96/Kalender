@@ -1252,7 +1252,7 @@ const T11 = T11_STARTS.map((bs,i) => {
   ]};
 });
 
-// T1.2: 8 slots (1-4 Mi, 5-8 Do) — Isokinetik 75min, no 24h Recall
+// T1.2: 8 slots (1-4 Mi, 5-8 Do) — RBANS nach 75min (statt 105min), 24h Recall bleibt
 const T12 = Array.from({length:8},(_,i) => {
   const sn=i+1, sm=7*60+45+i*60;
   const sH=Math.floor(sm/60), sMm=sm%60;
@@ -1261,6 +1261,7 @@ const T12 = Array.from({length:8},(_,i) => {
   return { slot:sn, day, blutStart:iso, measures:[
     {label:'Isokinetik',cls:'ciso',t:iso},
     {label:'RBANS',cls:'crbans',t:am(sH,sMm,75)},
+    {label:'24h Recall',cls:'crecall',t:am(sH,sMm,105)},
   ]};
 });
 
