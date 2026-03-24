@@ -804,6 +804,18 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         </div>
       </div>
 
+      <!-- RÄUME VERWALTEN -->
+      <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-bottom:1.5rem">
+        <div style="background:#4A5EA1;padding:14px 16px"><div style="font-family:'Source Serif 4',serif;font-size:16px;font-weight:600;color:#fff">📍 Räume verwalten</div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Feste Räume für T-Termine — stehen im Assign-Modal als Dropdown zur Auswahl</div></div>
+        <div style="padding:16px">
+          <div id="backup-room-list" style="margin-bottom:12px"></div>
+          <div style="display:flex;gap:8px">
+            <input class="fi" id="backup-new-room" placeholder="Raum hinzufügen z. B. SR 1, Labor B …" maxlength="60" onkeydown="if(event.key==='Enter')backupSaveRoom()">
+            <button class="btn btn-sm btn-p" onclick="backupSaveRoom()">+ Hinzufügen</button>
+          </div>
+        </div>
+      </div>
+
       <!-- IMPORT -->
       <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-bottom:1.5rem">
         <div style="background:#1A4A1A;padding:14px 16px"><div style="font-family:'Source Serif 4',serif;font-size:16px;font-weight:600;color:#fff">Probanden importieren (CSV)</div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Neue Probanden aus CSV hinzufügen — bestehende bleiben unverändert</div></div>
@@ -821,6 +833,29 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
           <div id="import-result" style="margin-top:12px"></div>
         </div>
       </div>
+
+      <!-- VOLLSTÄNDIGES BACKUP -->
+      <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-bottom:1.5rem">
+        <div style="background:#2A2A4A;padding:14px 16px"><div style="font-family:'Source Serif 4',serif;font-size:16px;font-weight:600;color:#fff">🛡️ Vollständiges Backup &amp; Wiederherstellung</div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Alle Firebase-Daten als JSON — Notfall-Export &amp; Import</div></div>
+        <div style="padding:16px">
+          <div style="font-size:12.5px;color:var(--g5);margin-bottom:14px;line-height:1.65">
+            Exportiert <strong>alle Daten</strong> aus Firebase in eine einzige JSON-Datei: Probanden, Termine, Assignments, Recalls, Team, Sperren, Abwesenheiten, EEG/MRT-Buchungen, Trainingsprotokolle und Räume.
+            Bei einem Totalausfall kann diese Datei vollständig wiederhergestellt werden.
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+            <button class="btn btn-sm" onclick="exportFullBackup()" style="background:#2A2A4A;color:#fff;border-color:#2A2A4A">⬇️ Vollständiges Backup herunterladen</button>
+            <label class="btn btn-sm" style="cursor:pointer;background:#1A4A1A;color:#fff;border-color:#1A4A1A">
+              ⬆️ Backup wiederherstellen
+              <input type="file" accept=".json" style="display:none" onchange="importFullBackup(this)">
+            </label>
+          </div>
+          <div id="backup-result" style="margin-top:8px;font-size:12px"></div>
+          <div style="background:#FFF8E8;border:1px solid #E8CFA0;border-left:4px solid #C89820;border-radius:var(--r);padding:9px 14px;font-size:11.5px;color:#5C3E00;margin-top:10px">
+            ⚠️ <strong>Wiederherstellung überschreibt alle bestehenden Daten.</strong> Nur im Notfall verwenden. Backup vorher herunterladen.
+          </div>
+        </div>
+      </div>
+
       <div style="background:#F0F5FB;border:1px solid #AECABC;border-radius:var(--r);padding:12px 15px;font-size:12.5px;color:var(--ub);line-height:1.65">
         <strong style="font-weight:700;display:block;margin-bottom:3px">Empfehlung für regelmäßige Backups</strong>
         Lade vor jeder Studienwoche einmal den Probanden-Export herunter und speichere ihn in einem datierten Ordner.
@@ -1208,7 +1243,7 @@ const firebaseConfig = {
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, setDoc, getDoc, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // Expose to window so regular <script> blocks can use them
 window._col      = (...a) => collection(...a);
@@ -1234,12 +1269,12 @@ const T0 = T0_STARTS.map((bs,i) => {
   const sn=i+1; const [bH,bM]=bs.split(':').map(Number);
   const isOdd = sn%2===1;
   return { slot:sn, blutStart:bs, measures: isOdd ? [
-    {label:'Einschlussuntersuchung',cls:'ceinschl',t:bs},
+    {label:'Einschlussuntersuchung',cls:'ceinschl',t:bs,persons:2},
     {label:'Frühstück',cls:'cfrueh',t:am(bH,bM,60),noAssign:true},
     {label:'Isokinetik/Sportmotorik',cls:'ciso',t:am(bH,bM,75)},
     {label:'MMS',cls:'cmms',t:am(bH,bM,150)},
   ] : [
-    {label:'Einschlussuntersuchung',cls:'ceinschl',t:bs},
+    {label:'Einschlussuntersuchung',cls:'ceinschl',t:bs,persons:2},
     {label:'Frühstück',cls:'cfrueh',t:am(bH,bM,60),noAssign:true},
     {label:'MMS',cls:'cmms',t:am(bH,bM,75)},
     {label:'Isokinetik/Sportmotorik',cls:'ciso',t:am(bH,bM,120)},
@@ -2195,14 +2230,27 @@ function refreshRoomDropdown(selected='') {
 }
 
 function renderRoomList() {
-  const el = document.getElementById('room-list'); if(!el) return;
   const rooms = Object.values(ROOMS).sort((a,b)=>a.name.localeCompare(b.name));
-  if(!rooms.length){ el.innerHTML='<div style="font-size:12px;color:var(--g4);font-style:italic">Noch keine Räume eingetragen.</div>'; return; }
-  el.innerHTML = rooms.map(r=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--g1);border-radius:var(--r);margin-bottom:4px">
-    <span style="font-size:13px">📍 ${r.name}</span>
-    <button class="btn btn-xs btn-d" onclick="deleteRoom('${r._id}')">×</button>
-  </div>`).join('');
+  const html = rooms.length
+    ? rooms.map(r=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--g1);border-radius:var(--r);margin-bottom:4px">
+        <span style="font-size:13px">📍 ${r.name}</span>
+        <button class="btn btn-xs btn-d" onclick="deleteRoom('${r._id}')">×</button>
+      </div>`).join('')
+    : '<div style="font-size:12px;color:var(--g4);font-style:italic">Noch keine Räume eingetragen.</div>';
+  const el1 = document.getElementById('room-list'); if(el1) el1.innerHTML=html;
+  const el2 = document.getElementById('backup-room-list'); if(el2) el2.innerHTML=html;
 }
+
+window.backupSaveRoom = async () => {
+  const name = document.getElementById('backup-new-room').value.trim();
+  if(!name){toast('Bitte Raumname eingeben',true);return;}
+  if(Object.values(ROOMS).some(r=>r.name===name)){toast('Raum bereits vorhanden',true);return;}
+  try {
+    await addDoc(collection(db,'recall_rooms'),{name,created:Date.now()});
+    document.getElementById('backup-new-room').value='';
+    toast(`${name} hinzugefügt ✓`);
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
 
 window.openRoomManager = () => {
   renderRoomList();
@@ -2868,6 +2916,84 @@ window.exportRecalls = () => {
   dlCSV([h,...rows],tsFile('AAAging_Recalls')); toast('Recalls exportiert ✓');
 };
 
+// ── VOLLSTÄNDIGES BACKUP ───────────────────────────────────────────
+const BACKUP_COLLECTIONS = [
+  'probanden','recalls','team','assignments','sperren',
+  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots',
+  'training_logs','training_templates','recall_rooms',
+  'sp_slots','sp_probands'
+];
+
+window.exportFullBackup = async () => {
+  const btn = document.querySelector('[onclick="exportFullBackup()"]');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Lade Daten…'; }
+  const resultEl = document.getElementById('backup-result');
+  try {
+    const backup = { version:1, exported: new Date().toISOString(), collections:{} };
+    let total = 0;
+    for(const col of BACKUP_COLLECTIONS) {
+      try {
+        const snap = await getDocs(collection(db, col));
+        backup.collections[col] = {};
+        snap.forEach(d=>{ backup.collections[col][d.id]={...d.data(),_id:d.id}; total++; });
+      } catch(e) { backup.collections[col] = {}; }
+    }
+    const json = JSON.stringify(backup, null, 2);
+    const n = new Date(), p = x=>String(x).padStart(2,'0');
+    const fn = `AAAging_Backup_${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}_${p(n.getHours())}${p(n.getMinutes())}.json`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([json],{type:'application/json'}));
+    a.download = fn; a.click();
+    resultEl.innerHTML = `<span style="color:#2E8B57">✓ Backup erfolgreich: ${total} Einträge in ${Object.keys(backup.collections).length} Collections exportiert.</span>`;
+    toast('Backup heruntergeladen ✓');
+  } catch(e) {
+    resultEl.innerHTML = `<span style="color:#C8102E">Fehler: ${e.message}</span>`;
+    toast('Backup fehlgeschlagen', true);
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='⬇️ Vollständiges Backup herunterladen'; }
+  }
+};
+
+window.importFullBackup = async (input) => {
+  if(!isAdmin()){toast('Nur Admins können Backups einspielen',true);return;}
+  const file = input.files[0]; if(!file) return;
+  const resultEl = document.getElementById('backup-result');
+
+  if(!confirm('⚠️ ACHTUNG: Dies überschreibt ALLE bestehenden Daten in Firebase!\n\nWirklich fortfahren?')) {
+    input.value=''; return;
+  }
+  if(!confirm('Letzter Check: Hast du ein aktuelles Backup der bestehenden Daten?\n\nErst dann fortfahren!')) {
+    input.value=''; return;
+  }
+
+  resultEl.innerHTML = '<span style="color:#C8870A">⏳ Wiederherstellung läuft — bitte nicht schließen…</span>';
+
+  try {
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    if(!backup.version||!backup.collections) throw new Error('Ungültiges Backup-Format');
+
+    let restored=0, errors=0;
+    for(const [colName, docs] of Object.entries(backup.collections)) {
+      for(const [docId, data] of Object.entries(docs)) {
+        try {
+          const {_id, ...cleanData} = data;
+          await setDoc(doc(db, colName, docId), cleanData);
+          restored++;
+        } catch(e) { errors++; }
+      }
+    }
+
+    resultEl.innerHTML = `<span style="color:#2E8B57">✓ Wiederherstellung abgeschlossen: ${restored} Einträge eingespielt${errors?`, ${errors} Fehler`:''}.
+      Bitte Seite neu laden.</span><br><button class="btn btn-sm btn-p" onclick="location.reload()" style="margin-top:8px">🔄 Seite neu laden</button>`;
+    toast(`Backup eingespielt: ${restored} Einträge ✓`);
+  } catch(e) {
+    resultEl.innerHTML = `<span style="color:#C8102E">Fehler beim Einspielen: ${e.message}</span>`;
+    toast('Import fehlgeschlagen', true);
+  }
+  input.value='';
+};
+
 window.exportTraining = (range) => {
   const logs = Object.values(SP_TRAINING_LOGS);
   if(!logs.length){toast('Keine Trainingsdaten vorhanden',true);return;}
@@ -3305,6 +3431,7 @@ function goTab(name,btn){
   document.getElementById('bcc').textContent=L[name]||name;
   if(name==='team'){tW=cW;renderTaskTab();}
   if(name==='abwesenheit'){renderAbsentCal();}
+  if(name==='backup'){renderRoomList();}
   if(name==='studio'){spRenderProbanden();}
   if(name==='raumplan'){rpRender();}
 }
