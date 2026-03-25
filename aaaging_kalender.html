@@ -1088,6 +1088,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <div class="fg"><label class="fl">Uhrzeit</label><input class="fi" type="time" id="ir-time"></div>
       </div>
 
+      <div class="fg"><label class="fl">Durchgeführt von <span style="font-weight:400;color:var(--g4)">(optional)</span></label><select class="fi" id="ir-person"><option value="">— Person auswählen —</option></select></div>
       <div class="fg"><label class="fl">Notiz</label><textarea class="notiz-box" id="ir-note" placeholder="z. B. telefonisch, vor Ort …"></textarea></div>
     </div>
     <div class="mftr"><button class="btn btn-sm" onclick="closeRecall()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveRecall()">Speichern</button></div>
@@ -1976,6 +1977,7 @@ function renderRecalls() {
           ${p?`<span class="pbadge">${p.pid}</span><span class="lbadge">${p.lnr}</span>`:`<span style="color:var(--g4);font-size:12px">Proband nicht gefunden</span>`}
           <span style="font-family:monospace;font-size:12px;color:var(--bk);font-weight:700">${r.date?new Date(r.date).toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}):''}</span>
           ${r.time?`<span style="font-family:monospace;font-size:12px;color:var(--g5)">${r.time} Uhr</span>`:''}
+          ${r.person?(()=>{const m=TEAM[r.person];return m?`<span style="font-size:11px;font-weight:600;color:var(--ub);background:var(--ubl);border:1px solid var(--t1bd);border-radius:99px;padding:1px 8px">${m.name}</span>`:'';})():''}
           ${r.note?`<span style="font-size:12px;color:var(--g5);font-style:italic">· ${r.note}</span>`:''}
         </div>
         ${isAdmin()?`<div style="display:flex;gap:5px"><button class="btn btn-xs" onclick="openEditRecall('${r._id}')">Bearbeiten</button><button class="btn btn-xs btn-d" onclick="delRecall('${r._id}')">Löschen</button></div>`:''}
@@ -2315,6 +2317,8 @@ window.openAddRecall = () => {
   const sel=document.getElementById('ir-pid');
   sel.innerHTML='<option value="">— Proband auswählen —</option>'+
     Object.values(P).sort((a,b)=>a.lnr.localeCompare(b.lnr)).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
+  document.getElementById('ir-person').innerHTML='<option value="">— Person auswählen —</option>'+
+    Object.values(TEAM).sort((a,b)=>a.name.localeCompare(b.name)).map(m=>`<option value="${m._id}">${m.name}${m.role?' · '+m.role:''}</option>`).join('');
   document.getElementById('recall-modal').classList.add('open');
 };
 
@@ -2328,6 +2332,8 @@ window.openEditRecall = id => {
   document.getElementById('ir-date').value=r.date||'';
   document.getElementById('ir-time').value=r.time||'';
   document.getElementById('ir-note').value=r.note||'';
+  document.getElementById('ir-person').innerHTML='<option value="">— Person auswählen —</option>'+
+    Object.values(TEAM).sort((a,b)=>a.name.localeCompare(b.name)).map(m=>`<option value="${m._id}" ${m._id===r.person?'selected':''}>${m.name}${m.role?' · '+m.role:''}</option>`).join('');
   document.getElementById('recall-modal').classList.add('open');
 };
 
@@ -2338,8 +2344,9 @@ window.saveRecall = async () => {
   const date=document.getElementById('ir-date').value;
   const time=document.getElementById('ir-time').value;
   const note=document.getElementById('ir-note').value.trim();
+  const person=document.getElementById('ir-person').value;
   if(!pid||!date){toast('Proband und Datum sind Pflicht',true);return;}
-  const data={pid,date,time,note,updated:Date.now()};
+  const data={pid,date,time,note,person,updated:Date.now()};
   try {
     if(recallEditId){ await updateDoc(doc(db,'recalls',recallEditId),data); }
     else { await addDoc(collection(db,'recalls'),{...data,created:Date.now()}); }
@@ -2447,10 +2454,23 @@ window.openAssignModal = (key, measure, label, slotDate, slotTime) => {
   // Populate room dropdown from saved rooms
   const roomSel = document.getElementById('i-assign-room');
   const savedRooms = Object.values(ROOMS).sort((a,b)=>a.name.localeCompare(b.name));
+
+  // Auto-match room based on measure name (if no existing assignment)
+  const AUTO_ROOMS = {
+    'Isokinetik': 'Isokinet',
+    'Einschlussuntersuchung': 'BIA-Raum',
+    'BIA': 'BIA-Raum',
+    'RBANS': 'RBANS-Raum',
+  };
+  const autoRoom = !existing?.room
+    ? Object.entries(AUTO_ROOMS).find(([k])=>measure&&measure.toLowerCase().includes(k.toLowerCase()))?.[1] || ''
+    : '';
+  const selectedRoom = existing?.room || autoRoom;
+
   roomSel.innerHTML = '<option value="">— kein Raum —</option>' +
-    savedRooms.map(r=>`<option value="${r.name}" ${existing?.room===r.name?'selected':''}>${r.name}</option>`).join('');
-  if(existing?.room && !savedRooms.find(r=>r.name===existing.room)){
-    roomSel.innerHTML += `<option value="${existing.room}" selected>${existing.room}</option>`;
+    savedRooms.map(r=>`<option value="${r.name}" ${r.name===selectedRoom?'selected':''}>${r.name}</option>`).join('');
+  if(selectedRoom && !savedRooms.find(r=>r.name===selectedRoom)){
+    roomSel.innerHTML += `<option value="${selectedRoom}" selected>${selectedRoom}</option>`;
   }
   document.getElementById('i-assign-note').value=existing?.note||'';
 
