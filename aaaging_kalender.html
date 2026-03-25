@@ -3867,7 +3867,10 @@ window.spOpenSlotModal=(di,h)=>{
           <datalist id="sp-book-ac">${acOptions}</datalist>
         </div>
       </div>
-      <button onclick="spAddBooking()" style="width:100%;padding:11px;border-radius:8px;border:none;background:${studio.color};color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;font-family:monospace;cursor:pointer">+ BESTÄTIGEN</button>
+      <div style="display:flex;gap:8px">
+        <button onclick="spAddBooking()" style="flex:1;padding:11px;border-radius:8px;border:none;background:${studio.color};color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;font-family:monospace;cursor:pointer">+ EINZELN</button>
+        <button onclick="spOpenSeriesModal(${spActiveStudio})" style="flex:1;padding:11px;border-radius:8px;border:1px solid ${studio.color};background:#fff;color:${studio.color};font-size:11px;font-weight:700;letter-spacing:2px;font-family:monospace;cursor:pointer">📅 SERIE</button>
+      </div>
     </div>`:''}
 
     <div style="text-align:right;margin-top:12px"><button onclick="spCloseSlot()" style="background:none;border:1px solid #DDD;border-radius:8px;padding:8px 16px;font-family:sans-serif;font-size:13px;color:#999;cursor:pointer">Schließen</button></div>`;
@@ -4143,6 +4146,128 @@ window.spRemoveBooking=async(type,index)=>{
   }catch(e){toast('Fehler: '+e.message,true);}
 };
 
+// ── SERIENBUCHUNG ─────────────────────────────────────────────────
+let _spSeriesSid = null;
+
+window.spOpenSeriesModal = (sid) => {
+  _spSeriesSid = sid || spActiveStudio;
+  // Fill proband dropdown
+  const sel = document.getElementById('sp-series-name');
+  const probands = spGetProbands();
+  sel.innerHTML = '<option value="">— Proband auswählen —</option>' +
+    probands.map(p=>`<option value="${p.pid}">${p.pid} · ${p.lnr||''}</option>`).join('');
+
+  // Default start = next Monday
+  const today = new Date();
+  const diff = (1 + 7 - today.getDay()) % 7 || 7;
+  const nextMon = new Date(today); nextMon.setDate(today.getDate()+diff);
+  document.getElementById('sp-series-start').value = nextMon.toISOString().split('T')[0];
+  document.getElementById('sp-series-weeks').value = '18';
+
+  // Default: one slot row with current slot pre-filled
+  const container = document.getElementById('sp-series-slots');
+  container.innerHTML = '';
+  spAddSeriesSlotRow(spSlotDi, spSlotH);
+
+  spUpdateSeriesPreview();
+  document.getElementById('sp-series-overlay').style.display = 'flex';
+};
+
+window.spCloseSeriesModal = () => {
+  document.getElementById('sp-series-overlay').style.display = 'none';
+};
+
+window.spAddSeriesSlotRow = (di, h) => {
+  const container = document.getElementById('sp-series-slots');
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;align-items:center';
+  row.innerHTML = `
+    <select style="flex:1;padding:9px 10px;border:1px solid #DDD;border-radius:8px;font-size:12px;outline:none" class="sp-series-day" onchange="spUpdateSeriesPreview()">
+      ${[1,2,3,4].map(d=>`<option value="${d}" ${di===d?'selected':''}>${SP_DAY_NAMES[d]}</option>`).join('')}
+    </select>
+    <select style="flex:1;padding:9px 10px;border:1px solid #DDD;border-radius:8px;font-size:12px;outline:none" class="sp-series-hour" onchange="spUpdateSeriesPreview()">
+      ${SP_HOURS.map(hr=>`<option value="${hr}" ${h===hr?'selected':''}>${hr}:00 Uhr</option>`).join('')}
+    </select>
+    <button onclick="this.parentElement.remove();spUpdateSeriesPreview()" style="background:none;border:none;color:#CCC;font-size:18px;cursor:pointer">×</button>`;
+  container.appendChild(row);
+  spUpdateSeriesPreview();
+};
+
+window.spUpdateSeriesPreview = () => {
+  const weeks = parseInt(document.getElementById('sp-series-weeks').value)||1;
+  const startStr = document.getElementById('sp-series-start').value;
+  const slots = [...document.querySelectorAll('#sp-series-slots > div')].map(row=>({
+    di: parseInt(row.querySelector('.sp-series-day').value),
+    h:  parseInt(row.querySelector('.sp-series-hour').value)
+  }));
+  const prev = document.getElementById('sp-series-preview');
+  if(!startStr||!slots.length){prev.textContent='Bitte alle Felder ausfüllen.';return;}
+  const slotLabels = slots.map(s=>`${SP_DAY_NAMES[s.di]} ${s.h}:00`).join(' + ');
+  const total = slots.length * weeks;
+  prev.innerHTML = `<strong>${slotLabels}</strong> · ${weeks} Wochen · <strong>${total} Buchungen</strong> ab ${new Date(startStr+'T12:00').toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
+};
+
+window.spSaveSeriesBooking = async () => {
+  const name = document.getElementById('sp-series-name').value;
+  const startStr = document.getElementById('sp-series-start').value;
+  const weeks = parseInt(document.getElementById('sp-series-weeks').value)||1;
+  const sid = _spSeriesSid || spActiveStudio;
+
+  if(!name){toast('Bitte Proband auswählen',true);return;}
+  if(!startStr){toast('Bitte Startdatum wählen',true);return;}
+
+  const slots = [...document.querySelectorAll('#sp-series-slots > div')].map(row=>({
+    di: parseInt(row.querySelector('.sp-series-day').value),
+    h:  parseInt(row.querySelector('.sp-series-hour').value)
+  }));
+  if(!slots.length){toast('Mindestens einen Slot hinzufügen',true);return;}
+
+  const startDate = new Date(startStr+'T12:00');
+  const btn = document.querySelector('[onclick="spSaveSeriesBooking()"]');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Buche…';}
+
+  let booked=0, skipped=0;
+  try {
+    for(let w=0; w<weeks; w++){
+      for(const {di,h} of slots){
+        // Find the week offset for this date
+        const slotDate = new Date(startDate);
+        // Move to the right day of week in week w
+        const weekStart = new Date(startDate);
+        weekStart.setDate(startDate.getDate() + w*7);
+        // Find Monday of that week
+        const dayOfWeek = weekStart.getDay()||7;
+        weekStart.setDate(weekStart.getDate() - dayOfWeek + 1);
+        // Move to target day (di: 1=Mo,2=Di,3=Mi,4=Do)
+        const targetDate = new Date(weekStart);
+        targetDate.setDate(weekStart.getDate() + di - 1);
+
+        // Calc week offset from START
+        const wo = Math.round((weekStart - START) / (7*86400000));
+        if(wo<0||wo>=N_WEEKS) continue;
+
+        const key = spSKey(sid,di,h,wo);
+        const data = spGetSD(sid,di,h,wo);
+        if(data.members.includes(name)){skipped++;continue;}
+        if(data.members.length>=SP_MAX){skipped++;continue;}
+        const newData = {...data,
+          members:[...data.members,name],
+          attendance:[...(data.attendance||data.members.map(()=>'pending')),'pending']
+        };
+        await window._setDoc(window._doc(window.db,'sp_slots',key),{key,...newData,updated:Date.now()});
+        booked++;
+      }
+    }
+    spCloseSeriesModal();
+    toast(`${booked} Slots gebucht${skipped?` · ${skipped} übersprungen (voll/bereits gebucht)`:''} ✓`);
+    spRenderCalendar();
+  } catch(e){
+    toast('Fehler: '+e.message,true);
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent='📅 Serienbuchung speichern';}
+  }
+};
+
 window.spToggleAtt=async(memberIndex,currentStatus)=>{
   const key=spSKey(spActiveStudio,spSlotDi,spSlotH,spWeekOff);
   const data=spGetSD(spActiveStudio,spSlotDi,spSlotH,spWeekOff);
@@ -4358,6 +4483,61 @@ window.spExportAllExcel=()=>{
 </div>
 
 <!-- Training Protocol Overlay -->
+
+<!-- SERIENBUCHUNG MODAL -->
+<div id="sp-series-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:800;align-items:center;justify-content:center;backdrop-filter:blur(8px)" onclick="if(event.target===this)spCloseSeriesModal()">
+  <div style="background:#fff;border-radius:16px;padding:24px;width:min(560px,95vw);max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px">
+      <div>
+        <div style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif">Serienbuchung</div>
+        <div style="font-size:11px;color:#BBB;margin-top:3px">Proband für mehrere Wochen buchen</div>
+      </div>
+      <button onclick="spCloseSeriesModal()" style="background:none;border:none;font-size:22px;color:#BBB;cursor:pointer">×</button>
+    </div>
+
+    <!-- Proband -->
+    <div style="margin-bottom:14px">
+      <label style="font-size:10px;letter-spacing:2px;color:#999;font-weight:600;display:block;margin-bottom:6px">PROBAND</label>
+      <select id="sp-series-name" style="width:100%;padding:10px 12px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">
+        <option value="">— Proband auswählen —</option>
+      </select>
+    </div>
+
+    <!-- Slots auswählen -->
+    <div style="margin-bottom:14px">
+      <label style="font-size:10px;letter-spacing:2px;color:#999;font-weight:600;display:block;margin-bottom:8px">TRAININGSSLOTS (Wochentag + Uhrzeit)</label>
+      <div id="sp-series-slots" style="display:flex;flex-direction:column;gap:8px"></div>
+      <button onclick="spAddSeriesSlotRow()" style="margin-top:8px;padding:7px 14px;border:1px dashed #DDD;border-radius:8px;background:none;color:#888;font-size:12px;cursor:pointer;width:100%">+ Weiteren Slot hinzufügen</button>
+    </div>
+
+    <!-- Startdatum / Wochen -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div>
+        <label style="font-size:10px;letter-spacing:2px;color:#999;font-weight:600;display:block;margin-bottom:6px">STARTDATUM</label>
+        <input type="date" id="sp-series-start" style="width:100%;padding:10px 12px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">
+      </div>
+      <div>
+        <label style="font-size:10px;letter-spacing:2px;color:#999;font-weight:600;display:block;margin-bottom:6px">ANZAHL WOCHEN</label>
+        <select id="sp-series-weeks" style="width:100%;padding:10px 12px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">
+          <option value="1">1 Woche (Einzeltermin)</option>
+          <option value="4">4 Wochen</option>
+          <option value="8">8 Wochen</option>
+          <option value="10">10 Wochen</option>
+          <option value="18" selected>18 Wochen (Phase 1)</option>
+          <option value="24">24 Wochen</option>
+          <option value="48">48 Wochen (Phase 1+2)</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="sp-series-preview" style="background:#F8F5F0;border-radius:8px;padding:10px 14px;font-size:11px;color:#666;margin-bottom:16px;min-height:36px"></div>
+
+    <div style="display:flex;gap:8px">
+      <button onclick="spCloseSeriesModal()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#888;font-size:12px;cursor:pointer">Abbrechen</button>
+      <button onclick="spSaveSeriesBooking()" style="flex:2;padding:11px;border-radius:8px;border:none;background:#003975;color:#fff;font-size:12px;font-weight:700;cursor:pointer">📅 Serienbuchung speichern</button>
+    </div>
+  </div>
+</div>
 <div id="sp-train-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:700;align-items:center;justify-content:center;backdrop-filter:blur(8px)" onclick="if(event.target===this)spCloseTrainModal()">
   <div id="sp-train-modal" style="background:#fff;border-radius:16px;padding:24px;width:min(540px,95vw);max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)"></div>
 </div>
