@@ -1550,7 +1550,7 @@ function renderWeek() {
       const proHtml = isSperred
         ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSperred.grund?` · ${isSperred.grund}`:''} ${isSperred.termin!=='ALL'?`(${isSperred.termin})`:''}</div>`
         : p
-          ?`<div class="prow"><span class="pbadge">${p.pid}</span><span class="lbadge">${p.lnr}</span>${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button><button class="btn btn-xs btn-d" onclick="delProband('${p._id}')">✕</button>`:''}</div>`
+          ?`<div class="prow"><span class="pbadge">${p.pid}</span><span class="lbadge">${p.lnr}</span>${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button><button class="btn btn-xs btn-d" onclick="removeSlotAssignment('${p._id}','${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="Termin entfernen">✕</button>`:''}</div>`
           :`<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddProbandSlot(${cW},'${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
 
       const measRows=s.measures.map(m=>{
@@ -1585,7 +1585,7 @@ function renderWeek() {
       }).join('');
 
       const lockIcon = isAdmin()
-        ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'${curTermin}','${d.label}',${s.slot})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>`
+        ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>`
         : '';
 
       return `<div class="sc ${p&&!isSperred?'booked':''} ${isSperred?'slot-blocked':''}">
@@ -1608,7 +1608,7 @@ function renderWeek() {
       sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) && _tMatch2(sp.termin));
 
     const dayLockBtn = isAdmin()
-      ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'${curTermin}','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>`
+      ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'${getSubTermin(curTermin,d.label)}','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>`
       : '';
 
     const hdrColor = daySperre ? '#8B1A1A' : headerColor;
@@ -2159,12 +2159,18 @@ window.openEditProband = id => {
   document.getElementById('ip-t3date').value=p.t3date||'';
   document.getElementById('ip-t3time').value=p.t3time||'';
   buildWeekSel('ip-t0week'); buildWeekSel('ip-t1week');
+  // Only pre-fill if data actually exists
   if(p.t0week!==undefined){ document.getElementById('ip-t0week').value=p.t0week; document.getElementById('ip-t0day').value=p.t0day||'Montag'; }
+  else { document.getElementById('ip-t0week').value=''; }
   if(p.t1week!==undefined){ document.getElementById('ip-t1week').value=p.t1week; document.getElementById('ip-t1day11').value=p.t1day11||'Montag'; document.getElementById('ip-t1day12').value=p.t1day12||'Mittwoch'; }
+  else { document.getElementById('ip-t1week').value=''; }
   updT0Slots(); updT1Slots();
-  if(p.t0slot) document.getElementById('ip-t0slot').value=p.t0slot;
-  if(p.t1slot11) document.getElementById('ip-t1s11').value=p.t1slot11;
-  if(p.t1slot12) document.getElementById('ip-t1s12').value=p.t1slot12;
+  // Reset slot dropdowns first, then set if exists
+  document.getElementById('ip-t0slot').innerHTML='<option value="">— erst Woche wählen —</option>';
+  document.getElementById('ip-t1s11').innerHTML='<option value="">— erst Woche wählen —</option>';
+  document.getElementById('ip-t1s12').innerHTML='<option value="">— erst Woche wählen —</option>';
+  if(p.t0week!==undefined){ updT0Slots(); if(p.t0slot) document.getElementById('ip-t0slot').value=p.t0slot; }
+  if(p.t1week!==undefined){ updT1Slots(); if(p.t1slot11) document.getElementById('ip-t1s11').value=p.t1slot11; if(p.t1slot12) document.getElementById('ip-t1s12').value=p.t1slot12; }
   document.getElementById('proband-modal').classList.add('open');
 };
 
@@ -2219,6 +2225,23 @@ window.delProband = async id => {
   if(!confirm('Proband wirklich löschen?')) return;
   try { await deleteDoc(doc(db,'probanden',id)); toast('Proband gelöscht'); }
   catch(e){toast('Fehler: '+e.message,true);}
+};
+
+window.removeSlotAssignment = async (id, termin, day, slot) => {
+  if(!confirm(`Termin-Zuweisung für ${termin} ${day} Slot ${slot} entfernen?\n(Der Proband bleibt erhalten)`)) return;
+  const p = Object.values(P).find(x=>x._id===id); if(!p) return;
+  let clearFields = {};
+  if(termin==='T0')                               clearFields = {t0week:null,t0day:null,t0slot:null};
+  else if(termin==='T1.1')                        clearFields = {t1week:p.t1slot12?p.t1week:null,t1day11:null,t1slot11:null};
+  else if(termin==='T1.2')                        clearFields = {t1week:p.t1slot11?p.t1week:null,t1day12:null,t1slot12:null};
+  else if(termin==='T2.1')                        clearFields = {t2week:p.t2slot12?p.t2week:null,t2day11:null,t2slot11:null};
+  else if(termin==='T2.2')                        clearFields = {t2week:p.t2slot11?p.t2week:null,t2day12:null,t2slot12:null};
+  else if(termin==='T3.1')                        clearFields = {t3week:p.t3slot12?p.t3week:null,t3day11:null,t3slot11:null};
+  else if(termin==='T3.2')                        clearFields = {t3week:p.t3slot11?p.t3week:null,t3day12:null,t3slot12:null};
+  try {
+    await updateDoc(doc(db,'probanden',id),{...clearFields,updated:Date.now()});
+    toast('Termin entfernt ✓');
+  } catch(e){toast('Fehler: '+e.message,true);}
 };
 
 // ── RECALLS ───────────────────────
@@ -2715,7 +2738,7 @@ window.openSperrenDay = (week, termin, day) => {
   document.getElementById('i-sperren-grund').value='';
 
   // Check if already blocked → show delete button
-  const existing = Object.values(SPERREN).find(s=>s.week===week&&s.day===day&&(s.slot===null||s.slot===undefined)&&(s.termin===termin||s.termin==='ALL'));
+  const existing = Object.values(SPERREN).find(s=>s.week===week&&s.day===day&&(s.slot===null||s.slot===undefined)&&(s.termin===termin||s.termin==='ALL'||s.termin===termin.replace(/\.[12]$/,'')));
   const delBtn = document.getElementById('sperren-del-btn');
   if(existing){ sperrenEditId=existing._id; document.getElementById('i-sperren-grund').value=existing.grund||''; document.getElementById('i-sperren-termin').value=existing.termin||termin; delBtn.style.display=''; }
   else { delBtn.style.display='none'; }
