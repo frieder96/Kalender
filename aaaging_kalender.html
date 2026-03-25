@@ -1546,7 +1546,7 @@ function renderWeek() {
       const p=getter(cW,d.label,s.slot);
 
       // Check slot-level and day-level sperre
-      const _tMatch = t => t===curTermin || t==='ALL' || t===curTermin.replace(/\.[12]$/,'');
+      const _tMatch = t => t===curTermin || t==='ALL' || t===curTermin.replace(/\.[12]$/,'') || curTermin===t.replace(/\.[12]$/,'');
       const slotSperr = Object.values(SPERREN).find(sp =>
         sp.week===cW && sp.day===d.label && Number(sp.slot)===Number(s.slot) && _tMatch(sp.termin));
       const daySperr = !slotSperr && Object.values(SPERREN).find(sp =>
@@ -1609,7 +1609,7 @@ function renderWeek() {
     const t12note = (curTermin==='T1'||curTermin==='T1.2')&&(d.label==='Mittwoch'||d.label==='Donnerstag')
       ? `<div style="font-size:9.5px;color:rgba(255,255,255,.55);margin-top:2px">T2-Termin wird hier vereinbart</div>` : '';
 
-    const _tMatch2 = t => t===curTermin || t==='ALL' || t===curTermin.replace(/\.[12]$/,'');
+    const _tMatch2 = t => t===curTermin || t==='ALL' || t===curTermin.replace(/\.[12]$/,'') || curTermin===t.replace(/\.[12]$/,'');
     const daySperre = Object.values(SPERREN).find(sp =>
       sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) && _tMatch2(sp.termin));
 
