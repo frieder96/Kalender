@@ -3515,9 +3515,6 @@ function setTermin(t, btn) {
   document.querySelectorAll('.termin-tabs .ttab').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
   window.curTermin=t;
-  // Jump to current week
-  const todayW = Math.max(0, Math.min(N_WEEKS-1, Math.floor((new Date()-START)/(7*86400000))));
-  cW = todayW;
   const wt=document.getElementById('week-toolbar');
   if(wt) wt.style.display = (t==='GESAMT')?'none':'flex';
   if(window._renderWeek) window._renderWeek();
