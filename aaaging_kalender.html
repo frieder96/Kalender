@@ -904,7 +904,13 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div id="tab-raumplan" class="panel">
       <div class="phdr">
         <div><div class="ptitle">Live Raumplan</div><div class="psub">Echtzeit · Tagesplan · Wochenplan</div></div>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--g2);border-radius:var(--r);padding:3px 6px;display:none" id="rp-week-nav">
+            <button class="btn btn-xs" onclick="rpChangeWeek(-1)">◀</button>
+            <span style="font-size:12px;font-weight:600;color:var(--ub);min-width:80px;text-align:center" id="rp-week-label">—</span>
+            <button class="btn btn-xs" onclick="rpChangeWeek(1)">▶</button>
+            <button class="btn btn-xs" onclick="rpGoToday()" style="margin-left:2px">Heute</button>
+          </div>
           <button class="btn btn-sm" id="rp-btn-live" onclick="rpSetView('live',this)" style="background:var(--ub);color:#fff;border-color:var(--ub)">⚡ Live</button>
           <button class="btn btn-sm" id="rp-btn-day"  onclick="rpSetView('day',this)">📅 Heute</button>
           <button class="btn btn-sm" id="rp-btn-week" onclick="rpSetView('week',this)">🗓 Woche</button>
@@ -3201,6 +3207,7 @@ window.delMrtSlotTime = async (w, day, idx) => {
 // ── RAUMPLAN ──────────────────────
 let _rpView = 'live';
 let _rpLiveTimer = null;
+let _rpWeek = null; // null = follow calendar week (cW)
 
 window.rpSetView = (view, btn) => {
   _rpView = view;
@@ -3208,10 +3215,36 @@ window.rpSetView = (view, btn) => {
     const b = document.getElementById(`rp-btn-${v}`);
     if(b){ b.style.background=v===view?'var(--ub)':''; b.style.color=v===view?'#fff':''; b.style.borderColor=v===view?'var(--ub)':''; }
   });
+  // Show week nav only for week view
+  const nav = document.getElementById('rp-week-nav');
+  if(nav) nav.style.display = view==='week' ? 'flex' : 'none';
   rpRender();
 };
 
+window.rpChangeWeek = (dir) => {
+  if(_rpWeek===null) _rpWeek = cW;
+  _rpWeek += dir;
+  rpUpdateWeekLabel();
+  rpRender();
+};
+
+window.rpGoToday = () => {
+  _rpWeek = cW;
+  rpUpdateWeekLabel();
+  rpRender();
+};
+
+function rpUpdateWeekLabel() {
+  const w = _rpWeek!==null ? _rpWeek : cW;
+  const mo = wMon(w);
+  const lbl = document.getElementById('rp-week-label');
+  if(lbl) lbl.textContent = `KW ${kw(mo)}`;
+}
+
 function rpRender() {
+  // Sync rpWeek to cW if not manually set
+  if(_rpWeek===null) _rpWeek = cW;
+  rpUpdateWeekLabel();
   if(_rpView==='live')  rpRenderLive();
   else if(_rpView==='day')  rpRenderDay();
   else if(_rpView==='week') rpRenderWeek();
@@ -3409,9 +3442,10 @@ function rpRenderDay() {
 
 function rpRenderWeek() {
   const el = document.getElementById('rp-content'); if(!el) return;
+  const w = _rpWeek!==null ? _rpWeek : cW;
   // Only show assignments where person is set
-  const assignments = rpGetWeekAssignments(cW).filter(a=>a.person);
-  const mo = wMon(cW);
+  const assignments = rpGetWeekAssignments(w).filter(a=>a.person);
+  const mo = wMon(w);
   const DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
 
   // Only rooms that actually have entries this week
@@ -3424,14 +3458,14 @@ function rpRenderWeek() {
   }
 
   el.innerHTML = `
-    <div style="font-size:12px;color:var(--g5);margin-bottom:1rem">KW ${kw(mo)} · ${fD(mo)} – ${fD(wDay(cW,3))}</div>
+    <div style="font-size:12px;color:var(--g5);margin-bottom:1rem">KW ${kw(mo)} · ${fD(mo)} – ${fD(wDay(w,3))}</div>
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:600px">
       <thead>
         <tr>
           <th style="padding:10px 14px;background:var(--ub);color:#fff;text-align:left;min-width:130px">Raum</th>
           ${DAYS.map(d=>`<th style="padding:10px 8px;background:var(--ub);color:#fff;text-align:left">
-            ${d.label}<br><span style="font-weight:400;opacity:.75;font-size:10px">${fDs(wDay(cW,d.off))}</span>
+            ${d.label}<br><span style="font-weight:400;opacity:.75;font-size:10px">${fDs(wDay(w,d.off))}</span>
           </th>`).join('')}
         </tr>
       </thead>
@@ -3474,7 +3508,7 @@ function goTab(name,btn){
   if(name==='abwesenheit'){renderAbsentCal();}
   if(name==='backup'){renderRoomList();}
   if(name==='studio'){spRenderProbanden();}
-  if(name==='raumplan'){rpRender();}
+  if(name==='raumplan'){ _rpWeek=cW; rpRender(); }
 }
 
 function setTermin(t, btn) {
