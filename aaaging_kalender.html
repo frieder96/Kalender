@@ -3829,7 +3829,7 @@ function spRenderCalendar(){
       return `<div style="text-align:center;padding:8px 4px;border-radius:10px;background:${isToday?studio.color+'18':'#fff'};border:1px solid ${isToday?studio.color:'#E8E4DE'};opacity:${isAvail?1:0.3}">
         <div style="font-size:9px;color:#BBB;letter-spacing:2px">${SP_DAY_SHORT[dn]}</div>
         <div style="font-size:15px;font-weight:500;color:${isToday?studio.color:'#2A2A2A'};margin-top:2px">${spFmtDate(date)}</div>
-        ${isAvail&&window.isAdmin()?`<button onclick="spOpenDayTrainerModal(${dn},'${spFmtDate(date)}')" style="margin-top:5px;width:100%;padding:3px 6px;border-radius:6px;border:1px solid ${dayTrainer?studio.color:'#DDD'};background:${dayTrainer?studio.color+'18':'#F8F5F0'};color:${dayTrainer?studio.color:'#AAA'};font-size:9px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dayTrainer?`🏋️ ${dayTrainer}`:'+ Trainer'}</button>`
+        ${isAvail&&isAdmin()?`<button onclick="spOpenDayTrainerModal(${dn})" style="margin-top:5px;width:100%;padding:3px 6px;border-radius:6px;border:1px solid ${dayTrainer?studio.color:'#DDD'};background:${dayTrainer?studio.color+'18':'#F8F5F0'};color:${dayTrainer?studio.color:'#AAA'};font-size:9px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dayTrainer?`🏋️ ${dayTrainer}`:'+ Trainer'}</button>`
         :dayTrainer?`<div style="margin-top:4px;font-size:9px;color:${studio.color};font-weight:600">🏋️ ${dayTrainer}</div>`:''}
       </div>`;
     }).join('');
@@ -4258,11 +4258,12 @@ window.spAddBooking=async()=>{
 
 // ── DAY TRAINER ───────────────────────────────────────────────────
 let _spDayTrainerCtx = null;
-window.spOpenDayTrainerModal = (di, dateLabel) => {
+window.spOpenDayTrainerModal = (di) => {
   _spDayTrainerCtx = {di};
   const dtKey = `s${spActiveStudio}_d${di}_w${spWeekOff}`;
   const existing = SP_DAY_TRAINERS[dtKey];
   const studio = SP_STUDIOS.find(s=>s.id===spActiveStudio);
+  const dateLabel = SP_DAY_NAMES[di] || '';
 
   // Build trainer options from team members
   const teamOpts = Object.values(TEAM||{}).sort((a,b)=>a.name.localeCompare(b.name))
