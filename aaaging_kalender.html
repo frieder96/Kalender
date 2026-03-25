@@ -1517,8 +1517,10 @@ document.getElementById('linp-pw').addEventListener('keydown',e=>{if(e.key==='En
 document.getElementById('linp-email').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('linp-pw').focus();});
 
 // ── RENDER CALENDAR ───────────────
+// Local date helper (avoids UTC timezone shift)
+const _localDate = d => { const p=x=>String(x).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; };
+
 function renderWeek() {
-  const _localDate = d => { const p=x=>String(x).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; };
   curTermin = window.curTermin || 'T0';
   const mo=wMon(cW), thu=wDay(cW,3), k=kw(mo);
   document.getElementById('wbadge').textContent=`KW ${k} · ${mo.getFullYear()}`;
