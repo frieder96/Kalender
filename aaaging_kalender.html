@@ -3063,7 +3063,7 @@ const BACKUP_COLLECTIONS = [
   'probanden','recalls','team','assignments','sperren',
   'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots',
   'training_logs','training_templates','recall_rooms',
-  'sp_slots','sp_probands'
+  'sp_slots','sp_probands','sp_day_trainers'
 ];
 
 window.exportFullBackup = async () => {
@@ -3654,7 +3654,7 @@ const SP_HOURS = [11,12,13,14,15];
 const SP_MAX = 5;
 const SP_TOTAL = 96;
 
-let SP_PROBANDS = {}, SP_SLOTS_DATA = {}, SP_TRAINING_LOGS = {}, SP_TRAINING_TEMPLATES = {};
+let SP_PROBANDS = {}, SP_SLOTS_DATA = {}, SP_TRAINING_LOGS = {}, SP_TRAINING_TEMPLATES = {}, SP_DAY_TRAINERS = {};
 let sp_listeners = [];
 function spEmit(){ sp_listeners.forEach(fn=>fn()); }
 window.spOnChange = fn => sp_listeners.push(fn);
@@ -3680,6 +3680,11 @@ function spStartListeners(){
   window._onSnap(window._col(_db,'training_templates'), snap=>{
     SP_TRAINING_TEMPLATES={};
     snap.forEach(d=>{SP_TRAINING_TEMPLATES[d.id]={...d.data(),_id:d.id};});
+    spEmit();
+  });
+  window._onSnap(window._col(_db,'sp_day_trainers'), snap=>{
+    SP_DAY_TRAINERS={};
+    snap.forEach(d=>{SP_DAY_TRAINERS[d.id]={...d.data(),_id:d.id};});
     spEmit();
   });
 }
@@ -3819,9 +3824,13 @@ function spRenderCalendar(){
   if(spCalTab==='calendar'){
     const dayHeaders=weekDates.map((date,i)=>{
       const dn=i+1,isAvail=studio.days.includes(dn),isToday=date.toDateString()===today;
-      return `<div style="text-align:center;padding:10px 4px;border-radius:10px;background:${isToday?studio.color+'18':'#fff'};border:1px solid ${isToday?studio.color:'#E8E4DE'};opacity:${isAvail?1:0.3}">
+      const dtKey = `s${spActiveStudio}_d${dn}_w${spWeekOff}`;
+      const dayTrainer = SP_DAY_TRAINERS[dtKey]?.name || '';
+      return `<div style="text-align:center;padding:8px 4px;border-radius:10px;background:${isToday?studio.color+'18':'#fff'};border:1px solid ${isToday?studio.color:'#E8E4DE'};opacity:${isAvail?1:0.3}">
         <div style="font-size:9px;color:#BBB;letter-spacing:2px">${SP_DAY_SHORT[dn]}</div>
         <div style="font-size:15px;font-weight:500;color:${isToday?studio.color:'#2A2A2A'};margin-top:2px">${spFmtDate(date)}</div>
+        ${isAvail&&window.isAdmin()?`<button onclick="spOpenDayTrainerModal(${dn},'${spFmtDate(date)}')" style="margin-top:5px;width:100%;padding:3px 6px;border-radius:6px;border:1px solid ${dayTrainer?studio.color:'#DDD'};background:${dayTrainer?studio.color+'18':'#F8F5F0'};color:${dayTrainer?studio.color:'#AAA'};font-size:9px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dayTrainer?`🏋️ ${dayTrainer}`:'+ Trainer'}</button>`
+        :dayTrainer?`<div style="margin-top:4px;font-size:9px;color:${studio.color};font-weight:600">🏋️ ${dayTrainer}</div>`:''}
       </div>`;
     }).join('');
 
@@ -4245,6 +4254,66 @@ window.spAddBooking=async()=>{
     document.getElementById('sp-book-name').value='';
     spOpenSlotModal(spSlotDi,spSlotH);
   }catch(e){toast('Fehler: '+e.message,true);}
+};
+
+// ── DAY TRAINER ───────────────────────────────────────────────────
+let _spDayTrainerCtx = null;
+window.spOpenDayTrainerModal = (di, dateLabel) => {
+  _spDayTrainerCtx = {di};
+  const dtKey = `s${spActiveStudio}_d${di}_w${spWeekOff}`;
+  const existing = SP_DAY_TRAINERS[dtKey];
+  const studio = SP_STUDIOS.find(s=>s.id===spActiveStudio);
+
+  // Build trainer options from team members
+  const teamOpts = Object.values(TEAM||{}).sort((a,b)=>a.name.localeCompare(b.name))
+    .map(m=>`<option value="${m.name}" ${existing?.name===m.name?'selected':''}>${m.name}${m.role?' · '+m.role:''}</option>`).join('');
+
+  const modal = document.getElementById('sp-train-modal');
+  modal.innerHTML = `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:9px;color:${studio?.color};letter-spacing:3px;font-weight:600">${studio?.name?.toUpperCase()} / ${SP_DAY_NAMES[di]?.toUpperCase()}</div>
+        <div style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif">Trainer für ${dateLabel}</div>
+        <div style="font-size:11px;color:#BBB;margin-top:2px">Gilt für alle Slots dieses Tages</div>
+      </div>
+      <button onclick="spCloseTrainModal()" style="background:none;border:none;font-size:22px;color:#BBB;cursor:pointer">×</button>
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="font-size:10px;letter-spacing:2px;color:#999;font-weight:600;display:block;margin-bottom:8px">TRAINER AUSWÄHLEN</label>
+      <select id="sp-day-trainer-sel" style="width:100%;padding:11px 12px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">
+        <option value="">— Kein Trainer —</option>
+        ${teamOpts}
+      </select>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="spCloseTrainModal()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#888;font-size:12px;cursor:pointer">Abbrechen</button>
+      ${existing?`<button onclick="spDeleteDayTrainer('${existing._id}')" style="padding:11px 14px;border-radius:8px;border:1px solid #E8C0C8;background:#FDF2F4;color:#C8102E;font-size:12px;font-weight:700;cursor:pointer">Entfernen</button>`:''}
+      <button onclick="spSaveDayTrainer()" style="flex:2;padding:11px;border-radius:8px;border:none;background:${studio?.color||'#003975'};color:#fff;font-size:12px;font-weight:700;cursor:pointer">💾 Speichern</button>
+    </div>`;
+  document.getElementById('sp-train-overlay').style.display='flex';
+};
+
+window.spSaveDayTrainer = async () => {
+  const {di} = _spDayTrainerCtx;
+  const name = document.getElementById('sp-day-trainer-sel').value;
+  const dtKey = `s${spActiveStudio}_d${di}_w${spWeekOff}`;
+  try {
+    if(name) {
+      await window._setDoc(window._doc(window.db,'sp_day_trainers',dtKey),{key:dtKey,sid:spActiveStudio,di,wo:spWeekOff,name,updated:Date.now()});
+      toast(`Trainer ${name} für ${SP_DAY_NAMES[di]} gesetzt ✓`);
+    } else {
+      await window._deleteDoc(window._doc(window.db,'sp_day_trainers',dtKey));
+      toast('Trainer entfernt ✓');
+    }
+    spCloseTrainModal(); spRenderCalendar();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+
+window.spDeleteDayTrainer = async (id) => {
+  try {
+    await window._deleteDoc(window._doc(window.db,'sp_day_trainers',id));
+    toast('Trainer entfernt ✓'); spCloseTrainModal(); spRenderCalendar();
+  } catch(e){toast('Fehler: '+e.message,true);}
 };
 
 window.spRemoveBooking=async(type,index)=>{
