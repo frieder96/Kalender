@@ -1644,6 +1644,15 @@ function renderWeek() {
       ? `<div style="font-size:9.5px;color:rgba(255,220,220,.9);margin-top:3px">⛔ ${daySperre.grund||'Gesperrt'}${daySperre.termin!=='ALL'?` (${daySperre.termin})`:''}</div>`
       : '';
 
+    // Show absent team members for this day
+    const _dayStr = date.toISOString().split('T')[0];
+    const _absentNames = Object.values(ABSENT).filter(ab =>
+      _dayStr>=ab.from && _dayStr<=(ab.to||ab.from)
+    ).map(ab=>ab.name||ab.email?.split('@')[0]||'').filter(Boolean);
+    const absentNote = _absentNames.length
+      ? `<div style="font-size:9.5px;color:rgba(255,220,160,.95);margin-top:3px">🏖️ Abwesend: ${_absentNames.join(', ')}</div>`
+      : '';
+
     return `<div class="dcol">
       <div class="dayhdr-top" style="background:${hdrColor};border-radius:var(--r) var(--r) 0 0">
         <div style="display:flex;align-items:center;justify-content:space-between">
@@ -1651,7 +1660,7 @@ function renderWeek() {
           ${dayLockBtn}
         </div>
         <div class="drow"><span class="ddate">${fD(date)} · ${dayFilled}/${slots.length}</span><span class="dphase">${phaseLabel}</span></div>
-        ${t12note}${dayBlockedNote}
+        ${t12note}${dayBlockedNote}${absentNote}
         <div class="dfill"><div class="dfill-bar" style="width:${pct}%"></div></div>
       </div>${cards}
     </div>`;
@@ -1684,6 +1693,9 @@ function renderEEGWeek() {
       ? `<div style="font-size:9.5px;color:rgba(255,220,220,.9);margin-top:3px">⛔ ${daySperre.grund||'Gesperrt'}</div>` : '';
     const dayLockBtn = isAdmin()
       ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'EEG','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>` : '';
+    const _eegDayStr = wDay(cW,d.off).toISOString().split('T')[0];
+    const _eegAbsent = Object.values(ABSENT).filter(ab=>_eegDayStr>=ab.from&&_eegDayStr<=(ab.to||ab.from)).map(ab=>ab.name||ab.email?.split('@')[0]||'').filter(Boolean);
+    const eegAbsentNote = _eegAbsent.length ? `<div style="font-size:9.5px;color:rgba(255,220,160,.95);margin-top:3px">🏖️ ${_eegAbsent.join(', ')}</div>` : '';
 
     const cards = EEG_SLOTS.map(s => {
       const bk = byEEG(cW, d.label, s.slot);
@@ -1718,7 +1730,7 @@ function renderEEGWeek() {
           <div class="dname">${d.label}</div>${dayLockBtn}
         </div>
         <div class="drow"><span class="ddate">${fD(date)} · ${dayFilled}/${EEG_SLOTS.length}</span><span class="dphase">EEG</span></div>
-        ${dayBlockedNote}
+        ${dayBlockedNote}${eegAbsentNote}
         <div class="dfill"><div class="dfill-bar" style="width:${pct}%"></div></div>
       </div>${cards}
     </div>`;
@@ -1755,6 +1767,9 @@ function renderMRTWeek() {
       ? `<div style="font-size:9.5px;color:rgba(255,220,220,.9);margin-top:3px">⛔ ${daySperre.grund||'Gesperrt'}</div>` : '';
     const dayLockBtn = isAdmin()
       ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'MRT','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>` : '';
+    const _mrtDayStr = wDay(cW,d.off).toISOString().split('T')[0];
+    const _mrtAbsent = Object.values(ABSENT).filter(ab=>_mrtDayStr>=ab.from&&_mrtDayStr<=(ab.to||ab.from)).map(ab=>ab.name||ab.email?.split('@')[0]||'').filter(Boolean);
+    const mrtAbsentNote = _mrtAbsent.length ? `<div style="font-size:9.5px;color:rgba(255,220,160,.95);margin-top:3px">🏖️ ${_mrtAbsent.join(', ')}</div>` : '';
 
     const addSlotBtn = isAdmin() && !daySperre
       ? `<button class="btn btn-xs" style="margin:6px 0 4px;width:100%;font-size:10px" onclick="openAddMrtSlot(${cW},'${d.label}')">+ Slot hinzufügen</button>` : '';
@@ -1800,7 +1815,7 @@ function renderMRTWeek() {
           <div class="dname">${d.label}</div>${dayLockBtn}
         </div>
         <div class="drow"><span class="ddate">${fD(date)} · ${dayFilled}/${times.length}</span><span class="dphase">MRT</span></div>
-        ${dayBlockedNote}
+        ${dayBlockedNote}${mrtAbsentNote}
         <div class="dfill"><div class="dfill-bar" style="width:${pct}%"></div></div>
       </div>
       ${slotCards}
