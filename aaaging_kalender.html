@@ -1666,7 +1666,7 @@ function renderEEGWeek() {
     const cards = EEG_SLOTS.map(s => {
       const bk = byEEG(cW, d.label, s.slot);
       const slotSperr = Object.values(SPERREN).find(sp =>
-        sp.week===cW && sp.day===d.label && sp.slot===s.slot && (sp.termin==='EEG'||sp.termin==='ALL'));
+        sp.week===cW && sp.day===d.label && Number(sp.slot)===Number(s.slot) && (sp.termin==='EEG'||sp.termin==='ALL'));
       const isSp = slotSperr || daySperre;
 
       const proHtml = isSp
@@ -1742,7 +1742,7 @@ function renderMRTWeek() {
       : times.map((t,i) => {
           const bk = byMRT(cW, d.label, i);
           const slotSperr = Object.values(SPERREN).find(sp =>
-            sp.week===cW && sp.day===d.label && sp.slot===i && (sp.termin==='MRT'||sp.termin==='ALL'));
+            sp.week===cW && sp.day===d.label && Number(sp.slot)===Number(i) && (sp.termin==='MRT'||sp.termin==='ALL'));
           const isSp = slotSperr || daySperre;
           // calc end time
           const [hh,mm] = t.split(':').map(Number);
@@ -3515,6 +3515,9 @@ function setTermin(t, btn) {
   document.querySelectorAll('.termin-tabs .ttab').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
   window.curTermin=t;
+  // Jump to current week
+  const todayW = Math.max(0, Math.min(N_WEEKS-1, Math.floor((new Date()-START)/(7*86400000))));
+  cW = todayW;
   const wt=document.getElementById('week-toolbar');
   if(wt) wt.style.display = (t==='GESAMT')?'none':'flex';
   if(window._renderWeek) window._renderWeek();
