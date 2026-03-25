@@ -1186,10 +1186,33 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div class="mbody">
       <div style="background:#FEF6F0;border:1px solid #F4C09A;border-radius:var(--r);padding:9px 12px;margin-bottom:14px;font-size:12.5px;color:#B85010" id="absent-modal-info"></div>
       <div class="fg" id="ia-person-wrap" style="display:none"><label class="fl">Person</label><select class="fi" id="ia-person"></select></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="fg"><label class="fl">Von</label><input class="fi" type="date" id="ia-from"></div>
-        <div class="fg"><label class="fl">Bis</label><input class="fi" type="date" id="ia-to"><div class="fh">Gleicher Tag = 1 Tag</div></div>
+
+      <!-- Type toggle -->
+      <div class="fg">
+        <label class="fl">Art der Abwesenheit</label>
+        <div style="display:flex;gap:8px">
+          <button id="ia-type-day" onclick="absentSetType('day')" class="btn btn-sm btn-p" style="flex:1">📅 Ganzer Tag / Tage</button>
+          <button id="ia-type-time" onclick="absentSetType('time')" class="btn btn-sm" style="flex:1">🕐 Bestimmte Stunden</button>
+        </div>
       </div>
+
+      <!-- Full day fields -->
+      <div id="ia-fullday-wrap">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="fg"><label class="fl">Von</label><input class="fi" type="date" id="ia-from"></div>
+          <div class="fg"><label class="fl">Bis</label><input class="fi" type="date" id="ia-to"><div class="fh">Gleicher Tag = 1 Tag</div></div>
+        </div>
+      </div>
+
+      <!-- Time-based fields -->
+      <div id="ia-time-wrap" style="display:none">
+        <div class="fg"><label class="fl">Datum</label><input class="fi" type="date" id="ia-time-date"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="fg"><label class="fl">Von</label><input class="fi" type="time" id="ia-time-from"></div>
+          <div class="fg"><label class="fl">Bis</label><input class="fi" type="time" id="ia-time-to"></div>
+        </div>
+      </div>
+
       <div class="fg"><label class="fl">Kommentar (optional)</label><textarea class="notiz-box" id="ia-note" placeholder="z. B. Urlaub, Konferenz in Berlin, Krankenstand …"></textarea></div>
     </div>
     <div class="mftr">
@@ -1495,6 +1518,7 @@ document.getElementById('linp-email').addEventListener('keydown',e=>{if(e.key===
 
 // ── RENDER CALENDAR ───────────────
 function renderWeek() {
+  const _localDate = d => { const p=x=>String(x).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; };
   curTermin = window.curTermin || 'T0';
   const mo=wMon(cW), thu=wDay(cW,3), k=kw(mo);
   document.getElementById('wbadge').textContent=`KW ${k} · ${mo.getFullYear()}`;
@@ -1645,10 +1669,14 @@ function renderWeek() {
       : '';
 
     // Show absent team members for this day
-    const _dayStr = date.toISOString().split('T')[0];
-    const _absentNames = Object.values(ABSENT).filter(ab =>
+    const _dayStr = _localDate(date);
+    const _absentEntries = Object.values(ABSENT).filter(ab =>
       _dayStr>=ab.from && _dayStr<=(ab.to||ab.from)
-    ).map(ab=>ab.name||ab.email?.split('@')[0]||'').filter(Boolean);
+    );
+    const _absentNames = _absentEntries.map(ab=>{
+      const n=ab.name||ab.email?.split('@')[0]||'';
+      return ab.timeFrom ? `${n} (${ab.timeFrom}–${ab.timeTo})` : n;
+    }).filter(Boolean);
     const absentNote = _absentNames.length
       ? `<div style="font-size:9.5px;color:rgba(255,220,160,.95);margin-top:3px">🏖️ Abwesend: ${_absentNames.join(', ')}</div>`
       : '';
@@ -1693,8 +1721,9 @@ function renderEEGWeek() {
       ? `<div style="font-size:9.5px;color:rgba(255,220,220,.9);margin-top:3px">⛔ ${daySperre.grund||'Gesperrt'}</div>` : '';
     const dayLockBtn = isAdmin()
       ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'EEG','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>` : '';
-    const _eegDayStr = wDay(cW,d.off).toISOString().split('T')[0];
-    const _eegAbsent = Object.values(ABSENT).filter(ab=>_eegDayStr>=ab.from&&_eegDayStr<=(ab.to||ab.from)).map(ab=>ab.name||ab.email?.split('@')[0]||'').filter(Boolean);
+    const _eegDayStr = _localDate(wDay(cW,d.off));
+    const _eegAbsentE = Object.values(ABSENT).filter(ab=>_eegDayStr>=ab.from&&_eegDayStr<=(ab.to||ab.from));
+    const _eegAbsent = _eegAbsentE.map(ab=>{const n=ab.name||ab.email?.split('@')[0]||'';return ab.timeFrom?`${n} (${ab.timeFrom}–${ab.timeTo})`:n;}).filter(Boolean);
     const eegAbsentNote = _eegAbsent.length ? `<div style="font-size:9.5px;color:rgba(255,220,160,.95);margin-top:3px">🏖️ ${_eegAbsent.join(', ')}</div>` : '';
 
     const cards = EEG_SLOTS.map(s => {
@@ -1767,8 +1796,9 @@ function renderMRTWeek() {
       ? `<div style="font-size:9.5px;color:rgba(255,220,220,.9);margin-top:3px">⛔ ${daySperre.grund||'Gesperrt'}</div>` : '';
     const dayLockBtn = isAdmin()
       ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'MRT','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>` : '';
-    const _mrtDayStr = wDay(cW,d.off).toISOString().split('T')[0];
-    const _mrtAbsent = Object.values(ABSENT).filter(ab=>_mrtDayStr>=ab.from&&_mrtDayStr<=(ab.to||ab.from)).map(ab=>ab.name||ab.email?.split('@')[0]||'').filter(Boolean);
+    const _mrtDayStr = _localDate(wDay(cW,d.off));
+    const _mrtAbsentE = Object.values(ABSENT).filter(ab=>_mrtDayStr>=ab.from&&_mrtDayStr<=(ab.to||ab.from));
+    const _mrtAbsent = _mrtAbsentE.map(ab=>{const n=ab.name||ab.email?.split('@')[0]||'';return ab.timeFrom?`${n} (${ab.timeFrom}–${ab.timeTo})`:n;}).filter(Boolean);
     const mrtAbsentNote = _mrtAbsent.length ? `<div style="font-size:9.5px;color:rgba(255,220,160,.95);margin-top:3px">🏖️ ${_mrtAbsent.join(', ')}</div>` : '';
 
     const addSlotBtn = isAdmin() && !daySperre
@@ -2689,6 +2719,17 @@ function renderAbsentCal() {
   }
 }
 
+window.absentSetType = (type) => {
+  const isDay = type==='day';
+  document.getElementById('ia-fullday-wrap').style.display = isDay ? '' : 'none';
+  document.getElementById('ia-time-wrap').style.display   = isDay ? 'none' : '';
+  const btnDay  = document.getElementById('ia-type-day');
+  const btnTime = document.getElementById('ia-type-time');
+  if(btnDay)  { btnDay.className  = isDay  ? 'btn btn-sm btn-p' : 'btn btn-sm'; }
+  if(btnTime) { btnTime.className = !isDay ? 'btn btn-sm btn-p' : 'btn btn-sm'; }
+  document.getElementById('ia-fullday-wrap').dataset.type = type;
+};
+
 window.openAbsentModal = id => {
   absentEditId = id || null;
   const ab = id ? ABSENT[id] : null;
@@ -2711,8 +2752,12 @@ window.openAbsentModal = id => {
 
   document.getElementById('ia-from').value = ab?.from || '';
   document.getElementById('ia-to').value   = ab?.to   || ab?.from || '';
+  document.getElementById('ia-time-date').value = ab?.timeDate || ab?.from || '';
+  document.getElementById('ia-time-from').value = ab?.timeFrom || '';
+  document.getElementById('ia-time-to').value   = ab?.timeTo   || '';
   document.getElementById('ia-note').value = ab?.note || '';
   document.getElementById('absent-del-btn').style.display = ab ? '' : 'none';
+  absentSetType(ab?.timeFrom ? 'time' : 'day');
   document.getElementById('absent-modal').classList.add('open');
 };
 
@@ -2738,6 +2783,7 @@ window.openAbsentModalDate = dateStr => {
   document.getElementById('ia-to').value   = dateStr;
   document.getElementById('ia-note').value = '';
   document.getElementById('absent-del-btn').style.display = 'none';
+  absentSetType('day');
   document.getElementById('absent-modal').classList.add('open');
 };
 
@@ -2763,7 +2809,18 @@ window.saveAbsent = async () => {
     email = currentUser?.email || '';
   }
 
-  const data = { from, to, note, uid, email, name, updated: Date.now() };
+  // Handle time-based absence
+  const isTimeType = document.getElementById('ia-time-wrap').style.display !== 'none';
+  let extraFields = {};
+  if(isTimeType) {
+    const timeDate = document.getElementById('ia-time-date').value;
+    const timeFrom = document.getElementById('ia-time-from').value;
+    const timeTo   = document.getElementById('ia-time-to').value;
+    if(!timeDate||!timeFrom||!timeTo){toast('Bitte Datum und Uhrzeiten eingeben',true);return;}
+    extraFields = { timeDate, timeFrom, timeTo, from:timeDate, to:timeDate };
+  }
+
+  const data = { from, to, note, uid, email, name, ...extraFields, updated: Date.now() };
   try {
     if(absentEditId){ await updateDoc(doc(db,'abwesenheiten',absentEditId),data); }
     else { await addDoc(collection(db,'abwesenheiten'),{...data,created:Date.now()}); }
