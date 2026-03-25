@@ -1569,6 +1569,25 @@ function renderWeek() {
         const a2=m.persons===2?ASSIGN[aKey2]:null; const pName2=a2?.person?(TEAM[a2.person]?.name||a2.person):null;
         const aRoom = a?.room || a2?.room || '';
 
+        // Check absence for assigned persons
+        const _checkAbsent = (memberId) => {
+          if(!memberId) return false;
+          const member = TEAM[memberId];
+          if(!member) return false;
+          const dateStr = wDay(cW,d.off).toISOString().split('T')[0];
+          return Object.values(ABSENT).some(ab => {
+            const n=(ab.name||ab.email||'').toLowerCase();
+            const mn=member.name.toLowerCase();
+            if(!n||!(n.includes(mn)||mn.includes(n))) return false;
+            return dateStr>=ab.from && dateStr<=(ab.to||ab.from);
+          });
+        };
+        const p1Absent = a?.person ? _checkAbsent(a.person) : false;
+        const p2Absent = a2?.person ? _checkAbsent(a2.person) : false;
+        const anyAbsent = p1Absent || p2Absent;
+        const rowBg = anyAbsent ? 'background:#FDF2F4;border-radius:4px;' : '';
+        const absentHint = anyAbsent ? `<span style="font-size:9.5px;color:#C8102E;font-weight:700;margin-left:4px">🏖️ nicht verfügbar</span>` : '';
+
         // Frühstück: no assign button, grey italic label
         if(m.noAssign) return `<div class="meas-row" style="opacity:.65">
           <span class="chip ${m.cls}" style="min-width:0;flex-shrink:0;font-style:italic">${m.label} <span class="ct">${m.t}</span></span>
@@ -1579,16 +1598,16 @@ function renderWeek() {
         const _slotTime = m.t || s.blutStart || '';
         const assignSection = !isSperred&&isAdmin()
           ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
-              <button class="assign-btn" onclick="openAssignModal('${aKey}','${m.label}','${d.label} Slot ${s.slot}','${_slotDate}','${_slotTime}')">${pName?`<span class="team-chip">${pName}</span>`:'+ P1'}</button>
-              ${m.persons===2?`<button class="assign-btn" onclick="openAssignModal('${aKey2}','${m.label} (2)','${d.label} Slot ${s.slot}','${_slotDate}','${_slotTime}')">${pName2?`<span class="team-chip">${pName2}</span>`:'+ P2'}</button>`:''}</div>`
+              <button class="assign-btn" onclick="openAssignModal('${aKey}','${m.label}','${d.label} Slot ${s.slot}','${_slotDate}','${_slotTime}')">${pName?`<span class="team-chip" style="${p1Absent?'background:#FDF2F4;border-color:#E8BFBF;color:#C8102E;':''}">${pName}</span>`:'+ P1'}</button>
+              ${m.persons===2?`<button class="assign-btn" onclick="openAssignModal('${aKey2}','${m.label} (2)','${d.label} Slot ${s.slot}','${_slotDate}','${_slotTime}')">${pName2?`<span class="team-chip" style="${p2Absent?'background:#FDF2F4;border-color:#E8BFBF;color:#C8102E;':''}">${pName2}</span>`:'+ P2'}</button>`:''}</div>`
           : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
-              ${pName?`<span class="team-chip">${pName}</span>`:''}
-              ${m.persons===2&&pName2?`<span class="team-chip">${pName2}</span>`:''}
+              ${pName?`<span class="team-chip" style="${p1Absent?'background:#FDF2F4;border-color:#E8BFBF;color:#C8102E;':''}">${pName}</span>`:''}
+              ${m.persons===2&&pName2?`<span class="team-chip" style="${p2Absent?'background:#FDF2F4;border-color:#E8BFBF;color:#C8102E;':''}">${pName2}</span>`:''}
              </div>`;
 
-        return `<div class="meas-row">
+        return `<div class="meas-row" style="${rowBg}">
           <span class="chip ${m.cls}" style="min-width:0;flex-shrink:0">${m.label} <span class="ct">${m.t}</span></span>
-          <span style="flex:1">${aRoom?`<span style="font-size:10px;color:var(--ub);margin-left:4px">📍 ${aRoom}</span>`:''}</span>
+          <span style="flex:1">${aRoom?`<span style="font-size:10px;color:var(--ub);margin-left:4px">📍 ${aRoom}</span>`:''}${absentHint}</span>
           ${assignSection}
         </div>`;
       }).join('');
