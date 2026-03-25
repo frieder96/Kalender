@@ -1472,7 +1472,7 @@ function startDB() {
     RECALLS={}; snap.forEach(d=>{RECALLS[d.id]={...d.data(),_id:d.id}}); renderRecalls();
   });
   onSnapshot(collection(db,'team'), snap => {
-    TEAM={}; snap.forEach(d=>{TEAM[d.id]={...d.data(),_id:d.id}}); renderMemberList(); renderTaskTab();
+    TEAM={}; snap.forEach(d=>{TEAM[d.id]={...d.data(),_id:d.id}}); window._teamCache=TEAM; renderMemberList(); renderTaskTab();
   });
   onSnapshot(collection(db,'assignments'), snap => {
     ASSIGN={}; snap.forEach(d=>{ASSIGN[d.id]={...d.data(),_id:d.id}}); renderWeek(); renderTaskTab();
@@ -4267,8 +4267,11 @@ window.spOpenDayTrainerModal = (di) => {
   const studio = SP_STUDIOS.find(s=>s.id===spActiveStudio);
   const dateLabel = SP_DAY_NAMES[di] || '';
 
-  // Build trainer options from team members
-  const teamOpts = Object.values(TEAM||{}).sort((a,b)=>a.name.localeCompare(b.name))
+  // Build trainer options — use global TEAM if available
+  const teamData = (typeof TEAM !== 'undefined' && Object.keys(TEAM).length)
+    ? TEAM
+    : (window._teamCache || {});
+  const teamOpts = Object.values(teamData).sort((a,b)=>a.name.localeCompare(b.name))
     .map(m=>`<option value="${m.name}" ${existing?.name===m.name?'selected':''}>${m.name}${m.role?' · '+m.role:''}</option>`).join('');
 
   const modal = document.getElementById('sp-train-modal');
