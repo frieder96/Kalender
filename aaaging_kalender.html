@@ -1120,6 +1120,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div class="mbody">
       <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="eeg-book-info"></div>
       <div class="fg"><label class="fl">Proband</label><select class="fi" id="eeg-book-pid"></select></div>
+      <div class="fg"><label class="fl">Anmerkung <span style="font-weight:400;color:var(--g4)">(optional)</span></label><input class="fi" id="eeg-book-note" placeholder="z. B. Metallobjekte, Klaustrophobie …" maxlength="120"></div>
     </div>
     <div class="mftr"><button class="btn btn-sm" onclick="closeEEGBookModal()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveEEGBooking()">Speichern</button></div>
   </div>
@@ -1132,6 +1133,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div class="mbody">
       <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="mrt-book-info"></div>
       <div class="fg"><label class="fl">Proband</label><select class="fi" id="mrt-book-pid"></select></div>
+      <div class="fg"><label class="fl">Anmerkung <span style="font-weight:400;color:var(--g4)">(optional)</span></label><input class="fi" id="mrt-book-note" placeholder="z. B. Klaustrophobie, Implantat …" maxlength="120"></div>
     </div>
     <div class="mftr"><button class="btn btn-sm" onclick="closeMRTBookModal()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveMRTBooking()">Speichern</button></div>
   </div>
@@ -1673,7 +1675,7 @@ function renderEEGWeek() {
       const proHtml = isSp
         ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSp.grund?` · ${isSp.grund}`:''}</div>`
         : bk
-          ? `<div class="prow"><span class="pbadge">${bk.pid}</span><span class="lbadge">${bk.lnr}</span>${isAdmin()?`<button class="btn btn-xs btn-d" onclick="delEEGBooking('${bk._id}')">✕</button>`:''}</div>`
+          ? `<div class="prow"><span class="pbadge">${bk.pid}</span><span class="lbadge">${bk.lnr}</span>${isAdmin()?`<button class="btn btn-xs btn-d" onclick="delEEGBooking('${bk._id}')">✕</button>`:''}</div>${bk.note?`<div style="font-size:10.5px;color:var(--g5);font-style:italic;margin-top:3px;padding:3px 6px;background:var(--g1);border-radius:3px">📝 ${bk.note}</div>`:''}`
           : `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()&&!daySperre?`<button class="btn btn-xs btn-p" onclick="openEEGBookModal(${cW},'${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
 
       const lockIcon = isAdmin()
@@ -1753,7 +1755,7 @@ function renderMRTWeek() {
           const proHtml = isSp
             ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong></div>`
             : bk
-              ? `<div class="prow"><span class="pbadge">${bk.pid}</span><span class="lbadge">${bk.lnr}</span>${isAdmin()?`<button class="btn btn-xs btn-d" onclick="delMRTBooking('${bk._id}')">✕</button>`:''}</div>`
+              ? `<div class="prow"><span class="pbadge">${bk.pid}</span><span class="lbadge">${bk.lnr}</span>${isAdmin()?`<button class="btn btn-xs btn-d" onclick="delMRTBooking('${bk._id}')">✕</button>`:''}</div>${bk.note?`<div style="font-size:10.5px;color:var(--g5);font-style:italic;margin-top:3px;padding:3px 6px;background:var(--g1);border-radius:3px">📝 ${bk.note}</div>`:''}`
               : `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()&&!daySperre?`<button class="btn btn-xs btn-p" onclick="openMRTBookModal(${cW},'${d.label}',${i})">+ Zuweisen</button>`:''}</div>`;
 
           const lockIcon = isAdmin()
@@ -3128,6 +3130,7 @@ window.openEEGBookModal = (w, day, slot) => {
   const sel = document.getElementById('eeg-book-pid');
   sel.innerHTML = Object.values(P).sort((a,b)=>(a.pid||'').localeCompare(b.pid||'')).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
   document.getElementById('eeg-book-info').textContent = `${day} · KW ${kw(wMon(w))} · Slot ${slot} (${EEG_SLOTS[slot-1].blutStart}–${EEG_SLOTS[slot-1].end})`;
+  document.getElementById('eeg-book-note').value=(_eegBookCtx&&EEG_BOOKINGS[_eegBookCtx._id]?.note)||'';
   document.getElementById('eeg-book-modal').style.display='flex';
 };
 window.closeEEGBookModal = () => { document.getElementById('eeg-book-modal').style.display='none'; };
@@ -3139,7 +3142,8 @@ window.saveEEGBooking = async () => {
   if(!p){toast('Proband nicht gefunden',true);return;}
   try {
     const {addDoc,collection:col} = window._fbFns;
-    await addDoc(col(db,'eeg_bookings'),{week:w,day,slot,pid:p.pid,lnr:p.lnr,probandId:p._id,created:Date.now()});
+    const note=document.getElementById('eeg-book-note').value.trim();
+    await addDoc(col(db,'eeg_bookings'),{week:w,day,slot,pid:p.pid,lnr:p.lnr,probandId:p._id,note,created:Date.now()});
     toast('EEG-Slot gebucht ✓'); closeEEGBookModal();
   } catch(e){toast('Fehler: '+e.message,true);}
 };
@@ -3161,6 +3165,7 @@ window.openMRTBookModal = (w, day, slotIdx) => {
   const sel = document.getElementById('mrt-book-pid');
   sel.innerHTML = Object.values(P).sort((a,b)=>(a.pid||'').localeCompare(b.pid||'')).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
   document.getElementById('mrt-book-info').textContent = `${day} · KW ${kw(wMon(w))} · Slot ${slotIdx+1} (${t}–${endStr})`;
+  document.getElementById('mrt-book-note').value='';
   document.getElementById('mrt-book-modal').style.display='flex';
 };
 window.closeMRTBookModal = () => { document.getElementById('mrt-book-modal').style.display='none'; };
@@ -3172,7 +3177,8 @@ window.saveMRTBooking = async () => {
   if(!p){toast('Proband nicht gefunden',true);return;}
   try {
     const {addDoc,collection:col} = window._fbFns;
-    await addDoc(col(db,'mrt_bookings'),{week:w,day,slotIdx,pid:p.pid,lnr:p.lnr,probandId:p._id,created:Date.now()});
+    const note=document.getElementById('mrt-book-note').value.trim();
+    await addDoc(col(db,'mrt_bookings'),{week:w,day,slotIdx,pid:p.pid,lnr:p.lnr,probandId:p._id,note,created:Date.now()});
     toast('MRT-Slot gebucht ✓'); closeMRTBookModal();
   } catch(e){toast('Fehler: '+e.message,true);}
 };
