@@ -703,6 +703,14 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         </div>
         <span class="wbadge" id="wbadge" onclick="openWJ()">KW —</span>
         <span class="wrange" id="wrange"></span>
+        <div id="sport-wrap" style="display:none;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--g5);font-weight:600">Sport:</span>
+          <select id="sport-select" onchange="saveSportStatus(this.value)" style="padding:3px 8px;border:1px solid var(--g2);border-radius:var(--r);font-size:12px;font-family:'Source Sans 3',sans-serif;color:var(--bk);background:#fff;cursor:pointer;outline:none">
+            <option value="">— ausstehend —</option>
+            <option value="sport">✅ Sport</option>
+            <option value="kein-sport">❌ Kein Sport</option>
+          </select>
+        </div>
         <span class="wfill" id="wfill"></span>
       </div>
 
@@ -1743,6 +1751,19 @@ function renderEEGWeek() {
       const lockIcon = isAdmin()
         ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'EEG','${d.label}',${s.slot})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>` : '';
 
+      // EEG person assignment (uses ASSIGN collection like T-terms)
+      const eegAKey = `${cW}_EEG_${d.label}_${s.slot}_EEG-Durchführung`.replace(/[^a-zA-Z0-9_]/g,'_');
+      const eegA = ASSIGN[eegAKey];
+      const eegPerson = eegA?.person ? (TEAM[eegA.person]?.name||eegA.person) : null;
+      const eegPersonRow = !isSp ? `<div class="meas-row" style="margin-top:4px">
+        <span class="chip ceinschl" style="min-width:0;flex-shrink:0;font-size:9px">Durchführung</span>
+        <span style="flex:1"></span>
+        ${isAdmin()
+          ? `<button class="assign-btn" onclick="openAssignModal('${eegAKey}','EEG-Durchführung','${d.label} Slot ${s.slot}','${_localDate(wDay(cW,d.off))}','${s.blutStart}')">${eegPerson?`<span class="team-chip">${eegPerson}</span>`:'+ Person'}</button>`
+          : eegPerson?`<span class="team-chip">${eegPerson}</span>`:''
+        }
+      </div>` : '';
+
       return `<div class="sc ${bk&&!isSp?'booked':''} ${isSp?'slot-blocked':''}">
         <div class="sc-top">
           <span class="sc-num">Slot ${s.slot}</span>
@@ -1751,7 +1772,7 @@ function renderEEGWeek() {
             ${lockIcon}
           </div>
         </div>
-        <div class="sc-body">${proHtml}</div>
+        <div class="sc-body">${proHtml}${eegPersonRow}</div>
       </div>`;
     }).join('');
 
@@ -2617,9 +2638,9 @@ function buildWJList() {
 }
 window.openWJ=()=>{buildWJList();document.getElementById('wjov').classList.add('open');};
 window.closeWJ=()=>document.getElementById('wjov').classList.remove('open');
-window.selW=w=>{cW=w;renderWeek();closeWJ();};
-window.chW=n=>{cW=Math.max(0,Math.min(N_WEEKS-1,cW+n));renderWeek();};
-window.goToday=()=>{const d=Math.floor((new Date()-START)/(7*86400000));cW=Math.max(0,Math.min(N_WEEKS-1,d));renderWeek();};
+window.selW=w=>{cW=w;renderWeek();closeWJ();if(window.curTermin==='T1')loadSportStatus();};
+window.chW=n=>{cW=Math.max(0,Math.min(N_WEEKS-1,cW+n));renderWeek();if(window.curTermin==='T1')loadSportStatus();};
+window.goToday=()=>{const d=Math.floor((new Date()-START)/(7*86400000));cW=Math.max(0,Math.min(N_WEEKS-1,d));renderWeek();if(window.curTermin==='T1')loadSportStatus();};
 
 // ── ABWESENHEITEN ─────────────────
 function renderAbsentCal() {
@@ -2848,6 +2869,35 @@ window.chMonth = n => {
 };
 
 window.goThisMonth = () => { curMonth=new Date().getMonth(); curYear=new Date().getFullYear(); renderAbsentCal(); };
+
+// ── SPORT STATUS (T1) ─────────────────────────────────────────────
+// Key: sport_w{week}  stored in 'sport_status' collection
+let SPORT_STATUS = {};
+
+function sportKey(w) { return `sport_w${w}`; }
+
+window.loadSportStatus = async () => {
+  const sel = document.getElementById('sport-select'); if(!sel) return;
+  const key = sportKey(cW);
+  const cached = SPORT_STATUS[key];
+  if(cached!==undefined){ sel.value=cached; return; }
+  try {
+    const d = await getDoc(doc(db,'sport_status',key));
+    const val = d.exists() ? (d.data().status||'') : '';
+    SPORT_STATUS[key] = val;
+    sel.value = val;
+  } catch(e){ sel.value=''; }
+};
+
+window.saveSportStatus = async (val) => {
+  if(!isAdmin()){toast('Keine Berechtigung',true); document.getElementById('sport-select').value=SPORT_STATUS[sportKey(cW)]||''; return;}
+  const key = sportKey(cW);
+  try {
+    await setDoc(doc(db,'sport_status',key),{key,week:cW,status:val,updated:Date.now()});
+    SPORT_STATUS[key] = val;
+    toast(val==='sport'?'✅ Sport eingetragen':val==='kein-sport'?'❌ Kein Sport eingetragen':'Status zurückgesetzt');
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
 
 // ── SPERREN ───────────────────────
 window.openSperrenDay = (week, termin, day) => {
@@ -3636,6 +3686,9 @@ function setTermin(t, btn) {
   window.curTermin=t;
   const wt=document.getElementById('week-toolbar');
   if(wt) wt.style.display = (t==='GESAMT')?'none':'flex';
+  const sw=document.getElementById('sport-wrap');
+  if(sw) sw.style.display = (t==='T1')?'flex':'none';
+  if(t==='T1') loadSportStatus();
   if(window._renderWeek) window._renderWeek();
 }
 </script>
