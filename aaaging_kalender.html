@@ -4455,15 +4455,11 @@ window.spUpdateSeriesPreview = () => {
   prev.innerHTML = `<strong>${slotLabels}</strong> · ${weeks} Wochen · <strong>${total} Buchungen</strong> ab ${new Date(startStr+'T12:00').toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
 };
 
-window.spSaveSeriesBooking = () => {
+window.spSaveSeriesBooking = async () => {
   const name = document.getElementById('sp-series-name')?.value;
   const startStr = document.getElementById('sp-series-start')?.value;
   const weeks = parseInt(document.getElementById('sp-series-weeks')?.value)||1;
   const sid = _spSeriesSid || spActiveStudio;
-
-  // Debug: show what we have
-  const preview = document.getElementById('sp-series-preview');
-  if(preview) preview.innerHTML = `<span style="color:red">Starte... name=${name}, start=${startStr}, sid=${sid}, db=${!!window.db}, _setDoc=${!!window._setDoc}</span>`;
 
   if(!name){toast('Bitte Proband auswählen',true);return;}
   if(!startStr){toast('Bitte Startdatum wählen',true);return;}
@@ -4478,27 +4474,14 @@ window.spSaveSeriesBooking = () => {
   const btn = document.getElementById('sp-series-save-btn');
   if(btn){btn.disabled=true;btn.textContent='⏳ Buche…';}
 
-  if(!window.db){toast('Firebase nicht bereit',true);if(btn){btn.disabled=false;btn.textContent='📅 Serienbuchung speichern';}return;}
-
-  const _doSave = async () => {
-
   let booked=0, skipped=0;
   try {
     for(let w=0; w<weeks; w++){
       for(const {di,h} of slots){
-        // Find the week offset for this date
-        const slotDate = new Date(startDate);
-        // Move to the right day of week in week w
         const weekStart = new Date(startDate);
         weekStart.setDate(startDate.getDate() + w*7);
-        // Find Monday of that week
         const dayOfWeek = weekStart.getDay()||7;
         weekStart.setDate(weekStart.getDate() - dayOfWeek + 1);
-        // Move to target day (di: 1=Mo,2=Di,3=Mi,4=Do)
-        const targetDate = new Date(weekStart);
-        targetDate.setDate(weekStart.getDate() + di - 1);
-
-        // Calc week offset from START
         const wo = Math.round((weekStart - START) / (7*86400000));
         if(wo<0||wo>=N_WEEKS) continue;
 
@@ -4515,16 +4498,14 @@ window.spSaveSeriesBooking = () => {
       }
     }
     spCloseSeriesModal();
-    toast(`${booked} Slots gebucht${skipped?` · ${skipped} übersprungen (voll/bereits gebucht)`:''} ✓`);
+    toast(`${booked} Slots gebucht${skipped?` · ${skipped} übersprungen`:''} ✓`);
     spRenderCalendar();
   } catch(e){
     toast('Fehler: '+e.message,true);
-    console.error('Series booking error:', e);
+    console.error(e);
   } finally {
     if(btn){btn.disabled=false;btn.textContent='📅 Serienbuchung speichern';}
   }
-  };
-  _doSave();
 };
 
 window.spToggleAtt=async(memberIndex,currentStatus)=>{
