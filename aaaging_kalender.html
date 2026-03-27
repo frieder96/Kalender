@@ -4478,15 +4478,26 @@ window.spSaveSeriesBooking = async () => {
 
   let booked=0, skipped=0;
   try {
-    for(let w=0; w<weeks; w++){
-      for(const {di,h} of slots){
-        const weekStart = new Date(startDate);
-        weekStart.setDate(startDate.getDate() + w*7);
-        const dayOfWeek = weekStart.getDay()||7;
-        weekStart.setDate(weekStart.getDate() - dayOfWeek + 1);
-        const wo = Math.round((weekStart - (window.START||new Date('2026-03-16'))) / (7*86400000));
-        if(wo<0||wo>=(window.N_WEEKS||96)) continue;
+    // spGetWeekDates uses offset relative to THIS week's Monday (wo=0 = this week)
+    // Calculate today's Monday
+    const todayDate = new Date();
+    const todayDay = todayDate.getDay()||7;
+    const todayMonday = new Date(todayDate);
+    todayMonday.setDate(todayDate.getDate() - todayDay + 1);
+    todayMonday.setHours(0,0,0,0);
 
+    // Calculate start week's Monday
+    const _startDay = startDate.getDay()||7;
+    const _startMonday = new Date(startDate);
+    _startMonday.setDate(startDate.getDate() - _startDay + 1);
+    _startMonday.setHours(0,0,0,0);
+
+    // wo = weeks from today's Monday to start Monday
+    const _startWo = Math.round((_startMonday - todayMonday) / (7*86400000));
+
+    for(let w=0; w<weeks; w++){
+      const wo = _startWo + w;
+      for(const {di,h} of slots){
         const key = spSKey(sid,di,h,wo);
         const data = spGetSD(sid,di,h,wo);
         if(data.members.includes(name)){skipped++;continue;}
