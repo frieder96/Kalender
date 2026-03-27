@@ -1296,7 +1296,9 @@ window._setDoc   = (...a) => setDoc(...a);
 
 // ── STUDY CONFIG ─────────────────
 const START   = new Date('2026-03-16');
+window.START  = START;
 const N_WEEKS = 96; // ~2 years to end of 2027
+window.N_WEEKS = N_WEEKS;
 
 // ── SLOT DEFINITIONS ─────────────
 const am = (h,m,a) => { const t=h*60+m+a; return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`; };
@@ -4482,8 +4484,8 @@ window.spSaveSeriesBooking = async () => {
         weekStart.setDate(startDate.getDate() + w*7);
         const dayOfWeek = weekStart.getDay()||7;
         weekStart.setDate(weekStart.getDate() - dayOfWeek + 1);
-        const wo = Math.round((weekStart - START) / (7*86400000));
-        if(wo<0||wo>=N_WEEKS) continue;
+        const wo = Math.round((weekStart - (window.START||new Date('2026-03-16'))) / (7*86400000));
+        if(wo<0||wo>=(window.N_WEEKS||96)) continue;
 
         const key = spSKey(sid,di,h,wo);
         const data = spGetSD(sid,di,h,wo);
