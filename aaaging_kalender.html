@@ -4423,6 +4423,84 @@ window.spOpenSeriesModal = (sid) => {
   document.getElementById('sp-series-overlay').style.display = 'flex';
 };
 
+window.spOpenDeleteSeriesModal = () => {
+  const probands = spGetProbands();
+  const curName = document.getElementById('sp-series-name')?.value || '';
+  const sel = document.getElementById('sp-del-name');
+  sel.innerHTML = '<option value="">— Proband auswählen —</option>' +
+    probands.map(p=>`<option value="${p.pid}" ${p.pid===curName?'selected':''}>${p.pid} · ${p.lnr||''}</option>`).join('');
+
+  // Default: today → +18 weeks
+  const today = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  const end = new Date(today); end.setDate(today.getDate()+7*18);
+  document.getElementById('sp-del-from').value = fmt(today);
+  document.getElementById('sp-del-to').value   = fmt(end);
+  document.getElementById('sp-del-preview').textContent = 'Zeitraum wählen um Vorschau zu sehen.';
+  document.getElementById('sp-del-series-overlay').style.display = 'flex';
+};
+
+window.spCloseDeleteSeriesModal = () => {
+  document.getElementById('sp-del-series-overlay').style.display = 'none';
+};
+
+window.spDeleteSeries = async () => {
+  const name    = document.getElementById('sp-del-name').value;
+  const fromStr = document.getElementById('sp-del-from').value;
+  const toStr   = document.getElementById('sp-del-to').value;
+  if(!name){toast('Bitte Proband auswählen',true);return;}
+  if(!fromStr||!toStr){toast('Bitte Zeitraum wählen',true);return;}
+
+  const fromDate = new Date(fromStr+'T12:00');
+  const toDate   = new Date(toStr+'T12:00');
+
+  // Find all sp_slots keys where proband is member, within date range
+  const todayDate = new Date();
+  const todayDay  = todayDate.getDay()||7;
+  const todayMon  = new Date(todayDate);
+  todayMon.setDate(todayDate.getDate()-todayDay+1);
+  todayMon.setHours(0,0,0,0);
+
+  const toDelete = [];
+  for(const [key, data] of Object.entries(SP_SLOTS_DATA)){
+    if(!data.members||!data.members.includes(name)) continue;
+    // Parse wo from key: s{sid}_d{di}_h{h}_w{wo}
+    const m = key.match(/_w(-?\d+)$/);
+    if(!m) continue;
+    const wo = parseInt(m[1]);
+    const slotMon = new Date(todayMon);
+    slotMon.setDate(todayMon.getDate() + wo*7);
+    if(slotMon < fromDate || slotMon > toDate) continue;
+    toDelete.push({key, data, wo});
+  }
+
+  if(!toDelete.length){toast('Keine Buchungen in diesem Zeitraum gefunden',true);return;}
+  if(!confirm(`${toDelete.length} Buchung(en) von ${name} wirklich löschen?`)) return;
+
+  const btn = document.getElementById('sp-del-series-btn');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Lösche…';}
+
+  let deleted=0;
+  try {
+    for(const {key, data} of toDelete){
+      const idx = data.members.indexOf(name);
+      const newMembers = data.members.filter((_,i)=>i!==idx);
+      const newAtt = (data.attendance||[]).filter((_,i)=>i!==idx);
+      const newData = {...data, members:newMembers, attendance:newAtt};
+      await window._setDoc(window._doc(window.db,'sp_slots',key),{key,...newData,updated:Date.now()});
+      deleted++;
+    }
+    spCloseDeleteSeriesModal();
+    spCloseSeriesModal();
+    toast(`${deleted} Buchung(en) gelöscht ✓`);
+    spRenderCalendar();
+  } catch(e){
+    toast('Fehler: '+e.message,true);
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent='🗑 Buchungen löschen';}
+  }
+};
+
 window.spCloseSeriesModal = () => {
   document.getElementById('sp-series-overlay').style.display = 'none';
 };
@@ -4787,7 +4865,46 @@ window.spExportAllExcel=()=>{
 
     <div style="display:flex;gap:8px">
       <button onclick="spCloseSeriesModal()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#888;font-size:12px;cursor:pointer">Abbrechen</button>
+      <button onclick="spOpenDeleteSeriesModal()" style="padding:11px 14px;border-radius:8px;border:1px solid #E8C0C8;background:#FDF2F4;color:#C8102E;font-size:12px;font-weight:700;cursor:pointer">🗑 Serie löschen</button>
       <button id="sp-series-save-btn" onclick="spSaveSeriesBooking()" style="flex:2;padding:11px;border-radius:8px;border:none;background:#003975;color:#fff;font-size:12px;font-weight:700;cursor:pointer">📅 Serienbuchung speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- SERIE LÖSCHEN MODAL -->
+<div id="sp-del-series-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:900;align-items:center;justify-content:center;backdrop-filter:blur(8px)" onclick="if(event.target===this)spCloseDeleteSeriesModal()">
+  <div style="background:#fff;border-radius:16px;padding:24px;width:min(480px,95vw);box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px">
+      <div>
+        <div style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif;color:#C8102E">Serie löschen</div>
+        <div style="font-size:11px;color:#BBB;margin-top:3px">Alle Buchungen eines Probanden im Zeitraum entfernen</div>
+      </div>
+      <button onclick="spCloseDeleteSeriesModal()" style="background:none;border:none;font-size:22px;color:#BBB;cursor:pointer">×</button>
+    </div>
+
+    <div style="margin-bottom:14px">
+      <label style="font-size:10px;letter-spacing:2px;color:#999;font-weight:600;display:block;margin-bottom:6px">PROBAND</label>
+      <select id="sp-del-name" style="width:100%;padding:10px 12px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">
+        <option value="">— Proband auswählen —</option>
+      </select>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div>
+        <label style="font-size:10px;letter-spacing:2px;color:#999;font-weight:600;display:block;margin-bottom:6px">VON WOCHE</label>
+        <input type="date" id="sp-del-from" style="width:100%;padding:10px 12px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">
+      </div>
+      <div>
+        <label style="font-size:10px;letter-spacing:2px;color:#999;font-weight:600;display:block;margin-bottom:6px">BIS WOCHE</label>
+        <input type="date" id="sp-del-to" style="width:100%;padding:10px 12px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">
+      </div>
+    </div>
+
+    <div id="sp-del-preview" style="background:#FDF2F4;border:1px solid #E8C0C8;border-radius:8px;padding:10px 14px;font-size:11px;color:#C8102E;margin-bottom:16px;min-height:36px"></div>
+
+    <div style="display:flex;gap:8px">
+      <button onclick="spCloseDeleteSeriesModal()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#888;font-size:12px;cursor:pointer">Abbrechen</button>
+      <button id="sp-del-series-btn" onclick="spDeleteSeries()" style="flex:2;padding:11px;border-radius:8px;border:none;background:#C8102E;color:#fff;font-size:12px;font-weight:700;cursor:pointer">🗑 Buchungen löschen</button>
     </div>
   </div>
 </div>
