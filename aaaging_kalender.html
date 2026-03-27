@@ -4471,8 +4471,11 @@ window.spSaveSeriesBooking = async () => {
   if(!slots.length){toast('Mindestens einen Slot hinzufügen',true);return;}
 
   const startDate = new Date(startStr+'T12:00');
-  const btn = document.querySelector('[onclick="spSaveSeriesBooking()"]');
+  const btn = document.getElementById('sp-series-save-btn');
   if(btn){btn.disabled=true;btn.textContent='⏳ Buche…';}
+
+  // Verify Firebase is ready
+  if(!window._setDoc||!window.db){toast('Firebase nicht bereit — bitte Seite neu laden',true);if(btn){btn.disabled=false;btn.textContent='📅 Serienbuchung speichern';}return;}
 
   let booked=0, skipped=0;
   try {
@@ -4502,8 +4505,7 @@ window.spSaveSeriesBooking = async () => {
           members:[...data.members,name],
           attendance:[...(data.attendance||data.members.map(()=>'pending')),'pending']
         };
-        const _db2=window.db||db;
-        await setDoc(doc(_db2,'sp_slots',key),{key,...newData,updated:Date.now()});
+        await window._setDoc(window._doc(window.db,'sp_slots',key),{key,...newData,updated:Date.now()});
         booked++;
       }
     }
@@ -4783,7 +4785,7 @@ window.spExportAllExcel=()=>{
 
     <div style="display:flex;gap:8px">
       <button onclick="spCloseSeriesModal()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#888;font-size:12px;cursor:pointer">Abbrechen</button>
-      <button onclick="spSaveSeriesBooking()" style="flex:2;padding:11px;border-radius:8px;border:none;background:#003975;color:#fff;font-size:12px;font-weight:700;cursor:pointer">📅 Serienbuchung speichern</button>
+      <button id="sp-series-save-btn" onclick="spSaveSeriesBooking()" style="flex:2;padding:11px;border-radius:8px;border:none;background:#003975;color:#fff;font-size:12px;font-weight:700;cursor:pointer">📅 Serienbuchung speichern</button>
     </div>
   </div>
 </div>
