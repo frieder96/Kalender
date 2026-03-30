@@ -3906,7 +3906,7 @@ function spRenderCalendar(){
             <span style="font-size:10px;color:${isFull?studio.color:'#CCC'};font-family:monospace">${mc}/${SP_MAX}</span>
             ${data.trainer?`<span style="font-size:8px;background:${studio.color};color:#fff;padding:2px 5px;border-radius:3px;font-weight:700">T</span>`:''}
           </div>
-          ${mc>0?`<div style="font-size:9px;color:#999;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${data.members[0]}${mc>1?` +${mc-1}`:''}</div>`:''}
+          ${mc>0?`<div style="font-size:9px;color:#999;line-height:1.4">${data.members.join(', ')}</div>`:''}
           <div style="display:flex;gap:3px">${dots}</div>
         </button>`;
       }).join('');
@@ -3942,7 +3942,7 @@ function spRenderCalendar(){
             if(!s.days.includes(di)) return `<div style="height:48px;background:#F5F2ED;border-radius:8px;border:1px solid #EAE7E2"></div>`;
             const data=SP_SLOTS_DATA[spSKey(s.id,di,hour,spWeekOff)]||{members:[],trainer:null};
             const mc=data.members.length,isFull=mc>=SP_MAX;
-            return `<div style="height:48px;border-radius:8px;position:relative;overflow:hidden;border:1px solid ${isFull?s.color+'88':mc>0?s.color+'44':'#E8E4DE'};background:${mc>0?`linear-gradient(to top,${s.color}18 0%,#fff 100%)`:'#fff'};padding:5px 8px;font-size:9px;color:#888">${mc>0?data.members[0]:''}</div>`;
+            return `<div style="min-height:48px;border-radius:8px;position:relative;overflow:hidden;border:1px solid ${isFull?s.color+'88':mc>0?s.color+'44':'#E8E4DE'};background:${mc>0?`linear-gradient(to top,${s.color}18 0%,#fff 100%)`:'#fff'};padding:5px 8px;font-size:9px;color:#888;line-height:1.5">${mc>0?data.members.join('<br>'):''}</div>`;
           }).join('');
           return `<div style="display:grid;grid-template-columns:56px repeat(4,1fr);gap:5px;margin-bottom:5px">
             <div style="display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#CCC;font-size:10px;font-family:monospace">${hour}:00</div>${cells}</div>`;
@@ -4365,9 +4365,11 @@ window.spSaveDayTrainer = async () => {
   try {
     if(name) {
       await window._setDoc(window._doc(window.db,'sp_day_trainers',dtKey),{key:dtKey,sid:spActiveStudio,di,wo:spWeekOff,name,updated:Date.now()});
+      SP_DAY_TRAINERS[dtKey] = {key:dtKey,sid:spActiveStudio,di,wo:spWeekOff,name,_id:dtKey};
       toast(`Trainer ${name} für ${SP_DAY_NAMES[di]} gesetzt ✓`);
     } else {
       await window._deleteDoc(window._doc(window.db,'sp_day_trainers',dtKey));
+      delete SP_DAY_TRAINERS[dtKey];
       toast('Trainer entfernt ✓');
     }
     spCloseTrainModal(); spRenderCalendar();
