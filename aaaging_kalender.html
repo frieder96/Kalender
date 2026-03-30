@@ -4218,15 +4218,15 @@ window.spSaveTrainLog = async () => {
   const existing = spGetTrainLog(ctx.sid,ctx.di,ctx.h,ctx.wo,ctx.proband);
   const data = {key,sid:ctx.sid,di:ctx.di,h:ctx.h,wo:ctx.wo,proband:ctx.proband||'',exercises,updated:Date.now()};
   try {
-    if(existing) await setDoc(doc(_db,'training_logs',existing._id),data);
-    else await addDoc(collection(_db,'training_logs'),{...data,created:Date.now()});
+    if(existing) await window._setDoc(window._doc(window.db,'training_logs',existing._id),data);
+    else await window._addDoc(window._col(window.db,'training_logs'),{...data,created:Date.now()});
     spCloseTrainModal(); toast('Protokoll gespeichert ✓');
   } catch(e){toast('Fehler: '+e.message,true);}
 };
 
 window.spDeleteTrainLog = async (id) => {
   if(!confirm('Protokoll wirklich löschen?')) return;
-  try { const _db=window.db||db; await deleteDoc(doc(_db,'training_logs',id)); spCloseTrainModal(); toast('Protokoll gelöscht'); }
+  try { await window._deleteDoc(window._doc(window.db,'training_logs',id)); spCloseTrainModal(); toast('Protokoll gelöscht'); }
   catch(e){toast('Fehler: '+e.message,true);}
 };
 
@@ -4290,8 +4290,8 @@ window.spSaveTemplate = async (phase) => {
   const existing = Object.values(SP_TRAINING_TEMPLATES).find(t=>t.phase===phase);
   try {
     const _db=window.db||db;
-    if(existing) await setDoc(doc(_db,'training_templates',existing._id),{phase,exercises,updated:Date.now()});
-    else await addDoc(collection(_db,'training_templates'),{phase,exercises,created:Date.now()});
+    if(existing) await window._setDoc(window._doc(window.db,'training_templates',existing._id),{phase,exercises,updated:Date.now()});
+    else await window._addDoc(window._col(window.db,'training_templates'),{phase,exercises,created:Date.now()});
     toast(`Phase ${phase} Template gespeichert ✓`);
   } catch(e){toast('Fehler: '+e.message,true);}
 };
