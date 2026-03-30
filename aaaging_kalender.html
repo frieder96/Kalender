@@ -4333,7 +4333,7 @@ window.spOpenDayTrainerModal = (di) => {
   const teamOpts = Object.values(teamData).sort((a,b)=>a.name.localeCompare(b.name))
     .map(m=>`<option value="${m.name}" ${existing?.name===m.name?'selected':''}>${m.name}${m.role?' · '+m.role:''}</option>`).join('');
 
-  const modal = document.getElementById('sp-train-modal');
+  const modal = document.getElementById('sp-daytrainer-modal');
   modal.innerHTML = `
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
       <div>
@@ -4341,7 +4341,7 @@ window.spOpenDayTrainerModal = (di) => {
         <div style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif">Trainer für ${dateLabel}</div>
         <div style="font-size:11px;color:#BBB;margin-top:2px">Gilt für alle Slots dieses Tages</div>
       </div>
-      <button onclick="spCloseTrainModal()" style="background:none;border:none;font-size:22px;color:#BBB;cursor:pointer">×</button>
+      <button onclick="spCloseDayTrainerModal()" style="background:none;border:none;font-size:22px;color:#BBB;cursor:pointer">×</button>
     </div>
     <div style="margin-bottom:16px">
       <label style="font-size:10px;letter-spacing:2px;color:#999;font-weight:600;display:block;margin-bottom:8px">TRAINER AUSWÄHLEN</label>
@@ -4351,12 +4351,14 @@ window.spOpenDayTrainerModal = (di) => {
       </select>
     </div>
     <div style="display:flex;gap:8px">
-      <button onclick="spCloseTrainModal()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#888;font-size:12px;cursor:pointer">Abbrechen</button>
+      <button onclick="spCloseDayTrainerModal()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#888;font-size:12px;cursor:pointer">Abbrechen</button>
       ${existing?`<button onclick="spDeleteDayTrainer('${existing._id}')" style="padding:11px 14px;border-radius:8px;border:1px solid #E8C0C8;background:#FDF2F4;color:#C8102E;font-size:12px;font-weight:700;cursor:pointer">Entfernen</button>`:''}
       <button onclick="spSaveDayTrainer()" style="flex:2;padding:11px;border-radius:8px;border:none;background:${studio?.color||'#003975'};color:#fff;font-size:12px;font-weight:700;cursor:pointer">💾 Speichern</button>
     </div>`;
-  document.getElementById('sp-train-overlay').style.display='flex';
+  document.getElementById('sp-daytrainer-overlay').style.display='flex';
 };
+
+window.spCloseDayTrainerModal = () => { document.getElementById('sp-daytrainer-overlay').style.display='none'; };
 
 window.spSaveDayTrainer = async () => {
   const {di} = _spDayTrainerCtx;
@@ -4372,14 +4374,14 @@ window.spSaveDayTrainer = async () => {
       delete SP_DAY_TRAINERS[dtKey];
       toast('Trainer entfernt ✓');
     }
-    spCloseTrainModal(); spRenderCalendar();
+    spCloseDayTrainerModal(); spRenderCalendar();
   } catch(e){toast('Fehler: '+e.message,true);}
 };
 
 window.spDeleteDayTrainer = async (id) => {
   try {
     await window._deleteDoc(window._doc(window.db,'sp_day_trainers',id));
-    toast('Trainer entfernt ✓'); spCloseTrainModal(); spRenderCalendar();
+    toast('Trainer entfernt ✓'); spCloseDayTrainerModal(); spRenderCalendar();
   } catch(e){toast('Fehler: '+e.message,true);}
 };
 
@@ -4911,6 +4913,10 @@ window.spExportAllExcel=()=>{
     </div>
   </div>
 </div>
+<div id="sp-daytrainer-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:750;align-items:center;justify-content:center;backdrop-filter:blur(8px)" onclick="if(event.target===this)spCloseDayTrainerModal()">
+  <div id="sp-daytrainer-modal" style="background:#fff;border-radius:16px;padding:24px;width:min(420px,95vw);box-shadow:0 20px 60px rgba(0,0,0,.3)"></div>
+</div>
+
 <div id="sp-train-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:700;align-items:center;justify-content:center;backdrop-filter:blur(8px)" onclick="if(event.target===this)spCloseTrainModal()">
   <div id="sp-train-modal" style="background:#fff;border-radius:16px;padding:24px;width:min(540px,95vw);max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)"></div>
 </div>
