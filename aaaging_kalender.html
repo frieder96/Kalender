@@ -1100,6 +1100,12 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       </div>
 
       <div class="fg"><label class="fl">Durchgeführt von <span style="font-weight:400;color:var(--g4)">(optional)</span></label><select class="fi" id="ir-person"><option value="">— Person auswählen —</option></select></div>
+      <div class="fg"><label class="fl">Sachets ausgegeben <span style="font-weight:400;color:var(--g4)">(optional)</span></label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input class="fi" type="number" id="ir-sachets" min="0" max="99" placeholder="z. B. 14" style="width:120px">
+          <span style="font-size:12px;color:var(--g5)">Sachets</span>
+        </div>
+      </div>
       <div class="fg"><label class="fl">Notiz</label><textarea class="notiz-box" id="ir-note" placeholder="z. B. telefonisch, vor Ort …"></textarea></div>
     </div>
     <div class="mftr"><button class="btn btn-sm" onclick="closeRecall()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveRecall()">Speichern</button></div>
@@ -2071,6 +2077,7 @@ function renderRecalls() {
           ${p?`<span class="pbadge">${p.pid}</span><span class="lbadge">${p.lnr}</span>`:`<span style="color:var(--g4);font-size:12px">Proband nicht gefunden</span>`}
           <span style="font-family:monospace;font-size:12px;color:var(--bk);font-weight:700">${r.date?new Date(r.date).toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}):''}</span>
           ${r.time?`<span style="font-family:monospace;font-size:12px;color:var(--g5)">${r.time} Uhr</span>`:''}
+          ${r.sachets?`<span style="font-size:11px;font-weight:700;color:#2E7D32;background:#E8F5E9;border:1px solid #A5D6A7;border-radius:99px;padding:1px 8px">💊 ${r.sachets} Sachets</span>`:''}
           ${r.person?(()=>{const m=TEAM[r.person];return m?`<span style="font-size:11px;font-weight:600;color:var(--ub);background:var(--ubl);border:1px solid var(--t1bd);border-radius:99px;padding:1px 8px">${m.name}</span>`:'';})():''}
           ${r.note?`<span style="font-size:12px;color:var(--g5);font-style:italic">· ${r.note}</span>`:''}
         </div>
@@ -2407,6 +2414,7 @@ window.openAddRecall = () => {
   document.getElementById('recall-modal-title').textContent='24h Recall eintragen';
   document.getElementById('ir-date').value='';
   document.getElementById('ir-time').value='';
+  document.getElementById('ir-sachets').value='';
   document.getElementById('ir-note').value='';
   const sel=document.getElementById('ir-pid');
   sel.innerHTML='<option value="">— Proband auswählen —</option>'+
@@ -2425,6 +2433,7 @@ window.openEditRecall = id => {
     Object.values(P).sort((a,b)=>a.lnr.localeCompare(b.lnr)).map(p=>`<option value="${p._id}" ${p._id===r.pid?'selected':''}>${p.pid} · ${p.lnr}</option>`).join('');
   document.getElementById('ir-date').value=r.date||'';
   document.getElementById('ir-time').value=r.time||'';
+  document.getElementById('ir-sachets').value=r.sachets||'';
   document.getElementById('ir-note').value=r.note||'';
   document.getElementById('ir-person').innerHTML='<option value="">— Person auswählen —</option>'+
     Object.values(TEAM).sort((a,b)=>a.name.localeCompare(b.name)).map(m=>`<option value="${m._id}" ${m._id===r.person?'selected':''}>${m.name}${m.role?' · '+m.role:''}</option>`).join('');
@@ -2439,8 +2448,9 @@ window.saveRecall = async () => {
   const time=document.getElementById('ir-time').value;
   const note=document.getElementById('ir-note').value.trim();
   const person=document.getElementById('ir-person').value;
+  const sachets=document.getElementById('ir-sachets').value;
   if(!pid||!date){toast('Proband und Datum sind Pflicht',true);return;}
-  const data={pid,date,time,note,person,updated:Date.now()};
+  const data={pid,date,time,note,person,sachets:sachets?parseInt(sachets):null,updated:Date.now()};
   try {
     if(recallEditId){ await updateDoc(doc(db,'recalls',recallEditId),data); }
     else { await addDoc(collection(db,'recalls'),{...data,created:Date.now()}); }
