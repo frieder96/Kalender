@@ -3830,16 +3830,10 @@ function spPColor(c,t){ const p=c/t; return p>=1?'#B8860B':p>=.75?'#2E9E7A':p>=.
 window.spRenderProtokolle = () => {
   const el = document.getElementById('sp-proto-root'); if(!el) return;
 
-  // Get all probands that have logs
   const allLogs = Object.values(SP_TRAINING_LOGS).sort((a,b)=>a.wo-b.wo||(a.di-b.di));
   const byProband = {};
-  allLogs.forEach(log=>{
-    const pid = log.proband||'?';
-    if(!byProband[pid]) byProband[pid]=[];
-    byProband[pid].push(log);
-  });
+  allLogs.forEach(log=>{ const pid=log.proband||'?'; if(!byProband[pid]) byProband[pid]=[]; byProband[pid].push(log); });
 
-  // Filter selector
   const allPids = Object.keys(byProband).sort();
   let selectedPid = el.dataset.selected || allPids[0] || '';
 
@@ -3847,43 +3841,65 @@ window.spRenderProtokolle = () => {
     el.dataset.selected = pid;
     const logs = byProband[pid] || [];
     const SP_DAY_NAMES_MAP = {1:'Montag',2:'Dienstag',3:'Mittwoch',4:'Donnerstag'};
-
     if(!logs.length) return `<div style="padding:2rem;text-align:center;color:var(--g4);font-style:italic">Keine Protokolle für ${pid}</div>`;
 
-    return logs.map(log=>{
+    return logs.map((log,li)=>{
       const dates = spGetWeekDates(log.wo);
       const date = dates[log.di-1];
       const dateStr = date ? spFmtDate(date)+'.'+date.getFullYear() : '?';
       const dayName = SP_DAY_NAMES_MAP[log.di]||'';
       const studio = SP_STUDIOS.find(s=>s.id===log.sid);
+      const logId = log._id;
 
-      return `<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);margin-bottom:12px;overflow:hidden;box-shadow:var(--sh)">
+      const exRows = (log.exercises||[]).map((ex,ei)=>`
+        <tr style="border-bottom:1px solid var(--g1);background:${ei%2?'var(--g1)':'#fff'}">
+          <td style="padding:6px 8px;font-weight:600;color:var(--bk);font-size:12px">${ex.name}</td>
+          ${[0,1,2].map(si=>{
+            const s=(ex.sets||[])[si]||{};
+            return `<td style="padding:4px 6px">
+              <div style="display:flex;gap:3px;align-items:center;justify-content:center">
+                <input data-lid="${logId}" data-ei="${ei}" data-si="${si}" data-f="reps"
+                  value="${s.reps||''}" placeholder="—" type="number" min="0"
+                  style="width:44px;padding:3px 5px;border:1px solid var(--g2);border-radius:4px;font-size:11px;text-align:center;outline:none"
+                  oninput="spProtoMarkDirty('${logId}')">
+                <span style="font-size:10px;color:var(--g4)">×</span>
+                <input data-lid="${logId}" data-ei="${ei}" data-si="${si}" data-f="weight"
+                  value="${s.weight||''}" placeholder="—" type="number" min="0" step="0.5"
+                  style="width:48px;padding:3px 5px;border:1px solid var(--g2);border-radius:4px;font-size:11px;text-align:center;outline:none"
+                  oninput="spProtoMarkDirty('${logId}')">
+                <span style="font-size:10px;color:var(--g4)">kg</span>
+              </div>
+            </td>`;
+          }).join('')}
+          <td style="padding:4px 6px">
+            <input data-lid="${logId}" data-ei="${ei}" data-f="note"
+              value="${(ex.note||'').replace(/"/g,'&quot;')}" placeholder="Notiz…" type="text"
+              style="width:100%;padding:3px 6px;border:1px solid var(--g2);border-radius:4px;font-size:11px;outline:none"
+              oninput="spProtoMarkDirty('${logId}')">
+          </td>
+        </tr>`).join('');
+
+      return `<div id="proto-card-${logId}" style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);margin-bottom:12px;overflow:hidden;box-shadow:var(--sh)">
         <div style="background:${studio?.color||'#003975'}18;border-bottom:1px solid ${studio?.color||'#003975'}30;padding:10px 16px;display:flex;align-items:center;gap:12px">
           <span style="font-size:12px;font-weight:700;color:${studio?.color||'#003975'}">${studio?.name||'Studio'}</span>
           <span style="font-size:12px;color:var(--g5)">${dayName}, ${dateStr} · ${log.h}:00 Uhr</span>
-          <span style="margin-left:auto;font-size:11px;color:var(--g4)">KW ${log.wo>=0?'+':'-'}${Math.abs(log.wo)}</span>
+          <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
+            <span id="proto-saved-${logId}" style="font-size:11px;color:#4CAF80;display:none">✓ Gespeichert</span>
+            ${isAdmin()?`<button id="proto-save-btn-${logId}" onclick="spProtoSave('${logId}')"
+              style="padding:4px 12px;border-radius:6px;border:none;background:var(--ub);color:#fff;font-size:11px;font-weight:700;cursor:pointer;opacity:0.3;pointer-events:none">Speichern</button>`:''}
+          </span>
         </div>
-        <div style="padding:12px 16px">
-          ${!log.exercises?.length ? '<div style="font-size:12px;color:var(--g4);font-style:italic">Keine Übungen eingetragen</div>' :
-          `<table style="width:100%;border-collapse:collapse;font-size:12px">
-            <thead>
-              <tr style="border-bottom:2px solid var(--g2)">
-                <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">ÜBUNG</th>
-                <th style="text-align:center;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">SATZ 1</th>
-                <th style="text-align:center;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">SATZ 2</th>
-                <th style="text-align:center;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">SATZ 3</th>
-                <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">NOTIZ</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${log.exercises.map((ex,i)=>`
-                <tr style="border-bottom:1px solid var(--g1);background:${i%2?'var(--g1)':'#fff'}">
-                  <td style="padding:6px 8px;font-weight:600;color:var(--bk)">${ex.name}</td>
-                  ${(ex.sets||[]).map(s=>`<td style="text-align:center;padding:6px 8px;color:var(--g6)">${s.reps?`${s.reps}×${s.weight}kg`:'—'}</td>`).join('')}
-                  <td style="padding:6px 8px;color:var(--g5);font-style:italic">${ex.note||''}</td>
-                </tr>`).join('')}
-            </tbody>
-          </table>`}
+        <div style="padding:12px 16px;overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;min-width:500px">
+            <thead><tr style="border-bottom:2px solid var(--g2)">
+              <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">ÜBUNG</th>
+              <th style="text-align:center;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">SATZ 1</th>
+              <th style="text-align:center;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">SATZ 2</th>
+              <th style="text-align:center;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">SATZ 3</th>
+              <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">NOTIZ</th>
+            </tr></thead>
+            <tbody>${exRows}</tbody>
+          </table>
         </div>
       </div>`;
     }).join('');
@@ -3903,10 +3919,36 @@ window.spRenderProtokolle = () => {
     el.dataset.selected = pid;
     const entries = document.getElementById('sp-proto-entries');
     if(entries) entries.innerHTML = renderContent(pid);
-    const countEl = el.querySelector('span[style*="color:var(--g4)"]');
-    if(countEl) countEl.textContent = `${byProband[pid]?.length||0} Einträge`;
   };
 };
+
+window.spProtoMarkDirty = (logId) => {
+  const btn = document.getElementById(`proto-save-btn-${logId}`);
+  if(btn){ btn.style.opacity='1'; btn.style.pointerEvents='auto'; }
+  const saved = document.getElementById(`proto-saved-${logId}`);
+  if(saved) saved.style.display='none';
+};
+
+window.spProtoSave = async (logId) => {
+  const log = SP_TRAINING_LOGS[logId]; if(!log) return;
+  const exercises = (log.exercises||[]).map((ex,ei)=>{
+    const sets=[0,1,2].map(si=>({
+      reps:  document.querySelector(`[data-lid="${logId}"][data-ei="${ei}"][data-si="${si}"][data-f="reps"]`)?.value||'',
+      weight:document.querySelector(`[data-lid="${logId}"][data-ei="${ei}"][data-si="${si}"][data-f="weight"]`)?.value||''
+    }));
+    const note = document.querySelector(`[data-lid="${logId}"][data-ei="${ei}"][data-f="note"]`)?.value||'';
+    return {name:ex.name, sets, note};
+  });
+  const btn = document.getElementById(`proto-save-btn-${logId}`);
+  if(btn){btn.textContent='⏳';btn.style.pointerEvents='none';}
+  try {
+    await window._setDoc(window._doc(window.db,'training_logs',logId),{...log,exercises,updated:Date.now()});
+    if(btn){btn.textContent='Speichern';btn.style.opacity='0.3';btn.style.pointerEvents='none';}
+    const saved=document.getElementById(`proto-saved-${logId}`);
+    if(saved){saved.style.display='';setTimeout(()=>saved.style.display='none',2500);}
+  } catch(e){toast('Fehler: '+e.message,true);if(btn){btn.textContent='Speichern';btn.style.pointerEvents='auto';}}
+};
+
 
 window.spSwitch=(id,btn)=>{
   ['sp-probanden','sp-calendar','sp-protokolle','sp-5rm'].forEach(t=>{
