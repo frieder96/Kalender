@@ -1095,16 +1095,17 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div class="mbody">
       <div class="fg"><label class="fl">Proband</label><select class="fi" id="ir-pid"></select></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="fg"><label class="fl">Datum</label><input class="fi" type="date" id="ir-date"></div>
+        <div class="fg"><label class="fl">Datum</label><input class="fi" type="date" id="ir-date" oninput="recalcSachetEnd()"></div>
         <div class="fg"><label class="fl">Uhrzeit</label><input class="fi" type="time" id="ir-time"></div>
       </div>
 
       <div class="fg"><label class="fl">Durchgeführt von <span style="font-weight:400;color:var(--g4)">(optional)</span></label><select class="fi" id="ir-person"><option value="">— Person auswählen —</option></select></div>
       <div class="fg"><label class="fl">Sachets ausgegeben <span style="font-weight:400;color:var(--g4)">(optional)</span></label>
         <div style="display:flex;align-items:center;gap:8px">
-          <input class="fi" type="number" id="ir-sachets" min="0" max="99" placeholder="z. B. 14" style="width:120px">
-          <span style="font-size:12px;color:var(--g5)">Sachets</span>
+          <input class="fi" type="number" id="ir-sachets" min="0" max="999" placeholder="z. B. 14" style="width:120px" oninput="recalcSachetEnd()">
+          <span style="font-size:12px;color:var(--g5)">Sachets (1 pro Tag)</span>
         </div>
+        <div id="ir-sachet-end" style="margin-top:6px;font-size:12px;color:#2E7D32;font-weight:600;display:none"></div>
       </div>
       <div class="fg"><label class="fl">Notiz</label><textarea class="notiz-box" id="ir-note" placeholder="z. B. telefonisch, vor Ort …"></textarea></div>
     </div>
@@ -2077,8 +2078,7 @@ function renderRecalls() {
           ${p?`<span class="pbadge">${p.pid}</span><span class="lbadge">${p.lnr}</span>`:`<span style="color:var(--g4);font-size:12px">Proband nicht gefunden</span>`}
           <span style="font-family:monospace;font-size:12px;color:var(--bk);font-weight:700">${r.date?new Date(r.date).toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}):''}</span>
           ${r.time?`<span style="font-family:monospace;font-size:12px;color:var(--g5)">${r.time} Uhr</span>`:''}
-          ${r.sachets?`<span style="font-size:11px;font-weight:700;color:#2E7D32;background:#E8F5E9;border:1px solid #A5D6A7;border-radius:99px;padding:1px 8px">💊 ${r.sachets} Sachets</span>`:''}
-          ${r.person?(()=>{const m=TEAM[r.person];return m?`<span style="font-size:11px;font-weight:600;color:var(--ub);background:var(--ubl);border:1px solid var(--t1bd);border-radius:99px;padding:1px 8px">${m.name}</span>`:'';})():''}
+          ${r.sachets?`<span style="font-size:11px;font-weight:700;color:#2E7D32;background:#E8F5E9;border:1px solid #A5D6A7;border-radius:99px;padding:1px 8px">💊 ${r.sachets} Sachets</span>${(()=>{const end=new Date(r.date+'T12:00');end.setDate(end.getDate()+r.sachets-1);return `<span style="font-size:11px;color:#2E7D32">→ leer ${end.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'})}</span>`;})()}`:''}          ${r.person?(()=>{const m=TEAM[r.person];return m?`<span style="font-size:11px;font-weight:600;color:var(--ub);background:var(--ubl);border:1px solid var(--t1bd);border-radius:99px;padding:1px 8px">${m.name}</span>`:'';})():''}
           ${r.note?`<span style="font-size:12px;color:var(--g5);font-style:italic">· ${r.note}</span>`:''}
         </div>
         ${isAdmin()?`<div style="display:flex;gap:5px"><button class="btn btn-xs" onclick="openEditRecall('${r._id}')">Bearbeiten</button><button class="btn btn-xs btn-d" onclick="delRecall('${r._id}')">Löschen</button></div>`:''}
@@ -2415,6 +2415,7 @@ window.openAddRecall = () => {
   document.getElementById('ir-date').value='';
   document.getElementById('ir-time').value='';
   document.getElementById('ir-sachets').value='';
+  const _sed=document.getElementById('ir-sachet-end');if(_sed)_sed.style.display='none';
   document.getElementById('ir-note').value='';
   const sel=document.getElementById('ir-pid');
   sel.innerHTML='<option value="">— Proband auswählen —</option>'+
@@ -2435,12 +2436,27 @@ window.openEditRecall = id => {
   document.getElementById('ir-time').value=r.time||'';
   document.getElementById('ir-sachets').value=r.sachets||'';
   document.getElementById('ir-note').value=r.note||'';
+  setTimeout(recalcSachetEnd,0);
   document.getElementById('ir-person').innerHTML='<option value="">— Person auswählen —</option>'+
     Object.values(TEAM).sort((a,b)=>a.name.localeCompare(b.name)).map(m=>`<option value="${m._id}" ${m._id===r.person?'selected':''}>${m.name}${m.role?' · '+m.role:''}</option>`).join('');
   document.getElementById('recall-modal').classList.add('open');
 };
 
 window.closeRecall = () => { document.getElementById('recall-modal').classList.remove('open'); recallEditId=null; };
+
+window.recalcSachetEnd = () => {
+  const date = document.getElementById('ir-date').value;
+  const sachets = parseInt(document.getElementById('ir-sachets').value)||0;
+  const el = document.getElementById('ir-sachet-end');
+  if(!el) return;
+  if(!date || !sachets){ el.style.display='none'; return; }
+  const start = new Date(date+'T12:00');
+  const end = new Date(start);
+  end.setDate(start.getDate() + sachets - 1);
+  const endStr = end.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+  el.textContent = `📅 Leer am: ${endStr}`;
+  el.style.display = 'block';
+};
 
 window.saveRecall = async () => {
   const pid=document.getElementById('ir-pid').value;
