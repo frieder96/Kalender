@@ -937,6 +937,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <div class="sp-sub-nav">
           <button class="sp-snav-btn on" onclick="spSwitch('sp-probanden',this)">👥 Probanden</button>
           <button class="sp-snav-btn"    onclick="spSwitch('sp-calendar',this)">📅 Buchungskalender</button>
+          <button class="sp-snav-btn"    onclick="spSwitch('sp-protokolle',this)">📋 Protokolle</button>
           <button class="sp-snav-btn"    onclick="spSwitch('sp-5rm',this)">💪 5RM Diagnostik</button>
           <button class="sp-snav-btn" id="sp-tmpl-btn" onclick="spOpenTemplateManager()" style="display:none">⚙️ Übungs-Templates</button>
           <button class="sp-snav-btn" onclick="spOpenDeleteSeriesModal()" style="color:#C8102E;border-color:#E8C0C8">🗑 Serie löschen</button>
@@ -944,6 +945,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 
         <div id="sp-probanden"><div id="sp-pv-react-root"></div></div>
         <div id="sp-calendar" style="display:none"><div id="sp-cal-react-root"></div></div>
+        <div id="sp-protokolle" style="display:none"><div id="sp-proto-root"></div></div>
 
         <div id="sp-5rm" style="display:none">
           <div class="app-5rm">
@@ -3778,14 +3780,96 @@ function spCountAll(pid){
 function spPColor(c,t){ const p=c/t; return p>=1?'#B8860B':p>=.75?'#2E9E7A':p>=.5?'#C8873A':p>=.25?'#888':'#BBB'; }
 
 // ── SUB-TAB SWITCH ─────────────────────────
+window.spRenderProtokolle = () => {
+  const el = document.getElementById('sp-proto-root'); if(!el) return;
+
+  // Get all probands that have logs
+  const allLogs = Object.values(SP_TRAINING_LOGS).sort((a,b)=>a.wo-b.wo||(a.di-b.di));
+  const byProband = {};
+  allLogs.forEach(log=>{
+    const pid = log.proband||'?';
+    if(!byProband[pid]) byProband[pid]=[];
+    byProband[pid].push(log);
+  });
+
+  // Filter selector
+  const allPids = Object.keys(byProband).sort();
+  let selectedPid = el.dataset.selected || allPids[0] || '';
+
+  const renderContent = (pid) => {
+    el.dataset.selected = pid;
+    const logs = byProband[pid] || [];
+    const SP_DAY_NAMES_MAP = {1:'Montag',2:'Dienstag',3:'Mittwoch',4:'Donnerstag'};
+
+    if(!logs.length) return `<div style="padding:2rem;text-align:center;color:var(--g4);font-style:italic">Keine Protokolle für ${pid}</div>`;
+
+    return logs.map(log=>{
+      const dates = spGetWeekDates(log.wo);
+      const date = dates[log.di-1];
+      const dateStr = date ? spFmtDate(date)+'.'+date.getFullYear() : '?';
+      const dayName = SP_DAY_NAMES_MAP[log.di]||'';
+      const studio = SP_STUDIOS.find(s=>s.id===log.sid);
+
+      return `<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);margin-bottom:12px;overflow:hidden;box-shadow:var(--sh)">
+        <div style="background:${studio?.color||'#003975'}18;border-bottom:1px solid ${studio?.color||'#003975'}30;padding:10px 16px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:12px;font-weight:700;color:${studio?.color||'#003975'}">${studio?.name||'Studio'}</span>
+          <span style="font-size:12px;color:var(--g5)">${dayName}, ${dateStr} · ${log.h}:00 Uhr</span>
+          <span style="margin-left:auto;font-size:11px;color:var(--g4)">KW ${log.wo>=0?'+':'-'}${Math.abs(log.wo)}</span>
+        </div>
+        <div style="padding:12px 16px">
+          ${!log.exercises?.length ? '<div style="font-size:12px;color:var(--g4);font-style:italic">Keine Übungen eingetragen</div>' :
+          `<table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+              <tr style="border-bottom:2px solid var(--g2)">
+                <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">ÜBUNG</th>
+                <th style="text-align:center;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">SATZ 1</th>
+                <th style="text-align:center;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">SATZ 2</th>
+                <th style="text-align:center;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">SATZ 3</th>
+                <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--g5);font-weight:600">NOTIZ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${log.exercises.map((ex,i)=>`
+                <tr style="border-bottom:1px solid var(--g1);background:${i%2?'var(--g1)':'#fff'}">
+                  <td style="padding:6px 8px;font-weight:600;color:var(--bk)">${ex.name}</td>
+                  ${(ex.sets||[]).map(s=>`<td style="text-align:center;padding:6px 8px;color:var(--g6)">${s.reps?`${s.reps}×${s.weight}kg`:'—'}</td>`).join('')}
+                  <td style="padding:6px 8px;color:var(--g5);font-style:italic">${ex.note||''}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>`}
+        </div>
+      </div>`;
+    }).join('');
+  };
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <label style="font-size:11px;font-weight:600;color:var(--g5)">Proband:</label>
+      <select onchange="window._spProtoSel(this.value)" style="padding:7px 12px;border:1px solid var(--g2);border-radius:var(--r);font-size:13px;outline:none;min-width:160px">
+        ${allPids.length ? allPids.map(pid=>`<option value="${pid}" ${pid===selectedPid?'selected':''}>${pid}</option>`).join('') : '<option>Keine Protokolle</option>'}
+      </select>
+      <span style="font-size:11px;color:var(--g4)">${byProband[selectedPid]?.length||0} Einträge</span>
+    </div>
+    <div id="sp-proto-entries">${renderContent(selectedPid)}</div>`;
+
+  window._spProtoSel = (pid) => {
+    el.dataset.selected = pid;
+    const entries = document.getElementById('sp-proto-entries');
+    if(entries) entries.innerHTML = renderContent(pid);
+    const countEl = el.querySelector('span[style*="color:var(--g4)"]');
+    if(countEl) countEl.textContent = `${byProband[pid]?.length||0} Einträge`;
+  };
+};
+
 window.spSwitch=(id,btn)=>{
-  ['sp-probanden','sp-calendar','sp-5rm'].forEach(t=>{
+  ['sp-probanden','sp-calendar','sp-protokolle','sp-5rm'].forEach(t=>{
     const el=document.getElementById(t); if(el) el.style.display=t===id?'block':'none';
   });
   document.querySelectorAll('.sp-snav-btn').forEach(b=>b.classList.remove('on'));
   if(btn) btn.classList.add('on');
   if(id==='sp-probanden') spRenderProbanden();
   if(id==='sp-calendar')  spRenderCalendar();
+  if(id==='sp-protokolle') spRenderProtokolle();
   if(id==='sp-5rm')       spRenderClientList();
 };
 
