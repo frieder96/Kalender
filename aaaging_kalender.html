@@ -4831,18 +4831,97 @@ function spRenderClientList(){
     </div>`;
   }).join('');
 }
+let _sp5rmSlotCtx = null;
 window.spOpen5rmFromSlot = (name) => {
-  // Find the sp_probands ID for this proband name (pid)
+  _sp5rmSlotCtx = {name};
   const match = Object.values(SP_PROBANDS).find(p=>p.pid===name);
-  const pid = match?._id || name;
-  // Close slot modal, switch to 5RM tab and select proband
-  document.getElementById('sp-slot-overlay').style.display='none';
-  spSwitch('sp-5rm', document.querySelector('.sp-snav-btn[onclick*="sp-5rm"]'));
-  if(match) { spSelectClient(match._id); }
-  else {
-    // Proband not yet in sp_probands, just navigate to 5RM tab
-    toast(`5RM-Tab geöffnet — ${name} noch keine Daten`, false);
-  }
+  const existing = match?.sessions?.length ? [...match.sessions].sort((a,b)=>b.date.localeCompare(a.date))[0] : null;
+  const studio = SP_STUDIOS.find(s=>s.id===spActiveStudio);
+
+  const exRows = SP_EXERCISES.map(ex=>{
+    const prev = existing?.results?.[ex.id];
+    return `<div style="background:#F8F5F0;border-radius:10px;padding:12px;margin-bottom:8px">
+      <div style="font-size:12px;font-weight:700;color:#1A1A1A;margin-bottom:8px">${ex.icon} ${ex.name}
+        ${prev?`<span style="font-size:10px;font-weight:400;color:#AAA;margin-left:8px">Letztes Ergebnis: ${prev.weight}kg × ${prev.reps} → 1RM ≈ ${sp5rmRound(sp5rmBrz(prev.weight,prev.reps)).toFixed(1)}kg</span>`:''}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:center">
+        <div>
+          <div style="font-size:9px;color:#AAA;letter-spacing:1px;margin-bottom:4px">GEWICHT (KG)</div>
+          <input type="number" min="0" step="0.5" id="sl5w-${ex.id}" value="${prev?.weight||''}" placeholder="—"
+            style="width:100%;padding:8px;border:1px solid #DDD;border-radius:8px;font-size:13px;font-family:monospace;outline:none"
+            oninput="sl5rmCalc('${ex.id}')">
+        </div>
+        <div>
+          <div style="font-size:9px;color:#AAA;letter-spacing:1px;margin-bottom:4px">WDHL (5RM)</div>
+          <input type="number" min="1" max="10" id="sl5r-${ex.id}" value="${prev?.reps||''}" placeholder="—"
+            style="width:100%;padding:8px;border:1px solid #DDD;border-radius:8px;font-size:13px;font-family:monospace;outline:none"
+            oninput="sl5rmCalc('${ex.id}')">
+        </div>
+        <div>
+          <div style="font-size:9px;color:#AAA;letter-spacing:1px;margin-bottom:4px">1RM (BERECHNET)</div>
+          <div id="sl5res-${ex.id}" style="padding:8px;background:#fff;border:1px solid #E0DDD8;border-radius:8px;font-size:13px;font-family:monospace;color:#003975;font-weight:700;min-height:36px">—</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const modal = document.getElementById('sp-train-modal');
+  const today = new Date().toISOString().split('T')[0];
+  modal.innerHTML = `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:9px;color:${studio?.color||'#003975'};letter-spacing:3px;font-weight:600">${studio?.name?.toUpperCase()||''} · 5RM DIAGNOSTIK</div>
+        <div style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif">${name}</div>
+      </div>
+      <button onclick="spCloseTrainModal()" style="background:none;border:none;font-size:22px;color:#BBB;cursor:pointer">×</button>
+    </div>
+    <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px">
+      <label style="font-size:11px;color:var(--g5);font-weight:600">Testdatum:</label>
+      <input type="date" id="sl5-date" value="${today}" style="padding:6px 10px;border:1px solid #DDD;border-radius:8px;font-size:12px;outline:none">
+      <input type="text" id="sl5-note" placeholder="Notiz (optional)" style="flex:1;padding:6px 10px;border:1px solid #DDD;border-radius:8px;font-size:12px;outline:none">
+    </div>
+    <div style="max-height:55vh;overflow-y:auto;padding-right:4px">${exRows}</div>
+    ${isTrainer()?`<div style="display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #EAE7E2">
+      <button onclick="spCloseTrainModal()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#888;font-size:12px;cursor:pointer">Abbrechen</button>
+      <button onclick="sl5rmSave()" style="flex:2;padding:11px;border-radius:8px;border:none;background:#1A4A2A;color:#fff;font-size:12px;font-weight:700;cursor:pointer">💪 5RM speichern</button>
+    </div>`:''}
+  `;
+  document.getElementById('sp-train-overlay').style.display='flex';
+
+  // Recalc any pre-filled values
+  SP_EXERCISES.forEach(ex => sl5rmCalc(ex.id));
+};
+
+window.sl5rmCalc = (exId) => {
+  const w = parseFloat(document.getElementById('sl5w-'+exId)?.value);
+  const r = parseInt(document.getElementById('sl5r-'+exId)?.value);
+  const el = document.getElementById('sl5res-'+exId); if(!el) return;
+  if(w>0&&r>=1&&r<=10){ el.textContent=`${sp5rmRound(sp5rmBrz(w,r)).toFixed(1)} kg`; }
+  else { el.textContent='—'; }
+};
+
+window.sl5rmSave = async () => {
+  const {name} = _sp5rmSlotCtx;
+  const match = Object.values(SP_PROBANDS).find(p=>p.pid===name);
+  const clientId = match?._id;
+  if(!clientId){ toast('Proband nicht in 5RM-Datenbank', true); return; }
+
+  const date = document.getElementById('sl5-date')?.value;
+  const note = document.getElementById('sl5-note')?.value.trim();
+  const results = {}; let hasData=false;
+  SP_EXERCISES.forEach(ex=>{
+    const w=parseFloat(document.getElementById('sl5w-'+ex.id)?.value);
+    const r=parseInt(document.getElementById('sl5r-'+ex.id)?.value);
+    if(w>0&&r>=1&&r<=10){results[ex.id]={weight:w,reps:r,orm:parseFloat(sp5rmBrz(w,r).toFixed(2))};hasData=true;}
+  });
+  if(!hasData){toast('Bitte mindestens eine Übung ausfüllen',true);return;}
+  const c = SP_PROBANDS[clientId]||{_id:clientId,sessions:[]};
+  const aaProband = window._P ? window._P()[clientId] : match;
+  const sessions=[...(c.sessions||[]),{id:Date.now().toString(),date,note,results}].sort((a,b)=>a.date.localeCompare(b.date));
+  try{
+    await window._setDoc(window._doc(window.db,'sp_probands',clientId),{sessions,pid:aaProband?.pid||name,lnr:aaProband?.lnr||'',updated:Date.now()});
+    toast('5RM gespeichert ✓'); spCloseTrainModal();
+  }catch(e){toast('Fehler: '+e.message,true);}
 };
 
 window.spSelectClient=(id)=>{
