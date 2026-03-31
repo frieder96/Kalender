@@ -3893,6 +3893,14 @@ window.spRenderProtokolle = () => {
               style="padding:4px 12px;border-radius:6px;border:none;background:var(--ub);color:#fff;font-size:11px;font-weight:700;cursor:pointer;opacity:0.3;pointer-events:none">Speichern</button>`:''}
           </span>
         </div>
+        ${log.wellness?`<div style="padding:8px 16px;border-bottom:1px solid var(--g1);display:flex;flex-wrap:wrap;gap:10px;font-size:11px">
+          ${log.wellness.rpe!==null&&log.wellness.rpe!==undefined?`<span><strong>RPE:</strong> ${log.wellness.rpe}/10</span>`:''}
+          ${log.wellness.befinden?`<span><strong>Befinden:</strong> ${{1:'😊 Super',2:'🙂 Gut',3:'😐 Mäßig',4:'😞 Schlecht'}[log.wellness.befinden]||log.wellness.befinden}</span>`:''}
+          ${log.wellness.motivation?`<span><strong>Motivation:</strong> ${{1:'😊 Super',2:'🙂 Gut',3:'😐 Mäßig',4:'😞 Schlecht'}[log.wellness.motivation]||log.wellness.motivation}</span>`:''}
+          ${log.wellness.schlaf?`<span><strong>Schlaf:</strong> ${{1:'😊 Super',2:'🙂 Gut',3:'😐 Mäßig',4:'😞 Schlecht'}[log.wellness.schlaf]||log.wellness.schlaf}</span>`:''}
+          ${log.wellness.schlafdauer?`<span><strong>Schlafdauer:</strong> ${log.wellness.schlafdauer}h</span>`:''}
+          ${log.wellness.durchgeschlafen?`<span><strong>Durchgeschlafen:</strong> ${log.wellness.durchgeschlafen==='ja'?'✅ Ja':'❌ Nein'}</span>`:''}
+        </div>`:''}
         <div style="padding:12px 16px;overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;min-width:500px">
             <thead><tr style="border-bottom:2px solid var(--g2)">
@@ -4349,10 +4357,65 @@ window.spOpenTrainingLog = (sid, di, h, wo, proband, btn) => {
       </div>
     </div>`:''}
 
-    ${isTrainer()?`<div style="display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid #EAE7E2">
+
+    ${isTrainer()?`<div style="margin-top:16px;padding-top:14px;border-top:1px solid #EAE7E2">
+      <div style="font-size:10px;font-weight:700;color:#888;letter-spacing:1px;margin-bottom:12px">WOHLBEFINDEN</div>
+
+      <!-- RPE -->
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:600;color:#444;margin-bottom:6px">RPE der Einheit <span style="font-weight:400;color:#AAA">(0 = keine Anstrengung · 10 = maximale Anstrengung)</span></div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<button type="button" onclick="spWellnessToggle('rpe',${v},this)"
+            data-wfield="rpe" data-wval="${v}"
+            style="width:36px;height:36px;border-radius:8px;border:1px solid #DDD;background:${existing?.wellness?.rpe===v?'#003975':'#fff'};color:${existing?.wellness?.rpe===v?'#fff':'#444'};font-size:12px;font-weight:700;cursor:pointer">${v}</button>`).join('')}
+        </div>
+      </div>
+
+      <!-- Befinden / Motivation / Schlaf 1-4 -->
+      ${[
+        {key:'befinden', label:'Befinden', hint:'1 = super · 4 = schlecht'},
+        {key:'motivation', label:'Motivation', hint:'1 = super · 4 = schlecht'},
+        {key:'schlaf', label:'Schlafqualität', hint:'1 = super · 4 = schlecht'},
+      ].map(f=>`<div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:600;color:#444;margin-bottom:6px">${f.label} <span style="font-weight:400;color:#AAA">(${f.hint})</span></div>
+        <div style="display:flex;gap:6px">
+          ${[1,2,3,4].map(v=>{
+            const colors={1:'#2E7D32',2:'#F9A825',3:'#EF6C00',4:'#C8102E'};
+            const labels={1:'Super',2:'Gut',3:'Mäßig',4:'Schlecht'};
+            const sel = existing?.wellness?.[f.key]===v;
+            return `<button type="button" onclick="spWellnessToggle('${f.key}',${v},this)"
+              data-wfield="${f.key}" data-wval="${v}"
+              style="flex:1;padding:8px 4px;border-radius:8px;border:2px solid ${sel?colors[v]:'#DDD'};background:${sel?colors[v]+'18':'#fff'};color:${sel?colors[v]:'#999'};font-size:11px;font-weight:700;cursor:pointer;text-align:center">
+              ${v}<br><span style="font-size:9px;font-weight:400">${labels[v]}</span>
+            </button>`;
+          }).join('')}
+        </div>
+      </div>`).join('')}
+
+      <!-- Schlafdauer + Durchgeschlafen -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:#444;margin-bottom:6px">Schlafdauer (Stunden)</div>
+          <input type="number" id="sp-well-schlafdauer" min="0" max="24" step="0.5"
+            value="${existing?.wellness?.schlafdauer||''}" placeholder="z. B. 7.5"
+            style="width:100%;padding:9px 12px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:#444;margin-bottom:6px">Durchgeschlafen?</div>
+          <div style="display:flex;gap:6px">
+            <button type="button" onclick="spWellnessToggle('durchgeschlafen','ja',this)" data-wfield="durchgeschlafen" data-wval="ja"
+              style="flex:1;padding:9px;border-radius:8px;border:2px solid ${existing?.wellness?.durchgeschlafen==='ja'?'#2E7D32':'#DDD'};background:${existing?.wellness?.durchgeschlafen==='ja'?'#E8F5E9':'#fff'};color:${existing?.wellness?.durchgeschlafen==='ja'?'#2E7D32':'#999'};font-size:12px;font-weight:700;cursor:pointer">✅ Ja</button>
+            <button type="button" onclick="spWellnessToggle('durchgeschlafen','nein',this)" data-wfield="durchgeschlafen" data-wval="nein"
+              style="flex:1;padding:9px;border-radius:8px;border:2px solid ${existing?.wellness?.durchgeschlafen==='nein'?'#C8102E':'#DDD'};background:${existing?.wellness?.durchgeschlafen==='nein'?'#FDF2F4':'#fff'};color:${existing?.wellness?.durchgeschlafen==='nein'?'#C8102E':'#999'};font-size:12px;font-weight:700;cursor:pointer">❌ Nein</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px;padding-top:14px;border-top:1px solid #EAE7E2">
       <button onclick="spSaveTrainLog()" style="flex:1;padding:11px;border-radius:8px;border:none;background:#003975;color:#fff;font-size:12px;font-weight:700;cursor:pointer">💾 Protokoll speichern</button>
       ${existing?`<button onclick="spDeleteTrainLog('${existing._id}')" style="padding:11px 14px;border-radius:8px;border:1px solid #E8C0C8;background:#FDF2F4;color:#C8102E;font-size:12px;font-weight:700;cursor:pointer">Löschen</button>`:''}
-    </div>`:`<div style="margin-top:12px;padding:8px 12px;background:#F5F5F5;border-radius:8px;font-size:11px;color:#888;text-align:center">Nur Admin kann Protokolle bearbeiten</div>`}
+    </div>
+    `:`<div style="margin-top:12px;padding:8px 12px;background:#F5F5F5;border-radius:8px;font-size:11px;color:#888;text-align:center">Nur Admin kann Protokolle bearbeiten</div>`}
   `;
 
   document.getElementById('sp-train-overlay').style.display='flex';
@@ -4378,6 +4441,36 @@ window.spRemoveCustomEx = (ei) => {
   spOpenTrainingLog(ctx.sid,ctx.di,ctx.h,ctx.wo,ctx.proband);
 };
 
+window.spWellnessToggle = (field, val, btn) => {
+  // Deselect all buttons for this field
+  document.querySelectorAll(`[data-wfield="${field}"]`).forEach(b => {
+    const v = b.dataset.wval;
+    const isNum = !isNaN(v);
+    if(field==='rpe') {
+      b.style.background='#fff'; b.style.color='#444'; b.style.borderColor='#DDD';
+    } else if(field==='durchgeschlafen') {
+      b.style.borderColor='#DDD'; b.style.background='#fff';
+      b.style.color='#999';
+    } else {
+      const cols={1:'#2E7D32',2:'#F9A825',3:'#EF6C00',4:'#C8102E'};
+      b.style.borderColor='#DDD'; b.style.background='#fff'; b.style.color='#999';
+    }
+  });
+  // Select clicked button
+  if(field==='rpe') {
+    btn.style.background='#003975'; btn.style.color='#fff'; btn.style.borderColor='#003975';
+  } else if(field==='durchgeschlafen') {
+    const col = val==='ja'?'#2E7D32':'#C8102E';
+    const bg  = val==='ja'?'#E8F5E9':'#FDF2F4';
+    btn.style.borderColor=col; btn.style.background=bg; btn.style.color=col;
+  } else {
+    const cols={1:'#2E7D32',2:'#F9A825',3:'#EF6C00',4:'#C8102E'};
+    const col=cols[val]||'#003975';
+    btn.style.borderColor=col; btn.style.background=col+'18'; btn.style.color=col;
+  }
+  btn.dataset.selected='true';
+};
+
 window.spSaveTrainLog = async () => {
   const ctx=_spTrainCtx; if(!ctx) return;
   const _db = window.db || db;
@@ -4394,7 +4487,27 @@ window.spSaveTrainLog = async () => {
   });
   const key = spTrainLogKey(ctx.sid,ctx.di,ctx.h,ctx.wo,ctx.proband);
   const existing = spGetTrainLog(ctx.sid,ctx.di,ctx.h,ctx.wo,ctx.proband);
-  const data = {key,sid:ctx.sid,di:ctx.di,h:ctx.h,wo:ctx.wo,proband:ctx.proband||'',exercises,updated:Date.now()};
+
+  // Collect wellness data
+  const _wGet = (field) => {
+    const sel = document.querySelector(`[data-wfield="${field}"][data-selected="true"]`);
+    if(sel) return isNaN(sel.dataset.wval) ? sel.dataset.wval : parseFloat(sel.dataset.wval);
+    // Fall back to pre-selected (from existing)
+    const pre = document.querySelector(`[data-wfield="${field}"]`);
+    return null;
+  };
+  const wellness = {
+    rpe: _wGet('rpe'),
+    befinden: _wGet('befinden'),
+    motivation: _wGet('motivation'),
+    schlaf: _wGet('schlaf'),
+    schlafdauer: parseFloat(document.getElementById('sp-well-schlafdauer')?.value)||null,
+    durchgeschlafen: _wGet('durchgeschlafen'),
+  };
+  // Only save wellness if at least one field filled
+  const hasWellness = Object.values(wellness).some(v=>v!==null&&v!=='');
+
+  const data = {key,sid:ctx.sid,di:ctx.di,h:ctx.h,wo:ctx.wo,proband:ctx.proband||'',exercises,...(hasWellness?{wellness}:{}),updated:Date.now()};
   try {
     if(existing) await window._setDoc(window._doc(window.db,'training_logs',existing._id),data);
     else await window._addDoc(window._col(window.db,'training_logs'),{...data,created:Date.now()});
