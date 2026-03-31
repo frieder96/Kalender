@@ -43,6 +43,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 .role-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;letter-spacing:.05em;text-transform:uppercase}
 .role-badge.admin{background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3)}
 .role-badge.readonly{background:rgba(240,160,0,.25);color:#F0C040;border:1px solid rgba(240,160,0,.35)}
+.role-badge.trainer{background:rgba(46,125,50,.25);color:#2E7D32;border:1px solid rgba(46,125,50,.35)}
 .logout-btn{padding:4px 11px;border-radius:99px;background:rgba(200,16,46,.25);border:1px solid rgba(200,16,46,.4);color:#fff;font-size:11px;font-weight:600;cursor:pointer;font-family:'Source Sans 3',sans-serif}
 .logout-btn:hover{background:rgba(200,16,46,.45)}
 
@@ -1413,8 +1414,10 @@ let db=null, auth=null, userRole='readonly', currentUser=null;
 window._db = () => db;
 window._fbFns = null; // set after import
 window._fbFns = {addDoc, deleteDoc, setDoc, getDoc, doc, collection, updateDoc};
-const isAdmin = () => userRole==='admin';
-window.isAdmin = isAdmin;
+const isAdmin   = () => userRole==='admin';
+const isTrainer = () => userRole==='trainer' || userRole==='admin';
+window.isAdmin   = isAdmin;
+window.isTrainer = isTrainer;
 window.curTermin = 'T0';
 window._renderWeek = () => renderWeek();
 
@@ -1474,6 +1477,7 @@ onAuthStateChanged(auth, async user => {
     } catch { userRole='readonly'; }
     const badge=document.getElementById('role-badge');
     if (userRole==='admin') { badge.textContent='Admin'; badge.className='role-badge admin'; document.getElementById('readonly-banner').classList.remove('show'); }
+    else if (userRole==='trainer') { badge.textContent='Trainer'; badge.className='role-badge trainer'; document.getElementById('readonly-banner').classList.remove('show'); }
     else { badge.textContent='Nur Lesen'; badge.className='role-badge readonly'; document.getElementById('readonly-banner').classList.add('show'); }
     document.getElementById('add-proband-btn').style.display = isAdmin()?'':'none';
     document.getElementById('add-recall-btn').style.display  = isAdmin()?'':'none';
@@ -3885,7 +3889,7 @@ window.spRenderProtokolle = () => {
           <span style="font-size:12px;color:var(--g5)">${dayName}, ${dateStr} · ${log.h}:00 Uhr</span>
           <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
             <span id="proto-saved-${logId}" style="font-size:11px;color:#4CAF80;display:none">✓ Gespeichert</span>
-            ${window.isAdmin&&window.isAdmin()?`<button id="proto-save-btn-${logId}" onclick="spProtoSave('${logId}')"
+            ${window.isTrainer&&window.isTrainer()?`<button id="proto-save-btn-${logId}" onclick="spProtoSave('${logId}')"
               style="padding:4px 12px;border-radius:6px;border:none;background:var(--ub);color:#fff;font-size:11px;font-weight:700;cursor:pointer;opacity:0.3;pointer-events:none">Speichern</button>`:''}
           </span>
         </div>
@@ -4060,7 +4064,7 @@ function spRenderCalendar(){
       return `<div style="text-align:center;padding:8px 4px;border-radius:10px;background:${isToday?studio.color+'18':'#fff'};border:1px solid ${isToday?studio.color:'#E8E4DE'};opacity:${isAvail?1:0.3}">
         <div style="font-size:9px;color:#BBB;letter-spacing:2px">${SP_DAY_SHORT[dn]}</div>
         <div style="font-size:15px;font-weight:500;color:${isToday?studio.color:'#2A2A2A'};margin-top:2px">${spFmtDate(date)}</div>
-        ${isAvail&&isAdmin()?`<button onclick="spOpenDayTrainerModal(${dn})" style="margin-top:5px;width:100%;padding:3px 6px;border-radius:6px;border:1px solid ${dayTrainer?studio.color:'#DDD'};background:${dayTrainer?studio.color+'18':'#F8F5F0'};color:${dayTrainer?studio.color:'#AAA'};font-size:9px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dayTrainer?`🏋️ ${dayTrainer}`:'+ Trainer'}</button>`
+        ${isAvail&&isTrainer()?`<button onclick="spOpenDayTrainerModal(${dn})" style="margin-top:5px;width:100%;padding:3px 6px;border-radius:6px;border:1px solid ${dayTrainer?studio.color:'#DDD'};background:${dayTrainer?studio.color+'18':'#F8F5F0'};color:${dayTrainer?studio.color:'#AAA'};font-size:9px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dayTrainer?`🏋️ ${dayTrainer}`:'+ Trainer'}</button>`
         :dayTrainer?`<div style="margin-top:4px;font-size:9px;color:${studio.color};font-weight:600">🏋️ ${dayTrainer}</div>`:''}
       </div>`;
     }).join('');
@@ -4178,7 +4182,8 @@ window.spOpenSlotModal=(di,h)=>{
       <span style="font-size:13px">${i+1}. ${name}</span>
       <div style="display:flex;gap:6px;align-items:center">
         <button onclick="spOpenTrainingLog(${spActiveStudio},${di},${h},${spWeekOff},'${name.replace(/'/g,"\\'")}',this)" style="background:${hasLog?'#003975':'#fff'};border:1px solid #003975;border-radius:6px;color:${hasLog?'#fff':'#003975'};font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer" title="Trainingsprotokoll">📋</button>
-        ${isAdmin()?`<button onclick="spToggleAtt(${i},'${att}')" style="background:none;border:1px solid ${attCfg.border};border-radius:6px;color:${attCfg.color};font-weight:700;font-size:14px;width:30px;height:28px;cursor:pointer">${attCfg.icon}</button>`:''}
+        <button onclick="spOpen5rmFromSlot('${name.replace(/'/g,"\\'")}')" style="background:#fff;border:1px solid #1A4A2A;border-radius:6px;color:#1A4A2A;font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer" title="5RM Diagnostik">💪</button>
+        ${isTrainer()?`<button onclick="spToggleAtt(${i},'${att}')" style="background:none;border:1px solid ${attCfg.border};border-radius:6px;color:${attCfg.color};font-weight:700;font-size:14px;width:30px;height:28px;cursor:pointer">${attCfg.icon}</button>`:''}
         <span style="font-size:10px;font-family:monospace;color:${spPColor(spCountAll(name),SP_TOTAL)}">${spCountAll(name)}/${SP_TOTAL}</span>
         ${isAdmin()?`<button onclick="spRemoveBooking('member',${i})" style="background:none;border:none;color:#CCC;font-size:16px;cursor:pointer">×</button>`:''}
       </div>
@@ -4344,7 +4349,7 @@ window.spOpenTrainingLog = (sid, di, h, wo, proband, btn) => {
       </div>
     </div>`:''}
 
-    ${isAdmin()?`<div style="display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid #EAE7E2">
+    ${isTrainer()?`<div style="display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid #EAE7E2">
       <button onclick="spSaveTrainLog()" style="flex:1;padding:11px;border-radius:8px;border:none;background:#003975;color:#fff;font-size:12px;font-weight:700;cursor:pointer">💾 Protokoll speichern</button>
       ${existing?`<button onclick="spDeleteTrainLog('${existing._id}')" style="padding:11px 14px;border-radius:8px;border:1px solid #E8C0C8;background:#FDF2F4;color:#C8102E;font-size:12px;font-weight:700;cursor:pointer">Löschen</button>`:''}
     </div>`:`<div style="margin-top:12px;padding:8px 12px;background:#F5F5F5;border-radius:8px;font-size:11px;color:#888;text-align:center">Nur Admin kann Protokolle bearbeiten</div>`}
@@ -4826,6 +4831,20 @@ function spRenderClientList(){
     </div>`;
   }).join('');
 }
+window.spOpen5rmFromSlot = (name) => {
+  // Find the sp_probands ID for this proband name (pid)
+  const match = Object.values(SP_PROBANDS).find(p=>p.pid===name);
+  const pid = match?._id || name;
+  // Close slot modal, switch to 5RM tab and select proband
+  document.getElementById('sp-slot-overlay').style.display='none';
+  spSwitch('sp-5rm', document.querySelector('.sp-snav-btn[onclick*="sp-5rm"]'));
+  if(match) { spSelectClient(match._id); }
+  else {
+    // Proband not yet in sp_probands, just navigate to 5RM tab
+    toast(`5RM-Tab geöffnet — ${name} noch keine Daten`, false);
+  }
+};
+
 window.spSelectClient=(id)=>{
   sp5rmClientId=id;
   // Look up in AAAging probands first, fall back to sp_probands
