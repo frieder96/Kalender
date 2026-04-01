@@ -1176,12 +1176,13 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 </div>
 <div class="ov" id="member-modal" onclick="if(event.target===this)closeMemberModal()">
   <div class="modal">
-    <div class="mhdr"><span class="mtitle">Teammitglied hinzufügen</span><button class="mclose" onclick="closeMemberModal()">×</button></div>
+    <div class="mhdr"><span class="mtitle" id="member-modal-title">Teammitglied hinzufügen</span><button class="mclose" onclick="closeMemberModal()">×</button></div>
     <div class="mbody">
       <div class="fg"><label class="fl">Name</label><input class="fi" id="i-mname" placeholder="z. B. Anna Muster" maxlength="40"></div>
+      <div class="fg"><label class="fl">Kürzel <span style="font-weight:400;color:var(--g4)">(optional, z. B. AK)</span></label><input class="fi" id="i-mkuerzel" placeholder="z. B. AM" maxlength="5" style="text-transform:uppercase"></div>
       <div class="fg"><label class="fl">Rolle / Funktion</label><input class="fi" id="i-mrole" placeholder="z. B. Studienassistentin" maxlength="40"></div>
     </div>
-    <div class="mftr"><button class="btn btn-sm" onclick="closeMemberModal()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveMember()">Hinzufügen</button></div>
+    <div class="mftr"><button class="btn btn-sm" onclick="closeMemberModal()">Abbrechen</button><button class="btn btn-sm btn-p" id="member-save-btn" onclick="saveMember()">Hinzufügen</button></div>
   </div>
 </div>
 
@@ -1772,17 +1773,20 @@ function renderEEGWeek() {
       const lockIcon = isAdmin()
         ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'EEG','${d.label}',${s.slot})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>` : '';
 
-      // EEG person assignment (uses ASSIGN collection like T-terms)
-      const eegAKey = `${cW}_EEG_${d.label}_${s.slot}_EEG-Durchführung`.replace(/[^a-zA-Z0-9_]/g,'_');
-      const eegA = ASSIGN[eegAKey];
-      const eegPerson = eegA?.person ? (TEAM[eegA.person]?.name||eegA.person) : null;
+      // EEG person assignment — 3 persons (uses ASSIGN collection)
       const eegPersonRow = !isSp ? `<div class="meas-row" style="margin-top:4px">
         <span class="chip ceinschl" style="min-width:0;flex-shrink:0;font-size:9px">Durchführung</span>
         <span style="flex:1"></span>
-        ${isAdmin()
-          ? `<button class="assign-btn" onclick="openAssignModal('${eegAKey}','EEG-Durchführung','${d.label} Slot ${s.slot}','${_localDate(wDay(cW,d.off))}','${s.blutStart}')">${eegPerson?`<span class="team-chip">${eegPerson}</span>`:'+ Person'}</button>`
-          : eegPerson?`<span class="team-chip">${eegPerson}</span>`:''
-        }
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+          ${[1,2,3].map(n=>{
+            const key=`${cW}_EEG_${d.label}_${s.slot}_EEG-Durchfuehrung_${n}`.replace(/[^a-zA-Z0-9_]/g,'_');
+            const a=ASSIGN[key];
+            const pName=a?.person?(TEAM[a.person]?.name||a.person):null;
+            return isAdmin()
+              ? `<button class="assign-btn" onclick="openAssignModal('${key}','EEG-Durchführung ${n}','${d.label} Slot ${s.slot}','${_localDate(wDay(cW,d.off))}','${s.blutStart}')">${pName?`<span class="team-chip">${pName}</span>`:`+ P${n}`}</button>`
+              : pName?`<span class="team-chip">${pName}</span>`:'';
+          }).join('')}
+        </div>
       </div>` : '';
 
       return `<div class="sc ${bk&&!isSp?'booked':''} ${isSp?'slot-blocked':''}">
@@ -2510,28 +2514,55 @@ function renderMemberList() {
   const el=document.getElementById('member-list'); if(!el) return;
   const members=Object.values(TEAM);
   if(!members.length){el.innerHTML='<span style="font-size:12.5px;color:var(--g4);font-style:italic">Noch keine Teammitglieder.</span>';return;}
-  // PhD students first, then others alphabetically
   const isPhd = m => (m.role||'').toLowerCase().includes('phd') || (m.role||'').toLowerCase().includes('doktor') || (m.role||'').toLowerCase().includes('ph.d');
-  const sorted = [...members].sort((a,b) => {
-    const aPhd=isPhd(a), bPhd=isPhd(b);
-    if(aPhd&&!bPhd) return -1; if(!aPhd&&bPhd) return 1;
-    return a.name.localeCompare(b.name);
-  });
-  el.innerHTML=sorted.map(m=>`<span class="member-pill">${isPhd(m)?'<span style="font-size:9px;color:#5D5DBB;font-weight:700;margin-right:3px">PhD</span>':''}<span style="font-weight:600">${m.name}</span>${m.role?`<span style="font-size:10px;color:var(--g5)">· ${m.role}</span>`:''}${isAdmin()?`<button class="member-del" onclick="deleteMember('${m._id}')">×</button>`:''}</span>`).join('');
+  // Alphabetical only
+  const sorted = [...members].sort((a,b)=>a.name.localeCompare(b.name));
+  el.innerHTML=sorted.map(m=>`<span class="member-pill" ${isAdmin()?`onclick="openEditMember('${m._id}')" style="cursor:pointer"`:''}>
+    ${isPhd(m)?'<span style="font-size:9px;color:#5D5DBB;font-weight:700;margin-right:3px">PhD</span>':''}
+    ${m.kuerzel?`<span style="font-size:9px;font-weight:700;color:#fff;background:var(--ub);border-radius:3px;padding:1px 4px;margin-right:3px">${m.kuerzel}</span>`:''}
+    <span style="font-weight:600">${m.name}</span>
+    ${m.role?`<span style="font-size:10px;color:var(--g5)">· ${m.role}</span>`:''}
+    ${isAdmin()?`<button class="member-del" onclick="event.stopPropagation();deleteMember('${m._id}')">×</button>`:''}
+  </span>`).join('');
 }
 
+let _memberEditId = null;
 window.openAddMember = () => {
   if(!isAdmin()){toast('Keine Berechtigung',true);return;}
-  document.getElementById('i-mname').value=''; document.getElementById('i-mrole').value='';
+  _memberEditId = null;
+  document.getElementById('member-modal-title').textContent='Teammitglied hinzufügen';
+  document.getElementById('member-save-btn').textContent='Hinzufügen';
+  document.getElementById('i-mname').value='';
+  document.getElementById('i-mkuerzel').value='';
+  document.getElementById('i-mrole').value='';
+  document.getElementById('member-modal').classList.add('open');
+};
+window.openEditMember = (id) => {
+  if(!isAdmin()){toast('Keine Berechtigung',true);return;}
+  const m=TEAM[id]; if(!m) return;
+  _memberEditId = id;
+  document.getElementById('member-modal-title').textContent='Teammitglied bearbeiten';
+  document.getElementById('member-save-btn').textContent='Speichern';
+  document.getElementById('i-mname').value=m.name||'';
+  document.getElementById('i-mkuerzel').value=m.kuerzel||'';
+  document.getElementById('i-mrole').value=m.role||'';
   document.getElementById('member-modal').classList.add('open');
 };
 window.closeMemberModal = () => document.getElementById('member-modal').classList.remove('open');
 window.saveMember = async () => {
   const name=document.getElementById('i-mname').value.trim();
+  const kuerzel=document.getElementById('i-mkuerzel').value.trim().toUpperCase();
   const role=document.getElementById('i-mrole').value.trim();
   if(!name){toast('Name ist Pflicht',true);return;}
-  try { await addDoc(collection(db,'team'),{name,role,created:Date.now()}); closeMemberModal(); toast(`${name} hinzugefügt ✓`); }
-  catch(e){toast('Fehler: '+e.message,true);}
+  try {
+    if(_memberEditId) {
+      await updateDoc(doc(db,'team',_memberEditId),{name,kuerzel,role,updated:Date.now()});
+      closeMemberModal(); toast(`${name} gespeichert ✓`);
+    } else {
+      await addDoc(collection(db,'team'),{name,kuerzel,role,created:Date.now()});
+      closeMemberModal(); toast(`${name} hinzugefügt ✓`);
+    }
+  } catch(e){toast('Fehler: '+e.message,true);}
 };
 window.deleteMember = async id => {
   if(!confirm('Teammitglied entfernen?')) return;
