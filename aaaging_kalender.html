@@ -667,6 +667,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
       <button class="ntab"     onclick="goTab('raumplan',this)">🏠 Raumplan</button>
       <button class="ntab"     onclick="goTab('studio',this)">Studio &amp; Training</button>
+      <button class="ntab"     onclick="goTab('fortschritt',this)">📊 Fortschritt</button>
     </div>
   </nav>
   <div class="ubc"><div class="ubc-i"><span>Universität Wien</span><span>›</span><span>AAAging Studie</span><span>›</span><span class="bc-c" id="bcc">Kalender</span></div></div>
@@ -926,6 +927,14 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         </div>
       </div>
       <div id="rp-content"></div>
+    </div>
+
+    <!-- FORTSCHRITT -->
+    <div id="tab-fortschritt" class="panel">
+      <div class="phdr">
+        <div><div class="ptitle">Fortschritt & Motivation</div><div class="psub">Studienziel · Probanden-Status · Trainingseinheiten</div></div>
+      </div>
+      <div id="fortschritt-content"></div>
     </div>
 
     <div id="tab-studio" class="panel">
@@ -3756,6 +3765,130 @@ function rpRenderWeek() {
 }
 function setSync(ok,lbl){ document.getElementById('sdot').style.background=ok?'#4CAF80':'#F0C040'; document.getElementById('slbl').textContent=lbl||(ok?'Synchronisiert':'Getrennt'); }
 function toast(msg,err=false){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast'+(err?' err':''); setTimeout(()=>t.classList.add('show'),10); setTimeout(()=>t.classList.remove('show'),3200); }
+
+// ── FORTSCHRITT & MOTIVATION ──────────────────────────────────────
+const ZIELE = { probanden: 126, trainingsEinheiten: 12096 }; // 126 × 48 Wochen × 2
+
+const ZITATE = [
+  "„Der einzige Weg, großartige Arbeit zu leisten, ist zu lieben, was man tut." — Steve Jobs",
+  "„Erfolg ist die Summe kleiner Anstrengungen, die Tag für Tag wiederholt werden." — R. Collier",
+  "„Wissenschaft ist organisiertes Wissen. Weisheit ist organisiertes Leben." — I. Kant",
+  "„Jede Reise beginnt mit einem einzigen Schritt." — Laozi",
+  "„Die größte Entdeckung unserer Generation ist, dass ein Mensch sein Leben ändern kann, indem er seine Einstellung ändert." — W. James",
+  "„Nicht weil es schwer ist, wagen wir es nicht – sondern weil wir es nicht wagen, ist es schwer." — Seneca",
+  "„Fortschritt, nicht Perfektion." — Unbekannt",
+  "„Gute Forschung stellt mehr Fragen als sie beantwortet." — Unbekannt",
+  "„Das Geheimnis des Fortschritts liegt im Beginn." — M. Twain",
+  "„Gemeinsam schaffen wir, was alleine unmöglich wäre." — Unbekannt",
+];
+
+const MEILENSTEINE = [
+  { n: 10,  msg: '🎉 10 Probanden erreicht! Toller Start!' },
+  { n: 25,  msg: '🌟 Ein Viertel geschafft! Weiter so!' },
+  { n: 50,  msg: '🏆 50 Probanden! Halbzeit bei den Starts!' },
+  { n: 63,  msg: '🎯 Halbzeit! 63 von 126 — fantastisch!' },
+  { n: 100, msg: '💫 100 Probanden! Unglaublich!' },
+  { n: 126, msg: '🥳 Vollständige Rekrutierung! Das ganze Team hat es geschafft!' },
+];
+
+function renderFortschritt() {
+  const el = document.getElementById('fortschritt-content'); if(!el) return;
+
+  const ps = Object.values(P);
+  const totalP = ps.length;
+  const t1Started = ps.filter(p=>p.t1week!==undefined).length;
+  const hasT2 = ps.filter(p=>p.t2date).length;
+  const hasT3 = ps.filter(p=>p.t3date).length;
+  const hasRecall = ps.filter(p=>Object.values(RECALLS).some(r=>r.pid===p._id)).length;
+
+  // Training sessions
+  const totalTrainDone = Object.keys(SP_SLOTS_DATA||{}).reduce((sum,k)=>{
+    const d=SP_SLOTS_DATA[k]; return sum+(d?.members?.length||0);
+  },0);
+
+  // Proband pipeline counts
+  const pipeline = [
+    {label:'T0 abgeschlossen', n:ps.filter(p=>p.t0week!==undefined).length, color:'var(--t0c)'},
+    {label:'T1 gestartet',     n:t1Started, color:'var(--t1c)'},
+    {label:'Recall erhalten',  n:hasRecall, color:'#E87127'},
+    {label:'T2 geplant',       n:hasT2, color:'var(--t2c)'},
+    {label:'T3 geplant',       n:hasT3, color:'var(--t3c)'},
+  ];
+
+  // Today's quote (changes daily)
+  const dayIdx = Math.floor(Date.now()/(1000*60*60*24)) % ZITATE.length;
+  const zitat = ZITATE[dayIdx];
+
+  // Milestone check
+  const milestone = [...MEILENSTEINE].reverse().find(m=>t1Started>=m.n);
+
+  // Progress bar helper
+  const bar = (val,max,color) => {
+    const pct = Math.min(100,Math.round(val/max*100));
+    return `<div style="background:var(--g2);border-radius:99px;height:10px;overflow:hidden;margin-top:6px">
+      <div style="background:${color};height:100%;width:${pct}%;border-radius:99px;transition:width .5s ease"></div>
+    </div>`;
+  };
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+
+      <!-- Studienziel -->
+      <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh)">
+        <div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">STUDIENZIEL — PROBANDEN</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
+          <span style="font-size:36px;font-weight:800;font-family:'Syne',sans-serif;color:var(--ub)">${t1Started}</span>
+          <span style="font-size:16px;color:var(--g4)">/ ${ZIELE.probanden}</span>
+          <span style="font-size:13px;color:var(--g5);margin-left:auto">${Math.round(t1Started/ZIELE.probanden*100)}%</span>
+        </div>
+        ${bar(t1Started, ZIELE.probanden, 'var(--ub)')}
+        <div style="font-size:11px;color:var(--g4);margin-top:6px">${ZIELE.probanden-t1Started} Probanden noch ausstehend</div>
+      </div>
+
+      <!-- Training -->
+      <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh)">
+        <div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">TRAININGSEINHEITEN</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
+          <span style="font-size:36px;font-weight:800;font-family:'Syne',sans-serif;color:#2E7D32">${totalTrainDone}</span>
+          <span style="font-size:16px;color:var(--g4)">/ ${ZIELE.trainingsEinheiten}</span>
+          <span style="font-size:13px;color:var(--g5);margin-left:auto">${Math.round(totalTrainDone/ZIELE.trainingsEinheiten*100)}%</span>
+        </div>
+        ${bar(totalTrainDone, ZIELE.trainingsEinheiten, '#2E7D32')}
+        <div style="font-size:11px;color:var(--g4);margin-top:6px">${ZIELE.trainingsEinheiten-totalTrainDone} Einheiten noch geplant</div>
+      </div>
+    </div>
+
+    <!-- Pipeline -->
+    <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh);margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:16px">PROBANDEN-PIPELINE</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px">
+        ${pipeline.map(s=>`
+          <div style="text-align:center">
+            <div style="font-size:28px;font-weight:800;font-family:'Syne',sans-serif;color:${s.color}">${s.n}</div>
+            <div style="font-size:10px;color:var(--g5);margin-top:2px">${s.label}</div>
+            ${bar(s.n, totalP||1, s.color)}
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Motivation -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <!-- Zitat -->
+      <div style="background:linear-gradient(135deg,var(--ub),#1a5a9a);border-radius:var(--rl);padding:24px;box-shadow:var(--sh)">
+        <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.1em;margin-bottom:12px">💡 ZITAT DES TAGES</div>
+        <div style="font-size:14px;color:#fff;line-height:1.6;font-style:italic">${zitat}</div>
+      </div>
+
+      <!-- Meilenstein -->
+      <div style="background:${milestone?'linear-gradient(135deg,#1A4A2A,#2E7D32)':'#fff'};border:1px solid ${milestone?'transparent':'var(--g2)'};border-radius:var(--rl);padding:24px;box-shadow:var(--sh)">
+        <div style="font-size:10px;font-weight:700;color:${milestone?'rgba(255,255,255,.6)':'var(--g5)'};letter-spacing:.1em;margin-bottom:12px">🏆 MEILENSTEIN</div>
+        ${milestone
+          ? `<div style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif;color:#fff;line-height:1.4">${milestone.msg}</div>
+             <div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:8px">Nächstes Ziel: ${(MEILENSTEINE.find(m=>m.n>t1Started)||{msg:'Alle Ziele erreicht! 🎊'}).msg}</div>`
+          : `<div style="font-size:14px;color:var(--g5);line-height:1.6">Noch kein Meilenstein erreicht.<br>Nächstes Ziel: <strong style="color:var(--ub)">${MEILENSTEINE[0].n} Probanden</strong></div>`}
+      </div>
+    </div>`;
+}
 </script>
 
 <script>
@@ -3771,6 +3904,7 @@ function goTab(name,btn){
   if(name==='backup'){renderRoomList();}
   if(name==='studio'){spRenderProbanden();}
   if(name==='raumplan'){ _rpWeek=cW; rpRender(); }
+  if(name==='fortschritt'){ renderFortschritt(); }
 }
 
 function setTermin(t, btn) {
