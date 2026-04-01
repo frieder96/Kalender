@@ -1499,7 +1499,7 @@ function startDB() {
     P={}; snap.forEach(d=>{P[d.id]={...d.data(),_id:d.id}}); renderAll();
   }, ()=>setSync(false,'Verbindungsfehler'));
   onSnapshot(collection(db,'recalls'), snap => {
-    RECALLS={}; snap.forEach(d=>{RECALLS[d.id]={...d.data(),_id:d.id}}); renderRecalls();
+    RECALLS={}; snap.forEach(d=>{RECALLS[d.id]={...d.data(),_id:d.id}}); renderRecalls(); renderTable();
   });
   onSnapshot(collection(db,'team'), snap => {
     TEAM={}; snap.forEach(d=>{TEAM[d.id]={...d.data(),_id:d.id}}); window._teamCache=TEAM; renderMemberList(); renderTaskTab();
