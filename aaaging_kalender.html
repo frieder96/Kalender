@@ -3828,7 +3828,7 @@ function renderFortschritt() {
   let pipelineHtml = '';
   pipeline.forEach(function(s) {
     pipelineHtml += '<div style="text-align:center">'
-      + '<div style="font-size:28px;font-weight:800;font-family:'Syne',sans-serif;color:' + s.color + '">' + s.n + '</div>'
+      + '<div style="font-size:28px;font-weight:800;font-family:Syne,sans-serif;color:' + s.color + '">' + s.n + '</div>'
       + '<div style="font-size:10px;color:var(--g5);margin-top:2px">' + s.label + '</div>'
       + bar(s.n, ps.length || 1, s.color)
       + '</div>';
@@ -3836,7 +3836,7 @@ function renderFortschritt() {
 
   const milestoneHtml = milestone
     ? '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.1em;margin-bottom:12px">MEILENSTEIN</div>'
-      + '<div style="font-size:16px;font-weight:800;font-family:'Syne',sans-serif;color:#fff;line-height:1.4">&#127942; ' + milestone.msg + '</div>'
+      + '<div style="font-size:16px;font-weight:800;font-family:Syne,sans-serif;color:#fff;line-height:1.4">&#127942; ' + milestone.msg + '</div>'
       + (nextMilestone ? '<div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:8px">Nächstes Ziel: ' + nextMilestone.n + ' Probanden</div>' : '')
     : '<div style="font-size:10px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">MEILENSTEIN</div>'
       + '<div style="font-size:13px;color:var(--g5)">Nächstes Ziel: <strong style="color:var(--ub)">' + (MEILENSTEINE_LIST[0].n) + ' Probanden</strong></div>';
@@ -3847,7 +3847,7 @@ function renderFortschritt() {
     + '<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh)">'
     + '<div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">STUDIENZIEL — PROBANDEN</div>'
     + '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">'
-    + '<span style="font-size:36px;font-weight:800;font-family:'Syne',sans-serif;color:var(--ub)">' + t1Started + '</span>'
+    + '<span style="font-size:36px;font-weight:800;font-family:Syne,sans-serif;color:var(--ub)">' + t1Started + '</span>'
     + '<span style="font-size:16px;color:var(--g4)">/ ' + ZIELE_P + '</span>'
     + '<span style="font-size:13px;color:var(--g5);margin-left:auto">' + Math.round(t1Started / ZIELE_P * 100) + '%</span>'
     + '</div>' + bar(t1Started, ZIELE_P, 'var(--ub)')
@@ -3857,7 +3857,7 @@ function renderFortschritt() {
     + '<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh)">'
     + '<div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">TRAININGSEINHEITEN</div>'
     + '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">'
-    + '<span style="font-size:36px;font-weight:800;font-family:'Syne',sans-serif;color:#2E7D32">' + totalTrainDone + '</span>'
+    + '<span style="font-size:36px;font-weight:800;font-family:Syne,sans-serif;color:#2E7D32">' + totalTrainDone + '</span>'
     + '<span style="font-size:16px;color:var(--g4)">/ ' + ZIELE_T + '</span>'
     + '<span style="font-size:13px;color:var(--g5);margin-left:auto">' + Math.round(totalTrainDone / ZIELE_T * 100) + '%</span>'
     + '</div>' + bar(totalTrainDone, ZIELE_T, '#2E7D32')
