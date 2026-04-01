@@ -1943,7 +1943,7 @@ function renderGesamt() {
 
     // T2 slots
     const dayDate = wDay(cW, DOFF_MAP[day]);
-    const dayStr = dayDate.toISOString().split('T')[0];
+    const dayStr = _localDate(dayDate);
     if (day==='Montag'||day==='Dienstag') {
       T21.forEach(s => {
         const p = byT21(cW, day, s.slot);
