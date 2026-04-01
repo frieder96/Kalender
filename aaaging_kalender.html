@@ -740,8 +740,8 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       </div>
       <div class="tc">
         <table class="tt">
-          <thead><tr><th>P-ID</th><th>Laufnr.</th><th>T0</th><th>T1.1</th><th>T1.2</th><th>T2</th><th>T3</th><th>Notiz</th><th>Aktionen</th></tr></thead>
-          <tbody id="ptbody"><tr><td colspan="9" class="te">Noch keine Probanden angelegt.</td></tr></tbody>
+          <thead><tr><th>P-ID</th><th>Laufnr.</th><th>T0</th><th>T1.1</th><th>T1.2</th><th>Recalls</th><th>T2</th><th>T3</th><th>Notiz</th><th>Aktionen</th></tr></thead>
+          <tbody id="ptbody"><tr><td colspan="10" class="te">Noch keine Probanden angelegt.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -2059,7 +2059,7 @@ function renderGesamt() {
 function renderTable() {
   const tbody=document.getElementById('ptbody');
   const ps=Object.values(P).sort((a,b)=>a.lnr.localeCompare(b.lnr));
-  if(!ps.length){tbody.innerHTML='<tr><td colspan="9" class="te">Noch keine Probanden angelegt.</td></tr>';return;}
+  if(!ps.length){tbody.innerHTML='<tr><td colspan="10" class="te">Noch keine Probanden angelegt.</td></tr>';return;}
   tbody.innerHTML=ps.map(p=>{
     const _t0time = p.t0slot ? (T0.find(s=>s.slot===p.t0slot)?.blutStart||'') : '';
     const _t11time = p.t1slot11 ? (T11.find(s=>s.slot===p.t1slot11)?.blutStart||'') : '';
@@ -2067,12 +2067,18 @@ function renderTable() {
     const t0 = p.t0week!==undefined?`<span style="font-size:11px">${p.t0day?.slice(0,2)} ${_t0time}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
     const t11 = p.t1week!==undefined?`<span style="font-size:11px">${p.t1day11?.slice(0,2)} ${_t11time}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
     const t12 = p.t1week!==undefined?`<span style="font-size:11px">${p.t1day12?.slice(0,2)} ${_t12time}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
-    const t2 = p.t2date?`<span style="font-size:11px">${new Date(p.t2date).toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'2-digit'})}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
+    const t2 = p.t2date?`<span style="font-size:11px">${new Date(p.t2date+'T12:00').toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'2-digit'})}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
     const t3 = p.t3date?`<span style="font-size:11px">${new Date(p.t3date).toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'2-digit'})}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
+    // Recalls for this proband
+    const pRecalls = Object.values(RECALLS).filter(r=>r.pid===p._id).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+    const recallCell = pRecalls.length
+      ? `<div style="display:flex;flex-direction:column;gap:2px">${pRecalls.map(r=>`<span style="font-size:10px;white-space:nowrap"><span style="font-family:monospace;color:var(--bk)">${r.date?new Date(r.date+'T12:00').toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'}):''}</span>${r.time?` ${r.time}`:''}${r.sachets?`<span style="color:#2E7D32;margin-left:3px">💊${r.sachets}</span>`:''}</span>`).join('')}</div>`
+      : '<span style="color:var(--g4);font-size:11px">—</span>';
     return `<tr>
       <td><span class="pbadge">${p.pid}</span></td>
       <td><span class="lbadge">${p.lnr}</span></td>
-      <td>${t0}</td><td>${t11}</td><td>${t12}</td><td>${t2}</td><td>${t3}</td>
+      <td>${t0}</td><td>${t11}</td><td>${t12}</td><td>${recallCell}</td>
+      <td>${t2}</td><td>${t3}</td>
       <td style="font-size:11px;color:var(--g5);max-width:120px;overflow:hidden;text-overflow:ellipsis">${p.notiz||''}</td>
       <td><div style="display:flex;gap:5px">${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">Bearbeiten</button><button class="btn btn-xs btn-d" onclick="delProband('${p._id}')">Löschen</button>`:'<span style="font-size:11px;color:var(--g4)">Nur Lesen</span>'}</div></td>
     </tr>`;
@@ -2089,7 +2095,7 @@ function renderRecalls() {
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div style="display:flex;align-items:center;gap:10px">
           ${p?`<span class="pbadge">${p.pid}</span><span class="lbadge">${p.lnr}</span>`:`<span style="color:var(--g4);font-size:12px">Proband nicht gefunden</span>`}
-          <span style="font-family:monospace;font-size:12px;color:var(--bk);font-weight:700">${r.date?new Date(r.date).toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}):''}</span>
+          <span style="font-family:monospace;font-size:12px;color:var(--bk);font-weight:700">${r.date?new Date(r.date+'T12:00').toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}):''}</span>
           ${r.time?`<span style="font-family:monospace;font-size:12px;color:var(--g5)">${r.time} Uhr</span>`:''}
           ${r.sachets?`<span style="font-size:11px;font-weight:700;color:#2E7D32;background:#E8F5E9;border:1px solid #A5D6A7;border-radius:99px;padding:1px 8px">💊 ${r.sachets} Sachets</span>${(()=>{const s=new Date((r.sachetStart||r.date)+'T12:00');const end=new Date(s);end.setDate(s.getDate()+r.sachets-1);return `<span style="font-size:11px;color:#2E7D32">ab ${s.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'})} → leer ${end.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'})}</span>`;})()}`:''}          ${r.person?(()=>{const m=TEAM[r.person];return m?`<span style="font-size:11px;font-weight:600;color:var(--ub);background:var(--ubl);border:1px solid var(--t1bd);border-radius:99px;padding:1px 8px">${m.name}</span>`:'';})():''}
           ${r.note?`<span style="font-size:12px;color:var(--g5);font-style:italic">· ${r.note}</span>`:''}
@@ -2744,13 +2750,13 @@ function renderAbsentCal() {
 
   // Helper: does absence overlap a given date?
   const overlaps = (ab, date) => {
-    const from = new Date(ab.from); const to = new Date(ab.to||ab.from);
+    const from = new Date(ab.from+'T12:00'); const to = new Date((ab.to||ab.from)+'T12:00');
     return date >= from && date <= to;
   };
 
   // Count this month
   const monthAbsences = Object.values(ABSENT).filter(ab => {
-    const from=new Date(ab.from), to=new Date(ab.to||ab.from);
+    const from=new Date(ab.from+'T12:00'), to=new Date((ab.to||ab.from)+'T12:00');
     return from<=monthEnd && to>=monthStart;
   });
   document.getElementById('month-absent-count').textContent = `${monthAbsences.length} Abwesenheit${monthAbsences.length!==1?'en':''} dieses Monat`;
@@ -2811,7 +2817,7 @@ function renderAbsentCal() {
       const sorted = monthAbsences.sort((a,b)=>a.from.localeCompare(b.from));
       list.innerHTML=sorted.map(ab=>{
         const canEdit = ab.uid===currentUser?.uid || userRole==='admin';
-        const fromD=new Date(ab.from), toD=new Date(ab.to||ab.from);
+        const fromD=new Date(ab.from+'T12:00'), toD=new Date((ab.to||ab.from)+'T12:00');
         const fromStr=fromD.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit'});
         const toStr=ab.to&&ab.to!==ab.from?toD.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit'}):null;
         const days=Math.round((toD-fromD)/86400000)+1;
