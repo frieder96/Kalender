@@ -667,7 +667,6 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
       <button class="ntab"     onclick="goTab('raumplan',this)">🏠 Raumplan</button>
       <button class="ntab"     onclick="goTab('studio',this)">Studio &amp; Training</button>
-      <button class="ntab"     onclick="goTab('fortschritt',this)">📊 Fortschritt</button>
     </div>
   </nav>
   <div class="ubc"><div class="ubc-i"><span>Universität Wien</span><span>›</span><span>AAAging Studie</span><span>›</span><span class="bc-c" id="bcc">Kalender</span></div></div>
@@ -929,15 +928,8 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <div id="rp-content"></div>
     </div>
 
-    <!-- FORTSCHRITT -->
-    <div id="tab-fortschritt" class="panel">
-      <div class="phdr">
-        <div><div class="ptitle">Fortschritt & Motivation</div><div class="psub">Studienziel · Probanden-Status · Trainingseinheiten</div></div>
-      </div>
-      <div id="fortschritt-content"></div>
-    </div>
-
-    <div id="tab-studio" class="panel">
+    
+        <div id="tab-studio" class="panel">
       <div class="phdr">
         <div><div class="ptitle">Studio &amp; Training</div><div class="psub">Buchungskalender · Probanden · 5RM Kraftdiagnostik · 3 Studios</div></div>
         <div id="sp-sync-lbl" style="font-size:11px;font-family:monospace;color:var(--g5)">●  Verbinde…</div>
@@ -3765,122 +3757,6 @@ function rpRenderWeek() {
 }
 function setSync(ok,lbl){ document.getElementById('sdot').style.background=ok?'#4CAF80':'#F0C040'; document.getElementById('slbl').textContent=lbl||(ok?'Synchronisiert':'Getrennt'); }
 function toast(msg,err=false){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast'+(err?' err':''); setTimeout(()=>t.classList.add('show'),10); setTimeout(()=>t.classList.remove('show'),3200); }
-
-// ── FORTSCHRITT & MOTIVATION ─────────────────────────────────────
-const ZIELE_P = 126, ZIELE_T = 12096;
-
-const ZITATE_LIST = [
-  "Der einzige Weg, großartige Arbeit zu leisten, ist zu lieben, was man tut. — Steve Jobs",
-  "Erfolg ist die Summe kleiner Anstrengungen, die Tag für Tag wiederholt werden. — R. Collier",
-  "Wissenschaft ist organisiertes Wissen. Weisheit ist organisiertes Leben. — I. Kant",
-  "Jede Reise beginnt mit einem einzigen Schritt. — Laozi",
-  "Fortschritt, nicht Perfektion.",
-  "Nicht weil es schwer ist, wagen wir es nicht – weil wir es nicht wagen, ist es schwer. — Seneca",
-  "Gute Forschung stellt mehr Fragen als sie beantwortet.",
-  "Das Geheimnis des Fortschritts liegt im Beginn. — M. Twain",
-  "Gemeinsam schaffen wir, was alleine unmöglich wäre.",
-  "Die größte Entdeckung: Ein Mensch kann sein Leben ändern, indem er seine Einstellung ändert. — W. James",
-];
-
-const MEILENSTEINE_LIST = [
-  {n:10,  msg:"10 Probanden! Toller Start!"},
-  {n:25,  msg:"Ein Viertel geschafft! Weiter so!"},
-  {n:50,  msg:"50 Probanden! Halbzeit bei den Starts!"},
-  {n:63,  msg:"Halbzeit! 63 von 126 — fantastisch!"},
-  {n:100, msg:"100 Probanden! Unglaublich!"},
-  {n:126, msg:"Vollständige Rekrutierung! Das ganze Team hat es geschafft!"},
-];
-
-function renderFortschritt() {
-  const el = document.getElementById('fortschritt-content');
-  if (!el) return;
-
-  const ps = Object.values(P);
-  const t1Started = ps.filter(p => p.t1week !== undefined).length;
-  const hasT2 = ps.filter(p => p.t2date).length;
-  const hasT3 = ps.filter(p => p.t3date).length;
-  const hasRecall = ps.filter(p => Object.values(RECALLS).some(r => r.pid === p._id)).length;
-  const t0done = ps.filter(p => p.t0week !== undefined).length;
-  const t1done = ps.filter(p => p.t1week !== undefined).length;
-
-  const slots = typeof SP_SLOTS_DATA !== 'undefined' ? SP_SLOTS_DATA : (window.SP_SLOTS_DATA || {});
-  const totalTrainDone = Object.values(slots).reduce((sum, d) => sum + (d && d.members ? d.members.length : 0), 0);
-
-  const dayIdx = Math.floor(Date.now() / 86400000) % ZITATE_LIST.length;
-  const zitat = ZITATE_LIST[dayIdx];
-  const milestone = MEILENSTEINE_LIST.slice().reverse().find(m => t1Started >= m.n);
-  const nextMilestone = MEILENSTEINE_LIST.find(m => m.n > t1Started);
-
-  function bar(val, max, color) {
-    const pct = max > 0 ? Math.min(100, Math.round(val / max * 100)) : 0;
-    return '<div style="background:var(--g2);border-radius:99px;height:10px;overflow:hidden;margin-top:6px">'
-      + '<div style="background:' + color + ';height:100%;width:' + pct + '%;border-radius:99px"></div></div>';
-  }
-
-  const pipeline = [
-    {label:'T0', n:t0done, color:'var(--t0c)'},
-    {label:'T1', n:t1done, color:'var(--t1c)'},
-    {label:'Recall', n:hasRecall, color:'#E87127'},
-    {label:'T2', n:hasT2, color:'var(--t2c)'},
-    {label:'T3', n:hasT3, color:'var(--t3c)'},
-  ];
-
-  let pipelineHtml = '';
-  pipeline.forEach(function(s) {
-    pipelineHtml += '<div style="text-align:center">'
-      + '<div style="font-size:28px;font-weight:800;font-family:Syne,sans-serif;color:' + s.color + '">' + s.n + '</div>'
-      + '<div style="font-size:10px;color:var(--g5);margin-top:2px">' + s.label + '</div>'
-      + bar(s.n, ps.length || 1, s.color)
-      + '</div>';
-  });
-
-  const milestoneHtml = milestone
-    ? '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.1em;margin-bottom:12px">MEILENSTEIN</div>'
-      + '<div style="font-size:16px;font-weight:800;font-family:Syne,sans-serif;color:#fff;line-height:1.4">&#127942; ' + milestone.msg + '</div>'
-      + (nextMilestone ? '<div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:8px">Nächstes Ziel: ' + nextMilestone.n + ' Probanden</div>' : '')
-    : '<div style="font-size:10px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">MEILENSTEIN</div>'
-      + '<div style="font-size:13px;color:var(--g5)">Nächstes Ziel: <strong style="color:var(--ub)">' + (MEILENSTEINE_LIST[0].n) + ' Probanden</strong></div>';
-
-  el.innerHTML = ''
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">'
-
-    + '<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh)">'
-    + '<div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">STUDIENZIEL — PROBANDEN</div>'
-    + '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">'
-    + '<span style="font-size:36px;font-weight:800;font-family:Syne,sans-serif;color:var(--ub)">' + t1Started + '</span>'
-    + '<span style="font-size:16px;color:var(--g4)">/ ' + ZIELE_P + '</span>'
-    + '<span style="font-size:13px;color:var(--g5);margin-left:auto">' + Math.round(t1Started / ZIELE_P * 100) + '%</span>'
-    + '</div>' + bar(t1Started, ZIELE_P, 'var(--ub)')
-    + '<div style="font-size:11px;color:var(--g4);margin-top:6px">' + (ZIELE_P - t1Started) + ' Probanden noch ausstehend</div>'
-    + '</div>'
-
-    + '<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh)">'
-    + '<div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">TRAININGSEINHEITEN</div>'
-    + '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">'
-    + '<span style="font-size:36px;font-weight:800;font-family:Syne,sans-serif;color:#2E7D32">' + totalTrainDone + '</span>'
-    + '<span style="font-size:16px;color:var(--g4)">/ ' + ZIELE_T + '</span>'
-    + '<span style="font-size:13px;color:var(--g5);margin-left:auto">' + Math.round(totalTrainDone / ZIELE_T * 100) + '%</span>'
-    + '</div>' + bar(totalTrainDone, ZIELE_T, '#2E7D32')
-    + '<div style="font-size:11px;color:var(--g4);margin-top:6px">' + (ZIELE_T - totalTrainDone) + ' Einheiten noch geplant</div>'
-    + '</div>'
-    + '</div>'
-
-    + '<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh);margin-bottom:16px">'
-    + '<div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:16px">PROBANDEN-PIPELINE</div>'
-    + '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px">'
-    + pipelineHtml + '</div></div>'
-
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
-    + '<div style="background:linear-gradient(135deg,var(--ub),#1a5a9a);border-radius:var(--rl);padding:24px;box-shadow:var(--sh)">'
-    + '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.1em;margin-bottom:12px">ZITAT DES TAGES</div>'
-    + '<div style="font-size:14px;color:#fff;line-height:1.6;font-style:italic">' + zitat + '</div>'
-    + '</div>'
-    + '<div style="background:' + (milestone ? 'linear-gradient(135deg,#1A4A2A,#2E7D32)' : '#fff') + ';border:1px solid ' + (milestone ? 'transparent' : 'var(--g2)') + ';border-radius:var(--rl);padding:24px;box-shadow:var(--sh)">'
-    + milestoneHtml
-    + '</div>'
-    + '</div>';
-}
-window.renderFortschritt = renderFortschritt;
 </script>
 
 <script>
@@ -3896,7 +3772,6 @@ function goTab(name,btn){
   if(name==='backup'){renderRoomList();}
   if(name==='studio'){spRenderProbanden();}
   if(name==='raumplan'){ _rpWeek=cW; rpRender(); }
-  if(name==='fortschritt'){ if(window.renderFortschritt) window.renderFortschritt(); }
 }
 
 function setTermin(t, btn) {
@@ -4483,16 +4358,13 @@ window.spOpenTrainingLog = (sid, di, h, wo, proband, btn) => {
         <span style="font-size:11px;color:#BBB;font-family:monospace">${si+1}</span>
         <input type="number" min="0" placeholder="—" value="${s.reps||''}"
           style="padding:5px 7px;border:1px solid #E8E4DE;border-radius:6px;font-family:monospace;font-size:12px;width:100%;outline:none"
-          ${isAdmin()?'':`disabled`}
           data-ex="${ei}" data-set="${si}" data-field="reps">
         <input type="number" min="0" step="0.5" placeholder="—" value="${s.weight||''}"
           style="padding:5px 7px;border:1px solid #E8E4DE;border-radius:6px;font-family:monospace;font-size:12px;width:100%;outline:none"
-          ${isAdmin()?'':`disabled`}
           data-ex="${ei}" data-set="${si}" data-field="weight">`).join('')}
       </div>
       <input type="text" placeholder="Notiz (optional)" value="${note}"
         style="width:100%;padding:5px 8px;border:1px solid #E8E4DE;border-radius:6px;font-size:11px;color:#666;outline:none;margin-top:2px"
-        ${isAdmin()?'':`disabled`}
         data-ex="${ei}" data-field="note">
     </div>`;
   }).join('<hr style="border:none;border-top:1px solid #EAE7E2;margin:10px 0">');
