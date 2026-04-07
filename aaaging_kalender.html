@@ -858,6 +858,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
               ⬆️ Backup wiederherstellen
               <input type="file" accept=".json" style="display:none" onchange="importFullBackup(this)">
             </label>
+            <button class="btn btn-sm" onclick="migrateStudioWeeks()" style="background:#7A3A00;color:#fff;border-color:#7A3A00" title="Einmalige Migration: relative → absolute Wochen-Keys">🔧 Studio-Wochen migrieren</button>
           </div>
           <div id="backup-result" style="margin-top:8px;font-size:12px"></div>
           <div style="background:#FFF8E8;border:1px solid #E8CFA0;border-left:4px solid #C89820;border-radius:var(--r);padding:9px 14px;font-size:11.5px;color:#5C3E00;margin-top:10px">
@@ -3053,6 +3054,64 @@ window.saveSperren = async () => {
   } catch(e){ toast('Fehler: '+e.message,true); }
 };
 
+// ── STUDIO WEEK MIGRATION (relative → absolute) ───────────────────
+window.migrateStudioWeeks = async () => {
+  if(!isAdmin()){toast('Nur Admin',true);return;}
+  const resultEl = document.getElementById('backup-result');
+  resultEl.innerHTML = '⏳ Analysiere Studio-Daten…';
+
+  // Current absolute week = weeks from START to this Monday
+  const fixedStart = new Date('2026-03-16');
+  const now = new Date(); now.setHours(12,0,0,0);
+  const day = now.getDay()||7;
+  const thisMonday = new Date(now); thisMonday.setDate(now.getDate()-day+1);
+  const currentAbsWeek = Math.round((thisMonday - fixedStart)/(7*86400000));
+
+  // Find all sp_slots and sp_day_trainers docs
+  const collections = ['sp_slots','sp_day_trainers','training_logs'];
+  let total=0, converted=0, skipped=0;
+
+  if(!confirm(`Migration startet. Aktuelle absolute Woche: ${currentAbsWeek}.\n\nAlle sp_slots/sp_day_trainers/training_logs werden von relativen auf absolute Wochen-Keys umgestellt.\n\nBitte vorher ein Backup herunterladen! Fortfahren?`)) return;
+
+  try {
+    const {collection:col, getDocs, setDoc, doc:fdoc, deleteDoc} = window._fbFns;
+    for(const colName of collections){
+      resultEl.innerHTML = `⏳ Migriere ${colName}…`;
+      const snap = await getDocs(col(db, colName));
+      for(const d of snap.docs){
+        total++;
+        const data = d.data();
+        const key = d.id;
+
+        // Parse wo from key: s{sid}_d{di}_h{h}_w{wo} or s{sid}_d{di}_w{wo} or contains _w{wo}
+        const woMatch = key.match(/_w(-?\d+)$/);
+        if(!woMatch){ skipped++; continue; }
+        const relWo = parseInt(woMatch[1]);
+
+        // If wo is already large (absolute), skip
+        if(Math.abs(relWo) > 200){ skipped++; continue; }
+
+        // Convert: absWo = currentAbsWeek + relWo
+        const absWo = currentAbsWeek + relWo;
+        const newKey = key.replace(/_w(-?\d+)$/, '_w' + absWo);
+
+        if(newKey === key){ skipped++; continue; }
+
+        const newData = {...data, key: newKey.includes('key') ? newKey : data.key, wo: absWo};
+        // Write new doc, delete old
+        await setDoc(fdoc(db, colName, newKey), newData);
+        await deleteDoc(fdoc(db, colName, key));
+        converted++;
+      }
+    }
+    resultEl.innerHTML = `<span style="color:#2E8B57">✓ Migration abgeschlossen: ${converted} umgestellt, ${skipped} übersprungen (von ${total} gesamt).</span>`;
+    toast(`Studio-Migration: ${converted} Einträge umgestellt ✓`);
+  } catch(e){
+    resultEl.innerHTML = `<span style="color:#C8102E">Fehler: ${e.message}</span>`;
+    toast('Fehler: '+e.message,true);
+  }
+};
+
 window.deleteSperren = async () => {
   if(!sperrenEditId) return;
   try { await deleteDoc(doc(db,'sperren',sperrenEditId)); closeSperren(); toast('Sperre aufgehoben ✓'); }
@@ -3858,9 +3917,21 @@ function spSKey(sid,di,h,wo){ return `s${sid}_d${di}_h${h}_w${wo}`; }
 function spGetSD(sid,di,h,wo){ return SP_SLOTS_DATA[spSKey(sid,di,h,wo)]||{members:[],trainer:null,attendance:[]}; }
 
 function spGetWeekDates(off=0){
-  const now=new Date(),day=now.getDay();
-  const monday=new Date(now); monday.setDate(now.getDate()-day+(day===0?-6:1)+off*7);
+  // off is now absolute weeks from START (same as cW in main calendar)
+  const startDate = window.START || new Date('2026-03-16');
+  const monday = new Date(startDate);
+  monday.setDate(startDate.getDate() + off*7);
+  monday.setHours(12,0,0,0);
+  // Ensure it's a Monday (START should already be Monday)
   return Array.from({length:4},(_,i)=>{const d=new Date(monday);d.setDate(monday.getDate()+i);return d;});
+}
+function spCurrentAbsWeek(){
+  // Current absolute week offset from START
+  const startDate = window.START || new Date('2026-03-16');
+  const now = new Date(); now.setHours(12,0,0,0);
+  const day = now.getDay()||7;
+  const thisMonday = new Date(now); thisMonday.setDate(now.getDate()-day+1);
+  return Math.round((thisMonday - startDate)/(7*86400000));
 }
 function spFmtDate(d){ return `${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}`; }
 function spCountAll(pid){
@@ -4088,9 +4159,10 @@ function spRenderProbanden(){
 window.spFilterP=q=>document.querySelectorAll('#sp-prows .proband-row').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(q.toLowerCase())?'':'none';});
 
 // ── CALENDAR ───────────────────────────────
-let spWeekOff=0, spActiveStudio=1, spCalTab='calendar', spModal=null;
+let spWeekOff=null, spActiveStudio=1, spCalTab='calendar', spModal=null;
 
 function spRenderCalendar(){
+  if(spWeekOff===null) spWeekOff = spCurrentAbsWeek();
   const root=document.getElementById('sp-cal-root'); if(!root) return;
   const studio=SP_STUDIOS.find(s=>s.id===spActiveStudio);
   const weekDates=spGetWeekDates(spWeekOff);
@@ -4209,10 +4281,10 @@ function spRenderCalendar(){
         <button class="week-btn" onclick="spWeekOff--;spRenderCalendar()">←</button>
         <div style="text-align:center;min-width:72px">
           <div style="font-size:10px;color:#BBB;letter-spacing:2px">WOCHE</div>
-          <div style="font-size:13px;color:${spWeekOff===0?studio.color:'#888'};font-family:monospace">${spWeekOff===0?'AKTUELL':spWeekOff>0?'+'+spWeekOff:spWeekOff}</div>
+          <div style="font-size:13px;color:${spWeekOff===spCurrentAbsWeek()?studio.color:'#888'};font-family:monospace">${spWeekOff===spCurrentAbsWeek()?'AKTUELL':'KW '+spWeekOff}</div>
         </div>
         <button class="week-btn" onclick="spWeekOff++;spRenderCalendar()">→</button>
-        ${spWeekOff!==0?`<button class="week-btn" onclick="spWeekOff=0;spRenderCalendar()" style="font-size:10px;color:${studio.color}">HEUTE</button>`:''}
+        ${spWeekOff!==spCurrentAbsWeek()?`<button class="week-btn" onclick="spWeekOff=spCurrentAbsWeek();spRenderCalendar()" style="font-size:10px;color:${studio.color}">HEUTE</button>`:''}
       </div>`:''}
     </div>
     ${content}`;
@@ -4894,22 +4966,15 @@ window.spSaveSeriesBooking = async () => {
 
   let booked=0, skipped=0;
   try {
-    // spGetWeekDates uses offset relative to THIS week's Monday (wo=0 = this week)
-    // Calculate today's Monday
-    const todayDate = new Date();
-    const todayDay = todayDate.getDay()||7;
-    const todayMonday = new Date(todayDate);
-    todayMonday.setDate(todayDate.getDate() - todayDay + 1);
-    todayMonday.setHours(0,0,0,0);
-
-    // Calculate start week's Monday
+    // wo = absolute weeks from START (same system as main calendar)
+    const _fixedStart = window.START || new Date('2026-03-16');
     const _startDay = startDate.getDay()||7;
     const _startMonday = new Date(startDate);
     _startMonday.setDate(startDate.getDate() - _startDay + 1);
-    _startMonday.setHours(0,0,0,0);
+    _startMonday.setHours(12,0,0,0);
 
-    // wo = weeks from today's Monday to start Monday
-    const _startWo = Math.round((_startMonday - todayMonday) / (7*86400000));
+    // wo = absolute weeks from START to start Monday
+    const _startWo = Math.round((_startMonday - _fixedStart) / (7*86400000));
 
     for(let w=0; w<weeks; w++){
       const wo = _startWo + w;
