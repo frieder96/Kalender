@@ -1422,7 +1422,7 @@ let absentEditId=null, curMonth=new Date().getMonth(), curYear=new Date().getFul
 let db=null, auth=null, userRole='readonly', currentUser=null;
 window._db = () => db;
 window._fbFns = null; // set after import
-window._fbFns = {addDoc, deleteDoc, setDoc, getDoc, doc, collection, updateDoc};
+window._fbFns = {addDoc, deleteDoc, setDoc, getDoc, getDocs, doc, collection, updateDoc};
 const isAdmin   = () => userRole==='admin';
 const isTrainer = () => userRole==='trainer' || userRole==='admin';
 window.isAdmin   = isAdmin;
@@ -3058,57 +3058,62 @@ window.saveSperren = async () => {
 window.migrateStudioWeeks = async () => {
   if(!isAdmin()){toast('Nur Admin',true);return;}
   const resultEl = document.getElementById('backup-result');
-  resultEl.innerHTML = '⏳ Analysiere Studio-Daten…';
 
-  // Current absolute week = weeks from START to this Monday
   const fixedStart = new Date('2026-03-16');
   const now = new Date(); now.setHours(12,0,0,0);
   const day = now.getDay()||7;
   const thisMonday = new Date(now); thisMonday.setDate(now.getDate()-day+1);
   const currentAbsWeek = Math.round((thisMonday - fixedStart)/(7*86400000));
 
-  // Find all sp_slots and sp_day_trainers docs
+  const offsetInput = prompt(
+    'Migrations-Offset eingeben:\n\n' +
+    'Aktuelle Woche = ' + currentAbsWeek + ' (ab 16.03.2026)\n' +
+    'Woche 0 = 16.03, Woche 1 = 23.03, Woche 2 = 30.03, Woche 3 = 06.04\n\n' +
+    'Wenn die Daten als "wo=0" gespeichert wurden und der Termin z.B. am 31.03 war\n' +
+    '(= Woche 2), dann ist der Offset: 2\n\n' +
+    'Welcher Offset soll addiert werden?',
+    String(currentAbsWeek)
+  );
+  if(offsetInput === null) return;
+  const offset = parseInt(offsetInput);
+  if(isNaN(offset)){toast('Ungültiger Offset',true);return;}
+
+  if(!confirm('Migration mit Offset +' + offset + ' starten?\nAlle sp_slots/sp_day_trainers/training_logs werden umgestellt.\n\nBitte vorher Backup herunterladen!')) return;
+
+  resultEl.innerHTML = '⏳ Migriere…';
   const collections = ['sp_slots','sp_day_trainers','training_logs'];
   let total=0, converted=0, skipped=0;
 
-  if(!confirm(`Migration startet. Aktuelle absolute Woche: ${currentAbsWeek}.\n\nAlle sp_slots/sp_day_trainers/training_logs werden von relativen auf absolute Wochen-Keys umgestellt.\n\nBitte vorher ein Backup herunterladen! Fortfahren?`)) return;
-
   try {
-    const {collection:col, getDocs, setDoc, doc:fdoc, deleteDoc} = window._fbFns;
+    const fbFns = window._fbFns;
     for(const colName of collections){
-      resultEl.innerHTML = `⏳ Migriere ${colName}…`;
-      const snap = await getDocs(col(db, colName));
+      resultEl.innerHTML = '⏳ Migriere ' + colName + '…';
+      const snap = await fbFns.getDocs(fbFns.collection(db, colName));
       for(const d of snap.docs){
         total++;
         const data = d.data();
         const key = d.id;
-
-        // Parse wo from key: s{sid}_d{di}_h{h}_w{wo} or s{sid}_d{di}_w{wo} or contains _w{wo}
         const woMatch = key.match(/_w(-?\d+)$/);
         if(!woMatch){ skipped++; continue; }
         const relWo = parseInt(woMatch[1]);
-
-        // If wo is already large (absolute), skip
-        if(Math.abs(relWo) > 200){ skipped++; continue; }
-
-        // Convert: absWo = currentAbsWeek + relWo
-        const absWo = currentAbsWeek + relWo;
+        if(Math.abs(relWo) > 500){ skipped++; continue; } // already absolute
+        const absWo = relWo + offset;
         const newKey = key.replace(/_w(-?\d+)$/, '_w' + absWo);
-
         if(newKey === key){ skipped++; continue; }
-
-        const newData = {...data, key: newKey.includes('key') ? newKey : data.key, wo: absWo};
-        // Write new doc, delete old
-        await setDoc(fdoc(db, colName, newKey), newData);
-        await deleteDoc(fdoc(db, colName, key));
+        const newData = Object.assign({}, data, {wo: absWo});
+        if(newData.key) newData.key = newKey;
+        await fbFns.setDoc(fbFns.doc(db, colName, newKey), newData);
+        await fbFns.deleteDoc(fbFns.doc(db, colName, key));
         converted++;
       }
     }
-    resultEl.innerHTML = `<span style="color:#2E8B57">✓ Migration abgeschlossen: ${converted} umgestellt, ${skipped} übersprungen (von ${total} gesamt).</span>`;
-    toast(`Studio-Migration: ${converted} Einträge umgestellt ✓`);
+    resultEl.innerHTML = '<span style="color:#2E8B57">✓ Migration abgeschlossen: ' + converted + ' umgestellt, ' + skipped + ' übersprungen (von ' + total + ' gesamt).</span>';
+    toast('Studio-Migration: ' + converted + ' Einträge umgestellt ✓');
+    if(typeof spRenderCalendar === 'function') spRenderCalendar();
   } catch(e){
-    resultEl.innerHTML = `<span style="color:#C8102E">Fehler: ${e.message}</span>`;
+    resultEl.innerHTML = '<span style="color:#C8102E">Fehler: ' + e.message + '</span>';
     toast('Fehler: '+e.message,true);
+    console.error(e);
   }
 };
 
