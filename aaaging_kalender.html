@@ -3922,21 +3922,9 @@ function spSKey(sid,di,h,wo){ return `s${sid}_d${di}_h${h}_w${wo}`; }
 function spGetSD(sid,di,h,wo){ return SP_SLOTS_DATA[spSKey(sid,di,h,wo)]||{members:[],trainer:null,attendance:[]}; }
 
 function spGetWeekDates(off=0){
-  // off is now absolute weeks from START (same as cW in main calendar)
-  const startDate = window.START || new Date('2026-03-16');
-  const monday = new Date(startDate);
-  monday.setDate(startDate.getDate() + off*7);
-  monday.setHours(12,0,0,0);
-  // Ensure it's a Monday (START should already be Monday)
+  const now=new Date(),day=now.getDay();
+  const monday=new Date(now); monday.setDate(now.getDate()-day+(day===0?-6:1)+off*7);
   return Array.from({length:4},(_,i)=>{const d=new Date(monday);d.setDate(monday.getDate()+i);return d;});
-}
-function spCurrentAbsWeek(){
-  // Current absolute week offset from START
-  const startDate = window.START || new Date('2026-03-16');
-  const now = new Date(); now.setHours(12,0,0,0);
-  const day = now.getDay()||7;
-  const thisMonday = new Date(now); thisMonday.setDate(now.getDate()-day+1);
-  return Math.round((thisMonday - startDate)/(7*86400000));
 }
 function spFmtDate(d){ return `${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}`; }
 function spCountAll(pid){
@@ -4164,10 +4152,9 @@ function spRenderProbanden(){
 window.spFilterP=q=>document.querySelectorAll('#sp-prows .proband-row').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(q.toLowerCase())?'':'none';});
 
 // ── CALENDAR ───────────────────────────────
-let spWeekOff=null, spActiveStudio=1, spCalTab='calendar', spModal=null;
+let spWeekOff=0, spActiveStudio=1, spCalTab='calendar', spModal=null;
 
 function spRenderCalendar(){
-  if(spWeekOff===null) spWeekOff = spCurrentAbsWeek();
   const root=document.getElementById('sp-cal-root'); if(!root) return;
   const studio=SP_STUDIOS.find(s=>s.id===spActiveStudio);
   const weekDates=spGetWeekDates(spWeekOff);
@@ -4286,10 +4273,10 @@ function spRenderCalendar(){
         <button class="week-btn" onclick="spWeekOff--;spRenderCalendar()">←</button>
         <div style="text-align:center;min-width:72px">
           <div style="font-size:10px;color:#BBB;letter-spacing:2px">WOCHE</div>
-          <div style="font-size:13px;color:${spWeekOff===spCurrentAbsWeek()?studio.color:'#888'};font-family:monospace">${spWeekOff===spCurrentAbsWeek()?'AKTUELL':'KW '+spWeekOff}</div>
+          <div style="font-size:13px;color:${spWeekOff===0?studio.color:'#888'};font-family:monospace">${spWeekOff===0?'AKTUELL':spWeekOff>0?'+'+spWeekOff:spWeekOff}</div>
         </div>
         <button class="week-btn" onclick="spWeekOff++;spRenderCalendar()">→</button>
-        ${spWeekOff!==spCurrentAbsWeek()?`<button class="week-btn" onclick="spWeekOff=spCurrentAbsWeek();spRenderCalendar()" style="font-size:10px;color:${studio.color}">HEUTE</button>`:''}
+        ${spWeekOff!==0?`<button class="week-btn" onclick="spWeekOff=0;spRenderCalendar()" style="font-size:10px;color:${studio.color}">HEUTE</button>`:''}
       </div>`:''}
     </div>
     ${content}`;
@@ -4971,15 +4958,16 @@ window.spSaveSeriesBooking = async () => {
 
   let booked=0, skipped=0;
   try {
-    // wo = absolute weeks from START (same system as main calendar)
-    const _fixedStart = window.START || new Date('2026-03-16');
+    const todayDate = new Date();
+    const todayDay = todayDate.getDay()||7;
+    const todayMonday = new Date(todayDate);
+    todayMonday.setDate(todayDate.getDate() - todayDay + 1);
+    todayMonday.setHours(0,0,0,0);
     const _startDay = startDate.getDay()||7;
     const _startMonday = new Date(startDate);
     _startMonday.setDate(startDate.getDate() - _startDay + 1);
-    _startMonday.setHours(12,0,0,0);
-
-    // wo = absolute weeks from START to start Monday
-    const _startWo = Math.round((_startMonday - _fixedStart) / (7*86400000));
+    _startMonday.setHours(0,0,0,0);
+    const _startWo = Math.round((_startMonday - todayMonday) / (7*86400000));
 
     for(let w=0; w<weeks; w++){
       const wo = _startWo + w;
