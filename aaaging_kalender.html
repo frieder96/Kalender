@@ -4165,7 +4165,6 @@ window.spFilterP=q=>document.querySelectorAll('#sp-prows .proband-row').forEach(
 let spWeekOff=0, spActiveStudio=1, spCalTab='calendar', spModal=null;
 
 function spRenderCalendar(){
-  if(spWeekOff===0 && typeof spCurrentWeekOff==='function') spWeekOff=spCurrentWeekOff();
   const root=document.getElementById('sp-cal-root'); if(!root) return;
   const studio=SP_STUDIOS.find(s=>s.id===spActiveStudio);
   const weekDates=spGetWeekDates(spWeekOff);
