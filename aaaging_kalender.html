@@ -667,6 +667,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
       <button class="ntab"     onclick="goTab('raumplan',this)">🏠 Raumplan</button>
       <button class="ntab"     onclick="goTab('studio',this)">Studio &amp; Training</button>
+      <button class="ntab"     onclick="goTab('fortschritt',this)">&#128202; Fortschritt</button>
     </div>
   </nav>
   <div class="ubc"><div class="ubc-i"><span>Universität Wien</span><span>›</span><span>AAAging Studie</span><span>›</span><span class="bc-c" id="bcc">Kalender</span></div></div>
@@ -1015,6 +1016,11 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     </div>
 
 
+    <!-- FORTSCHRITT -->
+    <div id="tab-fortschritt" class="panel">
+      <div class="phdr"><div><div class="ptitle">Fortschritt &amp; Motivation</div><div class="psub">Studienziel &middot; Probanden-Status &middot; Trainingseinheiten</div></div></div>
+      <div id="fortschritt-content" style="padding:4px 0"></div>
+    </div>
   </main>
 </div>
 
@@ -3772,6 +3778,7 @@ function goTab(name,btn){
   if(name==='backup'){renderRoomList();}
   if(name==='studio'){spRenderProbanden();}
   if(name==='raumplan'){ _rpWeek=cW; rpRender(); }
+  if(name==='fortschritt'){ if(window.spRenderFortschritt) window.spRenderFortschritt(); }
 }
 
 function setTermin(t, btn) {
@@ -5351,5 +5358,133 @@ document.addEventListener('DOMContentLoaded', ()=>{
 });
 </script>
 
+
+<script>
+// ── FORTSCHRITT TAB ───────────────────────────────────────────────
+var FT_ZIELE_P = 126;
+var FT_ZIELE_T = 12096;
+
+var FT_ZITATE = [
+  "Der einzige Weg, grossartige Arbeit zu leisten, ist zu lieben was man tut. - Steve Jobs",
+  "Erfolg ist die Summe kleiner Anstrengungen, die Tag fuer Tag wiederholt werden. - R. Collier",
+  "Fortschritt, nicht Perfektion.",
+  "Nicht weil es schwer ist, wagen wir es nicht - weil wir es nicht wagen, ist es schwer. - Seneca",
+  "Gute Forschung stellt mehr Fragen als sie beantwortet.",
+  "Das Geheimnis des Fortschritts liegt im Beginn. - M. Twain",
+  "Gemeinsam schaffen wir, was alleine unmoeglich waere.",
+  "Jede Reise beginnt mit einem einzigen Schritt. - Laozi",
+  "Wissenschaft ist organisiertes Wissen. Weisheit ist organisiertes Leben. - I. Kant",
+  "Ein Mensch kann sein Leben aendern, indem er seine Einstellung aendert. - W. James"
+];
+
+var FT_MEILENSTEINE = [
+  {n:10,  msg:"10 Probanden! Toller Start!"},
+  {n:25,  msg:"Ein Viertel geschafft! Weiter so!"},
+  {n:50,  msg:"50 Probanden! Halbzeit bei den Starts!"},
+  {n:63,  msg:"Halbzeit! 63 von 126 - fantastisch!"},
+  {n:100, msg:"100 Probanden! Unglaublich!"},
+  {n:126, msg:"Vollstaendige Rekrutierung! Das ganze Team hat es geschafft!"}
+];
+
+window.spRenderFortschritt = function() {
+  var el = document.getElementById("fortschritt-content");
+  if (!el) return;
+
+  var ps = typeof P !== "undefined" ? Object.values(P) : [];
+  var recalls = typeof RECALLS !== "undefined" ? Object.values(RECALLS) : [];
+  var slots = typeof SP_SLOTS_DATA !== "undefined" ? SP_SLOTS_DATA : {};
+
+  var t0done    = ps.filter(function(p){ return p.t0week !== undefined; }).length;
+  var t1started = ps.filter(function(p){ return p.t1week !== undefined; }).length;
+  var hasRecall = ps.filter(function(p){ return recalls.some(function(r){ return r.pid === p._id; }); }).length;
+  var hasT2     = ps.filter(function(p){ return p.t2date; }).length;
+  var hasT3     = ps.filter(function(p){ return p.t3date; }).length;
+
+  var trainDone = Object.values(slots).reduce(function(s, d) {
+    return s + (d && d.members ? d.members.length : 0);
+  }, 0);
+
+  var dayIdx = Math.floor(Date.now() / 86400000) % FT_ZITATE.length;
+  var zitat = FT_ZITATE[dayIdx];
+
+  var milestone = null;
+  for (var i = FT_MEILENSTEINE.length - 1; i >= 0; i--) {
+    if (t1started >= FT_MEILENSTEINE[i].n) { milestone = FT_MEILENSTEINE[i]; break; }
+  }
+  var nextM = FT_MEILENSTEINE.find(function(m){ return m.n > t1started; });
+
+  function pct(v, max) { return max > 0 ? Math.min(100, Math.round(v / max * 100)) : 0; }
+  function bar(v, max, col) {
+    return '<div style="background:var(--g2);border-radius:99px;height:10px;overflow:hidden;margin-top:6px">'
+      + '<div style="background:' + col + ';height:100%;width:' + pct(v,max) + '%;border-radius:99px"></div></div>';
+  }
+
+  var pipelineCells = [
+    {label:"T0", n:t0done, color:"var(--t0c)"},
+    {label:"T1", n:t1started, color:"var(--t1c)"},
+    {label:"Recall", n:hasRecall, color:"#E87127"},
+    {label:"T2", n:hasT2, color:"var(--t2c)"},
+    {label:"T3", n:hasT3, color:"var(--t3c)"}
+  ];
+
+  var pipelineHtml = "";
+  pipelineCells.forEach(function(s) {
+    pipelineHtml += '<div style="text-align:center">'
+      + '<div style="font-size:28px;font-weight:800;color:' + s.color + '">' + s.n + '</div>'
+      + '<div style="font-size:10px;color:var(--g5);margin-top:2px">' + s.label + '</div>'
+      + bar(s.n, ps.length || 1, s.color)
+      + '</div>';
+  });
+
+  var milestoneStyle = milestone
+    ? 'background:linear-gradient(135deg,#1A4A2A,#2E7D32);border:1px solid transparent'
+    : 'background:#fff;border:1px solid var(--g2)';
+  var milestoneContent = milestone
+    ? '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.1em;margin-bottom:12px">MEILENSTEIN</div>'
+      + '<div style="font-size:16px;font-weight:800;color:#fff;line-height:1.4">&#127942; ' + milestone.msg + '</div>'
+      + (nextM ? '<div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:8px">Naechstes Ziel: ' + nextM.n + ' Probanden</div>' : '')
+    : '<div style="font-size:10px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">MEILENSTEIN</div>'
+      + '<div style="font-size:13px;color:var(--g5)">Naechstes Ziel: <strong style="color:var(--ub)">'
+      + FT_MEILENSTEINE[0].n + ' Probanden</strong></div>';
+
+  el.innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">'
+
+    + '<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh)">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">STUDIENZIEL</div>'
+    + '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">'
+    + '<span style="font-size:36px;font-weight:800;color:var(--ub)">' + t1started + '</span>'
+    + '<span style="font-size:16px;color:var(--g4)"> / ' + FT_ZIELE_P + '</span>'
+    + '<span style="font-size:13px;color:var(--g5);margin-left:auto">' + pct(t1started,FT_ZIELE_P) + '%</span>'
+    + '</div>' + bar(t1started, FT_ZIELE_P, 'var(--ub)')
+    + '<div style="font-size:11px;color:var(--g4);margin-top:6px">' + (FT_ZIELE_P - t1started) + ' Probanden noch ausstehend</div>'
+    + '</div>'
+
+    + '<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh)">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">TRAININGSEINHEITEN</div>'
+    + '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">'
+    + '<span style="font-size:36px;font-weight:800;color:#2E7D32">' + trainDone + '</span>'
+    + '<span style="font-size:16px;color:var(--g4)"> / ' + FT_ZIELE_T + '</span>'
+    + '<span style="font-size:13px;color:var(--g5);margin-left:auto">' + pct(trainDone,FT_ZIELE_T) + '%</span>'
+    + '</div>' + bar(trainDone, FT_ZIELE_T, '#2E7D32')
+    + '<div style="font-size:11px;color:var(--g4);margin-top:6px">' + (FT_ZIELE_T - trainDone) + ' Einheiten noch geplant</div>'
+    + '</div>'
+    + '</div>'
+
+    + '<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh);margin-bottom:16px">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:16px">PROBANDEN-PIPELINE</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px">'
+    + pipelineHtml + '</div></div>'
+
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
+    + '<div style="background:linear-gradient(135deg,var(--ub),#1a5a9a);border-radius:var(--rl);padding:24px;box-shadow:var(--sh)">'
+    + '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.1em;margin-bottom:12px">ZITAT DES TAGES</div>'
+    + '<div style="font-size:14px;color:#fff;line-height:1.6;font-style:italic">' + zitat + '</div>'
+    + '</div>'
+    + '<div style="' + milestoneStyle + ';border-radius:var(--rl);padding:24px;box-shadow:var(--sh)">'
+    + milestoneContent
+    + '</div></div>';
+};
+</script>
 </body>
 </html>
