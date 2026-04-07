@@ -1372,8 +1372,8 @@ const T12 = Array.from({length:8},(_,i) => {
   const day=sn<=4?'Mittwoch':'Donnerstag';
   return { slot:sn, day, blutStart:iso, measures:[
     {label:'Isokinetik',cls:'ciso',t:iso},
-    {label:'RBANS',cls:'crbans',t:am(sH,sMm,75)},
-    {label:'24h Recall',cls:'crecall',t:am(sH,sMm,105)},
+    {label:'RBANS',cls:'crbans',t:am(sH,sMm,60)},
+    {label:'24h Recall',cls:'crecall',t:am(sH,sMm,90)},
   ]};
 });
 
