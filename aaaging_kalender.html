@@ -1506,7 +1506,7 @@ function startDB() {
     P={}; snap.forEach(d=>{P[d.id]={...d.data(),_id:d.id}}); renderAll();
   }, ()=>setSync(false,'Verbindungsfehler'));
   onSnapshot(collection(db,'recalls'), snap => {
-    RECALLS={}; snap.forEach(d=>{RECALLS[d.id]={...d.data(),_id:d.id}}); renderRecalls(); renderTable();
+    RECALLS={}; snap.forEach(d=>{RECALLS[d.id]={...d.data(),_id:d.id}}); window._RECALLS=RECALLS; renderRecalls(); renderTable();
   });
   onSnapshot(collection(db,'team'), snap => {
     TEAM={}; snap.forEach(d=>{TEAM[d.id]={...d.data(),_id:d.id}}); window._teamCache=TEAM; renderMemberList(); renderTaskTab();
@@ -5365,16 +5365,16 @@ var FT_ZIELE_P = 126;
 var FT_ZIELE_T = 12096;
 
 var FT_ZITATE = [
-  "Der einzige Weg, grossartige Arbeit zu leisten, ist zu lieben was man tut. - Steve Jobs",
-  "Erfolg ist die Summe kleiner Anstrengungen, die Tag fuer Tag wiederholt werden. - R. Collier",
+  "Der einzige Weg, großartige Arbeit zu leisten, ist zu lieben, was man tut. - Steve Jobs",
+  "Erfolg ist die Summe kleiner Anstrengungen, die Tag für Tag wiederholt werden. - R. Collier",
   "Fortschritt, nicht Perfektion.",
   "Nicht weil es schwer ist, wagen wir es nicht - weil wir es nicht wagen, ist es schwer. - Seneca",
   "Gute Forschung stellt mehr Fragen als sie beantwortet.",
   "Das Geheimnis des Fortschritts liegt im Beginn. - M. Twain",
-  "Gemeinsam schaffen wir, was alleine unmoeglich waere.",
+  "Gemeinsam schaffen wir, was alleine unmöglich waere.",
   "Jede Reise beginnt mit einem einzigen Schritt. - Laozi",
   "Wissenschaft ist organisiertes Wissen. Weisheit ist organisiertes Leben. - I. Kant",
-  "Ein Mensch kann sein Leben aendern, indem er seine Einstellung aendert. - W. James"
+  "Ein Mensch kann sein Leben ändern, indem er seine Einstellung ändert. - W. James"
 ];
 
 var FT_MEILENSTEINE = [
@@ -5383,16 +5383,16 @@ var FT_MEILENSTEINE = [
   {n:50,  msg:"50 Probanden! Halbzeit bei den Starts!"},
   {n:63,  msg:"Halbzeit! 63 von 126 - fantastisch!"},
   {n:100, msg:"100 Probanden! Unglaublich!"},
-  {n:126, msg:"Vollstaendige Rekrutierung! Das ganze Team hat es geschafft!"}
+  {n:126, msg:"Vollständige Rekrutierung! Das ganze Team hat es geschafft!"}
 ];
 
 window.spRenderFortschritt = function() {
   var el = document.getElementById("fortschritt-content");
   if (!el) return;
 
-  var ps = typeof P !== "undefined" ? Object.values(P) : [];
-  var recalls = typeof RECALLS !== "undefined" ? Object.values(RECALLS) : [];
-  var slots = typeof SP_SLOTS_DATA !== "undefined" ? SP_SLOTS_DATA : {};
+  var ps = window._P ? Object.values(window._P()) : [];
+  var recalls = window._RECALLS ? Object.values(window._RECALLS) : [];
+  var slots = typeof SP_SLOTS_DATA !== "undefined" ? SP_SLOTS_DATA : (window.SP_SLOTS_DATA || {});
 
   var t0done    = ps.filter(function(p){ return p.t0week !== undefined; }).length;
   var t1started = ps.filter(function(p){ return p.t1week !== undefined; }).length;
@@ -5442,9 +5442,9 @@ window.spRenderFortschritt = function() {
   var milestoneContent = milestone
     ? '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.1em;margin-bottom:12px">MEILENSTEIN</div>'
       + '<div style="font-size:16px;font-weight:800;color:#fff;line-height:1.4">&#127942; ' + milestone.msg + '</div>'
-      + (nextM ? '<div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:8px">Naechstes Ziel: ' + nextM.n + ' Probanden</div>' : '')
+      + (nextM ? '<div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:8px">Nächstes Ziel: ' + nextM.n + ' Probanden</div>' : '')
     : '<div style="font-size:10px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">MEILENSTEIN</div>'
-      + '<div style="font-size:13px;color:var(--g5)">Naechstes Ziel: <strong style="color:var(--ub)">'
+      + '<div style="font-size:13px;color:var(--g5)">Nächstes Ziel: <strong style="color:var(--ub)">'
       + FT_MEILENSTEINE[0].n + ' Probanden</strong></div>';
 
   el.innerHTML =
