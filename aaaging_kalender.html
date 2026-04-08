@@ -1438,6 +1438,48 @@ function isSperred(termin, week, day, slot=null) {
   ) || null;
 }
 
+// ── ÖSTERREICHISCHE FEIERTAGE ─────────────────────────────────────
+function getEaster(year) {
+  // Anonymus algorithm
+  const a=year%19, b=Math.floor(year/100), c=year%100;
+  const d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25);
+  const g=Math.floor((b-f+1)/3), h=(19*a+b-d-g+15)%30;
+  const i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7;
+  const m=Math.floor((a+11*h+22*l)/451);
+  const month=Math.floor((h+l-7*m+114)/31);
+  const day2=(h+l-7*m+114)%31+1;
+  return new Date(year, month-1, day2);
+}
+function getAustrianHolidays(year) {
+  const easter = getEaster(year);
+  const e = (d) => { const x=new Date(easter); x.setDate(x.getDate()+d); return x; };
+  const d = (m,day2) => new Date(year,m-1,day2);
+  return [
+    {date:d(1,1),   name:'Neujahr'},
+    {date:d(1,6),   name:'Heilige Drei Könige'},
+    {date:e(-2),    name:'Karfreitag'},
+    {date:e(1),     name:'Ostermontag'},
+    {date:d(5,1),   name:'Staatsfeiertag'},
+    {date:e(39),    name:'Christi Himmelfahrt'},
+    {date:e(50),    name:'Pfingstmontag'},
+    {date:e(60),    name:'Fronleichnam'},
+    {date:d(8,15),  name:'Mariä Himmelfahrt'},
+    {date:d(10,26), name:'Nationalfeiertag'},
+    {date:d(11,1),  name:'Allerheiligen'},
+    {date:d(12,8),  name:'Mariä Empfängnis'},
+    {date:d(12,25), name:'Christtag'},
+    {date:d(12,26), name:'Stefanitag'},
+  ];
+}
+function isAustrianHoliday(dateObj) {
+  if(!dateObj) return null;
+  const holidays = getAustrianHolidays(dateObj.getFullYear());
+  return holidays.find(h =>
+    h.date.getDate()===dateObj.getDate() &&
+    h.date.getMonth()===dateObj.getMonth()
+  ) || null;
+}
+
 // Sub-termin helper: T1/T2/T3 → .1 (Mo/Di) or .2 (Mi/Do)
 function getSubTermin(termin, day) {
   const is1 = day==='Montag'||day==='Dienstag';
@@ -1618,7 +1660,8 @@ function renderWeek() {
         sp.week===cW && sp.day===d.label && Number(sp.slot)===Number(s.slot) && _tMatch(sp.termin));
       const daySperr = !slotSperr && Object.values(SPERREN).find(sp =>
         sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) && _tMatch(sp.termin));
-      const isSperred = slotSperr || daySperr;
+      const _slotHoliday = !slotSperr && !daySperr ? isAustrianHoliday(date) : null;
+      const isSperred = slotSperr || daySperr || _slotHoliday;
 
       const proHtml = isSperred
         ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSperred.grund?` · ${isSperred.grund}`:''} ${isSperred.termin!=='ALL'?`(${isSperred.termin})`:''}</div>`
@@ -1703,10 +1746,11 @@ function renderWeek() {
       ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'${getSubTermin(curTermin,d.label)}','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>`
       : '';
 
-    const hdrColor = daySperre ? '#8B1A1A' : headerColor;
+    const _holiday = isAustrianHoliday(date);
+    const hdrColor = daySperre ? '#8B1A1A' : _holiday ? '#5A3A00' : headerColor;
     const dayBlockedNote = daySperre
       ? `<div style="font-size:9.5px;color:rgba(255,220,220,.9);margin-top:3px">⛔ ${daySperre.grund||'Gesperrt'}${daySperre.termin!=='ALL'?` (${daySperre.termin})`:''}</div>`
-      : '';
+      : _holiday ? `<div style="font-size:9.5px;color:rgba(255,220,160,.9);margin-top:3px">🎉 ${_holiday.name}</div>` : '';
 
     // Show absent team members for this day
     const _dayStr = _localDate(date);
@@ -1756,9 +1800,11 @@ function renderEEGWeek() {
     const daySperre = Object.values(SPERREN).find(sp =>
       sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) &&
       (sp.termin==='EEG'||sp.termin==='ALL'));
-    const hdrColorFinal = daySperre ? '#8B1A1A' : hdrColor;
+    const _eegHoliday = isAustrianHoliday(wDay(cW,d.off));
+    const hdrColorFinal = daySperre ? '#8B1A1A' : _eegHoliday ? '#5A3A00' : hdrColor;
     const dayBlockedNote = daySperre
-      ? `<div style="font-size:9.5px;color:rgba(255,220,220,.9);margin-top:3px">⛔ ${daySperre.grund||'Gesperrt'}</div>` : '';
+      ? `<div style="font-size:9.5px;color:rgba(255,220,220,.9);margin-top:3px">⛔ ${daySperre.grund||'Gesperrt'}</div>`
+      : _eegHoliday ? `<div style="font-size:9.5px;color:rgba(255,220,160,.9);margin-top:3px">🎉 ${_eegHoliday.name}</div>` : '';
     const dayLockBtn = isAdmin()
       ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'EEG','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>` : '';
     const _eegDayStr = _localDate(wDay(cW,d.off));
@@ -1847,9 +1893,11 @@ function renderMRTWeek() {
 
     const daySperre = Object.values(SPERREN).find(sp =>
       sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) && (sp.termin==='MRT'||sp.termin==='ALL'));
-    const hdrColorFinal = daySperre ? '#8B1A1A' : hdrColor;
+    const _mrtHoliday = isAustrianHoliday(wDay(cW,d.off));
+    const hdrColorFinal = daySperre ? '#8B1A1A' : _mrtHoliday ? '#5A3A00' : hdrColor;
     const dayBlockedNote = daySperre
-      ? `<div style="font-size:9.5px;color:rgba(255,220,220,.9);margin-top:3px">⛔ ${daySperre.grund||'Gesperrt'}</div>` : '';
+      ? `<div style="font-size:9.5px;color:rgba(255,220,220,.9);margin-top:3px">⛔ ${daySperre.grund||'Gesperrt'}</div>`
+      : _mrtHoliday ? `<div style="font-size:9.5px;color:rgba(255,220,160,.9);margin-top:3px">🎉 ${_mrtHoliday.name}</div>` : '';
     const dayLockBtn = isAdmin()
       ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'MRT','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>` : '';
     const _mrtDayStr = _localDate(wDay(cW,d.off));
