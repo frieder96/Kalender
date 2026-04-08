@@ -1681,7 +1681,7 @@ function renderWeek() {
           if(!memberId) return false;
           const member = TEAM[memberId];
           if(!member) return false;
-          const dateStr = wDay(cW,d.off).toISOString().split('T')[0];
+          const dateStr = _localDate(wDay(cW,d.off));
           return Object.values(ABSENT).some(ab => {
             const n=(ab.name||ab.email||'').toLowerCase();
             const mn=member.name.toLowerCase();
@@ -1701,7 +1701,7 @@ function renderWeek() {
         </div>`;
 
         // Normal or 2-person
-        const _slotDate = wDay(cW,d.off).toISOString().split('T')[0];
+        const _slotDate = _localDate(wDay(cW,d.off));
         const _slotTime = m.t || s.blutStart || '';
         const assignSection = !isSperred&&isAdmin()
           ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
