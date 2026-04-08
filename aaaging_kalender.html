@@ -3981,16 +3981,15 @@ window.spRenderProtokolle = () => {
             const s=(ex.sets||[])[si]||{};
             return `<td style="padding:4px 6px">
               <div style="display:flex;gap:3px;align-items:center;justify-content:center">
-                <input data-lid="${logId}" data-ei="${ei}" data-si="${si}" data-f="reps"
-                  value="${s.reps||''}" placeholder="—" type="number" min="0"
-                  style="width:44px;padding:3px 5px;border:1px solid var(--g2);border-radius:4px;font-size:11px;text-align:center;outline:none"
-                  oninput="spProtoMarkDirty('${logId}')">
-                <span style="font-size:10px;color:var(--g4)">×</span>
                 <input data-lid="${logId}" data-ei="${ei}" data-si="${si}" data-f="weight"
                   value="${s.weight||''}" placeholder="—" type="number" min="0" step="0.5"
                   style="width:48px;padding:3px 5px;border:1px solid var(--g2);border-radius:4px;font-size:11px;text-align:center;outline:none"
                   oninput="spProtoMarkDirty('${logId}')">
-                <span style="font-size:10px;color:var(--g4)">kg</span>
+                <span style="font-size:10px;color:var(--g4)">kg×</span>
+                <input data-lid="${logId}" data-ei="${ei}" data-si="${si}" data-f="reps"
+                  value="${s.reps||''}" placeholder="—" type="number" min="0"
+                  style="width:44px;padding:3px 5px;border:1px solid var(--g2);border-radius:4px;font-size:11px;text-align:center;outline:none"
+                  oninput="spProtoMarkDirty('${logId}')">
               </div>
             </td>`;
           }).join('')}
@@ -4433,16 +4432,16 @@ window.spOpenTrainingLog = (sid, di, h, wo, proband, btn) => {
       </div>
       <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:4px 8px;align-items:center;margin-bottom:4px">
         <span style="font-size:9px;color:#AAA;letter-spacing:1px">SATZ</span>
-        <span style="font-size:9px;color:#AAA;letter-spacing:1px">WDHL</span>
         <span style="font-size:9px;color:#AAA;letter-spacing:1px">KG</span>
+        <span style="font-size:9px;color:#AAA;letter-spacing:1px">WDHL</span>
         ${sets.map((s,si)=>`
         <span style="font-size:11px;color:#BBB;font-family:monospace">${si+1}</span>
-        <input type="number" min="0" placeholder="—" value="${s.reps||''}"
-          style="padding:5px 7px;border:1px solid #E8E4DE;border-radius:6px;font-family:monospace;font-size:12px;width:100%;outline:none"
-          data-ex="${ei}" data-set="${si}" data-field="reps">
         <input type="number" min="0" step="0.5" placeholder="—" value="${s.weight||''}"
           style="padding:5px 7px;border:1px solid #E8E4DE;border-radius:6px;font-family:monospace;font-size:12px;width:100%;outline:none"
-          data-ex="${ei}" data-set="${si}" data-field="weight">`).join('')}
+          data-ex="${ei}" data-set="${si}" data-field="weight">
+        <input type="number" min="0" placeholder="—" value="${s.reps||''}"
+          style="padding:5px 7px;border:1px solid #E8E4DE;border-radius:6px;font-family:monospace;font-size:12px;width:100%;outline:none"
+          data-ex="${ei}" data-set="${si}" data-field="reps">`).join('')}
       </div>
       <input type="text" placeholder="Notiz (optional)" value="${note}"
         style="width:100%;padding:5px 8px;border:1px solid #E8E4DE;border-radius:6px;font-size:11px;color:#666;outline:none;margin-top:2px"
