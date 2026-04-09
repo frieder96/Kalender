@@ -1355,11 +1355,11 @@ const T11 = T11_STARTS.map((bs,i) => {
   const day = sn<=4?'Montag':'Dienstag'; const isFirst=sn<=4;
   return { slot:sn, day, blutStart:bs, measures: isFirst ? [
     {label:'Blutabnahme',cls:'cblut',t:bs,persons:2},{label:'BIA',cls:'cbia',t:am(bH,bM,15)},
-    {label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30)},{label:'Frühstück',cls:'cfrueh',t:am(bH,bM,45),noAssign:true},
+    {label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30),persons:3},{label:'Frühstück',cls:'cfrueh',t:am(bH,bM,45),noAssign:true},
     {label:'24h Recall',cls:'crecall',t:am(bH,bM,60)},{label:'Fragebogen',cls:'cfb',t:am(bH,bM,120)},
   ] : [
     {label:'Blutabnahme',cls:'cblut',t:bs,persons:2},{label:'BIA',cls:'cbia',t:am(bH,bM,15)},
-    {label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30)},{label:'Frühstück',cls:'cfrueh',t:am(bH,bM,45),noAssign:true},
+    {label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30),persons:3},{label:'Frühstück',cls:'cfrueh',t:am(bH,bM,45),noAssign:true},
     {label:'Fragebogen',cls:'cfb',t:am(bH,bM,60)},{label:'24h Recall',cls:'crecall',t:am(bH,bM,90)},
   ]};
 });
@@ -1700,16 +1700,24 @@ function renderWeek() {
           <span class="chip ${m.cls}" style="min-width:0;flex-shrink:0;font-style:italic">${m.label} <span class="ct">${m.t}</span></span>
         </div>`;
 
-        // Normal or 2-person
+        // Normal or multi-person
         const _slotDate = _localDate(wDay(cW,d.off));
         const _slotTime = m.t || s.blutStart || '';
+        const nPersons = m.persons || 1;
+
+        // Build keys/names/absent for all persons
+        const _pKeys = [aKey, aKey2,
+          `${cW}_${curTermin}_${d.label}_${s.slot}_${m.label}_3`.replace(/[^a-zA-Z0-9_]/g,'_')];
+        const _pAssigns = [a, a2, ASSIGN[_pKeys[2]]];
+        const _pNames = _pAssigns.map(ax => ax?.person?(TEAM[ax.person]?.name||ax.person):null);
+        const _pAbsent = _pAssigns.map(ax => ax?.person?_checkAbsent(ax.person):false);
+
         const assignSection = !isSperred&&isAdmin()
           ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
-              <button class="assign-btn" onclick="openAssignModal('${aKey}','${m.label}','${d.label} Slot ${s.slot}','${_slotDate}','${_slotTime}')">${pName?`<span class="team-chip" style="${p1Absent?'background:#FDF2F4;border-color:#E8BFBF;color:#C8102E;':''}">${pName}</span>`:'+ P1'}</button>
-              ${m.persons===2?`<button class="assign-btn" onclick="openAssignModal('${aKey2}','${m.label} (2)','${d.label} Slot ${s.slot}','${_slotDate}','${_slotTime}')">${pName2?`<span class="team-chip" style="${p2Absent?'background:#FDF2F4;border-color:#E8BFBF;color:#C8102E;':''}">${pName2}</span>`:'+ P2'}</button>`:''}</div>`
+              ${Array.from({length:nPersons},(_,pi)=>`<button class="assign-btn" onclick="openAssignModal('${_pKeys[pi]}','${m.label} (${pi+1})','${d.label} Slot ${s.slot}','${_slotDate}','${_slotTime}')">${_pNames[pi]?`<span class="team-chip" style="${_pAbsent[pi]?'background:#FDF2F4;border-color:#E8BFBF;color:#C8102E;':''}">${_pNames[pi]}</span>`:`+ P${pi+1}`}</button>`).join('')}
+            </div>`
           : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
-              ${pName?`<span class="team-chip" style="${p1Absent?'background:#FDF2F4;border-color:#E8BFBF;color:#C8102E;':''}">${pName}</span>`:''}
-              ${m.persons===2&&pName2?`<span class="team-chip" style="${p2Absent?'background:#FDF2F4;border-color:#E8BFBF;color:#C8102E;':''}">${pName2}</span>`:''}
+              ${Array.from({length:nPersons},(_,pi)=>_pNames[pi]?`<span class="team-chip" style="${_pAbsent[pi]?'background:#FDF2F4;border-color:#E8BFBF;color:#C8102E;':''}">${_pNames[pi]}</span>`:'').join('')}
              </div>`;
 
         return `<div class="meas-row" style="${rowBg}">
