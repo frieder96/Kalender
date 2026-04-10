@@ -826,6 +826,29 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         </div>
       </div>
 
+      <!-- RAUM-SPERREN -->
+      <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-bottom:1.5rem">
+        <div style="background:#5A3A00;padding:14px 16px"><div style="font-family:'Source Serif 4',serif;font-size:16px;font-weight:600;color:#fff">🚫 Raum-Belegungen</div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Räume für bestimmte Tage sperren — erscheinen dann nicht im Assign-Modal</div></div>
+        <div style="padding:16px">
+          <div id="room-block-list" style="margin-bottom:14px"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end">
+            <div>
+              <label style="font-size:11px;color:var(--g5);font-weight:600;display:block;margin-bottom:4px">Raum</label>
+              <select class="fi" id="rb-room" style="margin:0"></select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--g5);font-weight:600;display:block;margin-bottom:4px">Von</label>
+              <input class="fi" type="date" id="rb-from" style="margin:0">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--g5);font-weight:600;display:block;margin-bottom:4px">Bis</label>
+              <input class="fi" type="date" id="rb-to" style="margin:0">
+            </div>
+            <button class="btn btn-sm" style="background:#5A3A00;color:#fff;border-color:#5A3A00;height:38px" onclick="saveRoomBlock()">+ Sperren</button>
+          </div>
+        </div>
+      </div>
+
       <!-- IMPORT -->
       <div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);margin-bottom:1.5rem">
         <div style="background:#1A4A1A;padding:14px 16px"><div style="font-family:'Source Serif 4',serif;font-size:16px;font-weight:600;color:#fff">Probanden importieren (CSV)</div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Neue Probanden aus CSV hinzufügen — bestehende bleiben unverändert</div></div>
@@ -1413,7 +1436,7 @@ function kw(d) {
 const DOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
 
 // ── STATE ─────────────────────────
-let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={}, ROOMS={};
+let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={}, ROOMS={}, ROOM_BLOCKS={};
 window._P = () => P;
 let cW=0, curTermin='T0';
 let eId=null, recallEditId=null, assignKey=null, tW=0;
@@ -1564,7 +1587,10 @@ function startDB() {
     ABSENT={}; snap.forEach(d=>{ABSENT[d.id]={...d.data(),_id:d.id}}); renderAbsentCal();
   });
   onSnapshot(collection(db,'recall_rooms'), snap => {
-    ROOMS={}; snap.forEach(d=>{ROOMS[d.id]={...d.data(),_id:d.id}}); renderRoomList(); refreshRoomDropdown();
+    ROOMS={}; snap.forEach(d=>{ROOMS[d.id]={...d.data(),_id:d.id}}); renderRoomList(); refreshRoomDropdown(); renderRoomBlockList();
+  });
+  onSnapshot(collection(db,'room_blocks'), snap=>{
+    ROOM_BLOCKS={}; snap.forEach(d=>{ROOM_BLOCKS[d.id]={...d.data(),_id:d.id}}); renderRoomBlockList();
   });
   onSnapshot(collection(db,'eeg_bookings'), snap => {
     EEG_BOOKINGS={}; snap.forEach(d=>{EEG_BOOKINGS[d.id]={...d.data(),_id:d.id}}); renderWeek();
@@ -2444,6 +2470,49 @@ function refreshRoomDropdown(selected='') {
     rooms.map(r=>`<option value="${r.name}" ${r.name===selected?'selected':''}>${r.name}</option>`).join('');
 }
 
+// ── RAUM-SPERREN ─────────────────────────────────────────────────
+function isRoomBlocked(roomName, dateStr) {
+  if(!roomName||!dateStr) return false;
+  return Object.values(ROOM_BLOCKS).some(rb =>
+    rb.room===roomName && dateStr>=rb.from && dateStr<=(rb.to||rb.from)
+  );
+}
+
+function renderRoomBlockList() {
+  const el = document.getElementById('room-block-list'); if(!el) return;
+  const blocks = Object.values(ROOM_BLOCKS).sort((a,b)=>a.from.localeCompare(b.from));
+  if(!blocks.length){ el.innerHTML='<div style="font-size:12px;color:var(--g4);font-style:italic">Keine Raum-Sperren eingetragen.</div>'; }
+  else { el.innerHTML=blocks.map(rb=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--g1);border-radius:var(--r);margin-bottom:5px">
+    <span style="font-size:12px;font-weight:700;color:#5A3A00">🚫 ${rb.room}</span>
+    <span style="font-size:12px;color:var(--g5)">${new Date(rb.from+'T12:00').toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'})}${rb.to&&rb.to!==rb.from?' – '+new Date(rb.to+'T12:00').toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'}):''}</span>
+    ${isAdmin()?`<button class="btn btn-xs btn-d" onclick="deleteRoomBlock('${rb._id}')" style="margin-left:auto">Löschen</button>`:''}
+  </div>`).join(''); }
+  // Populate room dropdown
+  const sel = document.getElementById('rb-room'); if(!sel) return;
+  sel.innerHTML = '<option value="">— Raum wählen —</option>' +
+    Object.values(ROOMS).sort((a,b)=>a.name.localeCompare(b.name)).map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
+}
+
+window.saveRoomBlock = async () => {
+  if(!isAdmin()){toast('Keine Berechtigung',true);return;}
+  const room = document.getElementById('rb-room').value;
+  const from = document.getElementById('rb-from').value;
+  const to   = document.getElementById('rb-to').value || from;
+  if(!room||!from){toast('Raum und Datum sind Pflicht',true);return;}
+  try {
+    await addDoc(collection(db,'room_blocks'),{room,from,to,created:Date.now()});
+    document.getElementById('rb-from').value='';
+    document.getElementById('rb-to').value='';
+    toast(`${room} gesperrt ✓`);
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+
+window.deleteRoomBlock = async (id) => {
+  if(!confirm('Raum-Sperre löschen?')) return;
+  try { await deleteDoc(doc(db,'room_blocks',id)); toast('Sperre gelöscht'); }
+  catch(e){toast('Fehler: '+e.message,true);}
+};
+
 function renderRoomList() {
   const rooms = Object.values(ROOMS).sort((a,b)=>a.name.localeCompare(b.name));
   const html = rooms.length
@@ -2713,8 +2782,14 @@ window.openAssignModal = (key, measure, label, slotDate, slotTime) => {
     : '';
   const selectedRoom = existing?.room || autoRoom;
 
+  // Filter out rooms blocked on this slot date
   roomSel.innerHTML = '<option value="">— kein Raum —</option>' +
-    savedRooms.map(r=>`<option value="${r.name}" ${r.name===selectedRoom?'selected':''}>${r.name}</option>`).join('');
+    savedRooms.map(r=>{
+      const blocked = slotDate && isRoomBlocked(r.name, slotDate);
+      return `<option value="${r.name}" ${r.name===selectedRoom?'selected':''} ${blocked?'disabled':''} style="${blocked?'color:#CCC':''}">
+        ${r.name}${blocked?' (belegt)':''}
+      </option>`;
+    }).join('');
   if(selectedRoom && !savedRooms.find(r=>r.name===selectedRoom)){
     roomSel.innerHTML += `<option value="${selectedRoom}" selected>${selectedRoom}</option>`;
   }
