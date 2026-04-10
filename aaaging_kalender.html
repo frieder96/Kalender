@@ -1125,13 +1125,21 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
   <div class="modal">
     <div class="mhdr"><span class="mtitle" id="recall-modal-title">24h Recall eintragen</span><button class="mclose" onclick="closeRecall()">×</button></div>
     <div class="mbody">
-      <div class="fg"><label class="fl">Proband</label><select class="fi" id="ir-pid"></select></div>
+      <div class="fg"><label class="fl">Proband</label>
+        <input class="fi" id="ir-pid-search" list="ir-pid-list" placeholder="P-ID oder Laufnr. suchen…" autocomplete="off" oninput="irSyncPid()">
+        <datalist id="ir-pid-list"></datalist>
+        <input type="hidden" id="ir-pid">
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="fg"><label class="fl">Datum</label><input class="fi" type="date" id="ir-date" oninput="recalcSachetEnd()"></div>
         <div class="fg"><label class="fl">Uhrzeit</label><input class="fi" type="time" id="ir-time"></div>
       </div>
 
-      <div class="fg"><label class="fl">Durchgeführt von <span style="font-weight:400;color:var(--g4)">(optional)</span></label><select class="fi" id="ir-person"><option value="">— Person auswählen —</option></select></div>
+      <div class="fg"><label class="fl">Durchgeführt von <span style="font-weight:400;color:var(--g4)">(optional)</span></label>
+        <input class="fi" id="ir-person-search" list="ir-person-list" placeholder="Name suchen…" autocomplete="off" oninput="irSyncPerson()">
+        <datalist id="ir-person-list"></datalist>
+        <input type="hidden" id="ir-person">
+      </div>
       <div class="fg"><label class="fl">Sachets ausgegeben <span style="font-weight:400;color:var(--g4)">(optional)</span></label>
         <div style="display:flex;align-items:center;gap:8px">
           <input class="fi" type="number" id="ir-sachets" min="0" max="999" placeholder="z. B. 49" style="width:120px" oninput="recalcSachetEnd()">
@@ -2570,11 +2578,16 @@ window.openAddRecall = () => {
   document.getElementById('ir-sachet-start').value='';
   const _sed=document.getElementById('ir-sachet-end');if(_sed)_sed.style.display='none';
   document.getElementById('ir-note').value='';
-  const sel=document.getElementById('ir-pid');
-  sel.innerHTML='<option value="">— Proband auswählen —</option>'+
-    Object.values(P).sort((a,b)=>a.lnr.localeCompare(b.lnr)).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
-  document.getElementById('ir-person').innerHTML='<option value="">— Person auswählen —</option>'+
-    Object.values(TEAM).sort((a,b)=>a.name.localeCompare(b.name)).map(m=>`<option value="${m._id}">${m.name}${m.role?' · '+m.role:''}</option>`).join('');
+  // Populate proband datalist
+  document.getElementById('ir-pid-list').innerHTML=
+    Object.values(P).sort((a,b)=>a.lnr.localeCompare(b.lnr)).map(p=>`<option value="${p.pid} · ${p.lnr}" data-id="${p._id}">`).join('');
+  document.getElementById('ir-pid-search').value='';
+  document.getElementById('ir-pid').value='';
+  // Populate person datalist
+  document.getElementById('ir-person-list').innerHTML=
+    Object.values(TEAM).sort((a,b)=>a.name.localeCompare(b.name)).map(m=>`<option value="${m.name}" data-id="${m._id}">`).join('');
+  document.getElementById('ir-person-search').value='';
+  document.getElementById('ir-person').value='';
   document.getElementById('recall-modal').classList.add('open');
 };
 
@@ -2582,20 +2595,37 @@ window.openEditRecall = id => {
   const r=RECALLS[id]; if(!r) return;
   recallEditId=id;
   document.getElementById('recall-modal-title').textContent='Recall bearbeiten';
-  const sel=document.getElementById('ir-pid');
-  sel.innerHTML='<option value="">— Proband auswählen —</option>'+
-    Object.values(P).sort((a,b)=>a.lnr.localeCompare(b.lnr)).map(p=>`<option value="${p._id}" ${p._id===r.pid?'selected':''}>${p.pid} · ${p.lnr}</option>`).join('');
+  // Proband datalist
+  document.getElementById('ir-pid-list').innerHTML=
+    Object.values(P).sort((a,b)=>a.lnr.localeCompare(b.lnr)).map(p=>`<option value="${p.pid} · ${p.lnr}" data-id="${p._id}">`).join('');
+  const _rProband = Object.values(P).find(p=>p._id===r.pid);
+  document.getElementById('ir-pid-search').value = _rProband ? `${_rProband.pid} · ${_rProband.lnr}` : '';
+  document.getElementById('ir-pid').value = r.pid||'';
   document.getElementById('ir-date').value=r.date||'';
   document.getElementById('ir-time').value=r.time||'';
   document.getElementById('ir-sachets').value=r.sachets||'';
   document.getElementById('ir-sachet-start').value=r.sachetStart||'';
   document.getElementById('ir-note').value=r.note||'';
   setTimeout(recalcSachetEnd,0);
-  document.getElementById('ir-person').innerHTML='<option value="">— Person auswählen —</option>'+
-    Object.values(TEAM).sort((a,b)=>a.name.localeCompare(b.name)).map(m=>`<option value="${m._id}" ${m._id===r.person?'selected':''}>${m.name}${m.role?' · '+m.role:''}</option>`).join('');
+  document.getElementById('ir-person-list').innerHTML=
+    Object.values(TEAM).sort((a,b)=>a.name.localeCompare(b.name)).map(m=>`<option value="${m.name}" data-id="${m._id}">`).join('');
+  const _rPerson = r.person ? TEAM[r.person] : null;
+  document.getElementById('ir-person-search').value = _rPerson ? _rPerson.name : '';
+  document.getElementById('ir-person').value = r.person||'';
   document.getElementById('recall-modal').classList.add('open');
 };
 
+window.irSyncPid = () => {
+  const search = document.getElementById('ir-pid-search')?.value||'';
+  const p = Object.values(P).find(p=>`${p.pid} · ${p.lnr}`===search || p.pid===search || p.lnr===search);
+  if(p) document.getElementById('ir-pid').value = p._id;
+};
+window.irSyncPerson = () => {
+  const search = document.getElementById('ir-person-search')?.value||'';
+  const m = Object.values(TEAM).find(m=>m.name===search);
+  if(m) document.getElementById('ir-person').value = m._id;
+  else if(!search) document.getElementById('ir-person').value = '';
+};
 window.closeRecall = () => { document.getElementById('recall-modal').classList.remove('open'); recallEditId=null; };
 
 window.sachetSetNextMonday = () => {
@@ -2626,6 +2656,8 @@ window.recalcSachetEnd = () => {
 };
 
 window.saveRecall = async () => {
+  // Sync search inputs to hidden fields before save
+  irSyncPid(); irSyncPerson();
   const pid=document.getElementById('ir-pid').value;
   const date=document.getElementById('ir-date').value;
   const time=document.getElementById('ir-time').value;
