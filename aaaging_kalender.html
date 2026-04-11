@@ -990,6 +990,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
                   <button class="tab-btn-5rm active" onclick="spSwitchTab5rm('test')">📋 Neuer Test</button>
                   <button class="tab-btn-5rm" onclick="spSwitchTab5rm('history')">📁 Verlauf</button>
                   <button class="tab-btn-5rm" onclick="spSwitchTab5rm('progress')">📈 Fortschritt</button>
+                  <button class="tab-btn-5rm" onclick="spSwitchTab5rm('settings5rm')">⚙️ Übungen</button>
                 </div>
                 <div id="sp-tab-test">
                   <div class="pct-config">
@@ -1016,6 +1017,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
                   <div id="sp-historyContent"></div>
                 </div>
                 <div id="sp-tab-progress" style="display:none"><div id="sp-progressContent"></div></div>
+                <div id="sp-tab-settings5rm" style="display:none"><div id="sp-settings5rmContent"></div></div>
               </div>
             </div></div>
           </div>
@@ -5195,6 +5197,11 @@ const SP_EXERCISES=[
 ];
 let sp5rmClientId=null,sp5rmTab='test';
 let sp5rmPcts=JSON.parse(localStorage.getItem('sp5rm_pcts')||'[60,65,70,75,80,85]');
+let sp5rmActiveExIds=JSON.parse(localStorage.getItem('sp5rm_active_ex')||'null');
+function spGetActiveExercises(){
+  if(!sp5rmActiveExIds) return SP_EXERCISES;
+  return SP_EXERCISES.filter(ex=>sp5rmActiveExIds.includes(ex.id));
+}
 function sp5rmSavePcts(){localStorage.setItem('sp5rm_pcts',JSON.stringify(sp5rmPcts));}
 function sp5rmBrz(w,r){return w/(1.0278-0.0278*r);}
 function sp5rmRound(v){return Math.round(v/2.5)*2.5;}
@@ -5219,7 +5226,7 @@ window.spOpen5rmFromSlot = (name) => {
   const existing = match?.sessions?.length ? [...match.sessions].sort((a,b)=>b.date.localeCompare(a.date))[0] : null;
   const studio = SP_STUDIOS.find(s=>s.id===spActiveStudio);
 
-  const exRows = SP_EXERCISES.map(ex=>{
+  const exRows = spGetActiveExercises().map(ex=>{
     const prev = existing?.results?.[ex.id];
     return `<div style="background:#F8F5F0;border-radius:10px;padding:12px;margin-bottom:8px">
       <div style="font-size:12px;font-weight:700;color:#1A1A1A;margin-bottom:8px">${ex.icon} ${ex.name}
@@ -5290,7 +5297,7 @@ window.sl5rmSave = async () => {
   const date = document.getElementById('sl5-date')?.value;
   const note = document.getElementById('sl5-note')?.value.trim();
   const results = {}; let hasData=false;
-  SP_EXERCISES.forEach(ex=>{
+  spGetActiveExercises().forEach(ex=>{
     const w=parseFloat(document.getElementById('sl5w-'+ex.id)?.value);
     const r=parseInt(document.getElementById('sl5r-'+ex.id)?.value);
     if(w>0&&r>=1&&r<=10){results[ex.id]={weight:w,reps:r,orm:parseFloat(sp5rmBrz(w,r).toFixed(2))};hasData=true;}
@@ -5316,15 +5323,58 @@ window.spSelectClient=(id)=>{
   document.getElementById('sp-cvMeta').textContent=c.notiz||'Keine Notizen';
   spRenderClientList(); spSwitchTab5rm(sp5rmTab);
 };
+function sp5rmRenderExSettings(){
+  const el = document.getElementById('sp-settings5rmContent'); if(!el) return;
+  const activeIds = sp5rmActiveExIds || SP_EXERCISES.map(e=>e.id);
+  el.innerHTML = '<div style="padding:16px 0">'
+    + '<div style="font-size:11px;font-weight:700;color:#888;letter-spacing:1px;margin-bottom:14px">AKTIVE ÜBUNGEN FÜR 5RM-TEST</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">'
+    + SP_EXERCISES.map(ex => {
+        const active = activeIds.includes(ex.id);
+        return '<label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:' + (active?'#E8F5E9':'#fff') + ';border:2px solid ' + (active?'#2E7D32':'#DDD') + ';border-radius:8px;cursor:pointer">'
+          + '<input type="checkbox" id="ex5rm_' + ex.id + '" ' + (active?'checked':'') + ' onchange="sp5rmToggleEx()" style="width:16px;height:16px;cursor:pointer">'
+          + '<span style="font-size:13px">' + ex.icon + ' ' + ex.name + '</span>'
+          + '</label>';
+      }).join('')
+    + '</div>'
+    + '<button onclick="sp5rmSaveExSettings()" style="padding:10px 20px;background:#003975;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💾 Speichern</button>'
+    + '</div>';
+}
+
+window.sp5rmToggleEx = () => {
+  // Update background colors live
+  SP_EXERCISES.forEach(ex => {
+    const cb = document.getElementById('ex5rm_' + ex.id);
+    if(!cb) return;
+    const label = cb.parentElement;
+    const on = cb.checked;
+    label.style.background = on ? '#E8F5E9' : '#fff';
+    label.style.borderColor = on ? '#2E7D32' : '#DDD';
+  });
+};
+
+window.sp5rmSaveExSettings = () => {
+  const active = SP_EXERCISES.filter(ex => {
+    const cb = document.getElementById('ex5rm_' + ex.id);
+    return cb && cb.checked;
+  }).map(ex => ex.id);
+  if(!active.length){toast('Mindestens eine Übung auswählen',true);return;}
+  sp5rmActiveExIds = active;
+  localStorage.setItem('sp5rm_active_ex', JSON.stringify(active));
+  toast('Übungen gespeichert ✓');
+  sp5rmRenderExSettings();
+};
+
 window.spSwitchTab5rm=(tab)=>{
   sp5rmTab=tab;
-  ['test','history','progress'].forEach(t=>{
+  ['test','history','progress','settings5rm'].forEach(t=>{
     const el=document.getElementById('sp-tab-'+t); if(el) el.style.display=t===tab?'block':'none';
   });
-  document.querySelectorAll('.tab-btn-5rm').forEach((b,i)=>b.classList.toggle('active',['test','history','progress'][i]===tab));
+  document.querySelectorAll('.tab-btn-5rm').forEach((b,i)=>b.classList.toggle('active',['test','history','progress','settings5rm'][i]===tab));
   if(tab==='test') sp5rmRenderForm();
   if(tab==='history') sp5rmRenderHistory();
   if(tab==='progress') sp5rmRenderProgress();
+  if(tab==='settings5rm') sp5rmRenderExSettings();
 };
 function sp5rmRenderPcts(){
   const el=document.getElementById('sp-pctTags'); if(!el) return;
@@ -5339,7 +5389,7 @@ window.spAddPct=()=>{
 window.sp5rmRemovePct=p=>{sp5rmPcts=sp5rmPcts.filter(x=>x!==p);sp5rmSavePcts();sp5rmRenderPcts();sp5rmUpdateTable();};
 function sp5rmUpdateTable(){
   const rows=[];
-  SP_EXERCISES.forEach(ex=>{
+  spGetActiveExercises().forEach(ex=>{
     const wEl=document.getElementById('sp5w-'+ex.id),rEl=document.getElementById('sp5r-'+ex.id);
     if(!wEl||!rEl) return;
     const w=parseFloat(wEl.value),r=parseInt(rEl.value);
@@ -5357,7 +5407,7 @@ function sp5rmRenderForm(){
   const td=document.getElementById('sp-testDate'); if(td) td.value=new Date().toISOString().split('T')[0];
   const tn=document.getElementById('sp-testNote'); if(tn) tn.value='';
   const ei=document.getElementById('sp-exerciseInputs'); if(!ei) return;
-  ei.innerHTML=SP_EXERCISES.map(ex=>`<div class="ex-input-card">
+  ei.innerHTML=spGetActiveExercises().map(ex=>`<div class="ex-input-card">
     <div class="ex-name">${ex.icon} ${ex.name}</div>
     <div class="ex-row">
       <div class="field"><label>kg</label><input type="number" id="sp5w-${ex.id}" min="1" max="500" step="0.5" placeholder="—" oninput="sp5rmCalc('${ex.id}')"></div>
@@ -5383,7 +5433,7 @@ window.spSaveSession=async()=>{
   const date=document.getElementById('sp-testDate')?.value;
   const note=document.getElementById('sp-testNote')?.value.trim();
   const results={}; let hasData=false;
-  SP_EXERCISES.forEach(ex=>{
+  spGetActiveExercises().forEach(ex=>{
     const w=parseFloat(document.getElementById('sp5w-'+ex.id)?.value);
     const r=parseInt(document.getElementById('sp5r-'+ex.id)?.value);
     if(w>0&&r>=1&&r<=10){results[ex.id]={weight:w,reps:r,orm:parseFloat(sp5rmBrz(w,r).toFixed(2))};hasData=true;}
@@ -5434,7 +5484,7 @@ function sp5rmRenderProgress(){
   const el=document.getElementById('sp-progressContent'); if(!el) return;
   if(!c?.sessions||c.sessions.length<2){el.innerHTML='<div class="history-empty">Mindestens 2 Tests nötig.</div>';return;}
   const sessions=[...c.sessions].sort((a,b)=>a.date.localeCompare(b.date));
-  const exData={}; SP_EXERCISES.forEach(ex=>{exData[ex.id]=[];});
+  const exData={}; spGetActiveExercises().forEach(ex=>{exData[ex.id]=[];});
   sessions.forEach(s=>Object.entries(s.results).forEach(([exId,val])=>exData[exId].push({date:s.date,orm:val.orm})));
   const cards=SP_EXERCISES.filter(ex=>exData[ex.id].length>=2).map(ex=>{
     const pts=exData[ex.id],first=pts[0].orm,last=pts[pts.length-1].orm,diff=last-first,pct=((diff/first)*100).toFixed(1);
