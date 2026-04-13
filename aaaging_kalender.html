@@ -2187,7 +2187,7 @@ function renderTable() {
 
 function renderRecalls() {
   const el=document.getElementById('recall-list'); if(!el) return;
-  const rs=Object.values(RECALLS).sort((a,b)=>a.date.localeCompare(b.date));
+  const rs=Object.values(RECALLS).sort((a,b)=>{const d=(a.date||'').localeCompare(b.date||'');return d!==0?d:(a.time||'').localeCompare(b.time||'');});
   if(!rs.length){el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--g4);font-style:italic">Noch keine Recalls eingetragen.</div>';return;}
   el.innerHTML=rs.map(r=>{
     const p=Object.values(P).find(x=>x._id===r.pid);
@@ -2300,7 +2300,7 @@ window.openAddProbandSlot = (w, termin, day, slot) => {
     if(termin==='T3.2' && p.t3slot12!==undefined) assigned.add(p._id);
   });
   const opts = Object.values(P)
-    .sort((a,b)=>(a.lnr||'').localeCompare(b.lnr||''))
+    .sort((a,b)=>(parseInt((a.lnr||'').replace(/\D/g,''))||0)-(parseInt((b.lnr||'').replace(/\D/g,''))||0))
     .map(p => {
       const alreadyBooked = assigned.has(p._id);
       return `<option value="${p._id}" ${alreadyBooked?'disabled style="color:var(--g4)"':''}>${p.lnr}${p.pid?' · '+p.pid:''}${alreadyBooked?' (bereits gebucht)':''}</option>`;
@@ -3432,7 +3432,7 @@ function errBox(msg){return `<div style="background:#FDF2F4;border:1px solid #E8
 
 
 window.exportRecalls = () => {
-  const rs=Object.values(RECALLS).sort((a,b)=>a.date.localeCompare(b.date));
+  const rs=Object.values(RECALLS).sort((a,b)=>{const d=(a.date||'').localeCompare(b.date||'');return d!==0?d:(a.time||'').localeCompare(b.time||'');});
   if(!rs.length){toast('Keine Recalls',true);return;}
   const h=['P-ID','Laufnr.','Datum','Uhrzeit','Notiz'];
   const rows=rs.map(r=>{const p=Object.values(P).find(x=>x._id===r.pid);return[p?.pid||'',p?.lnr||'',r.date||'',r.time||'',r.note||''];});
@@ -3600,7 +3600,7 @@ let _eegBookCtx = null;
 window.openEEGBookModal = (w, day, slot) => {
   _eegBookCtx = {w, day, slot};
   const sel = document.getElementById('eeg-book-pid');
-  sel.innerHTML = Object.values(P).sort((a,b)=>(a.pid||'').localeCompare(b.pid||'')).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
+  sel.innerHTML = Object.values(P).sort((a,b)=>(parseInt((a.pid||'').replace(/\D/g,''))||0)-(parseInt((b.pid||'').replace(/\D/g,''))||0)).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
   document.getElementById('eeg-book-info').textContent = `${day} · KW ${kw(wMon(w))} · Slot ${slot} (${EEG_SLOTS[slot-1].blutStart}–${EEG_SLOTS[slot-1].end})`;
   document.getElementById('eeg-book-note').value=(_eegBookCtx&&EEG_BOOKINGS[_eegBookCtx._id]?.note)||'';
   document.getElementById('eeg-book-modal').style.display='flex';
@@ -3635,7 +3635,7 @@ window.openMRTBookModal = (w, day, slotIdx) => {
   const endMin = hh*60+mm+90;
   const endStr = `${String(Math.floor(endMin/60)).padStart(2,'0')}:${String(endMin%60).padStart(2,'0')}`;
   const sel = document.getElementById('mrt-book-pid');
-  sel.innerHTML = Object.values(P).sort((a,b)=>(a.pid||'').localeCompare(b.pid||'')).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
+  sel.innerHTML = Object.values(P).sort((a,b)=>(parseInt((a.pid||'').replace(/\D/g,''))||0)-(parseInt((b.pid||'').replace(/\D/g,''))||0)).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
   document.getElementById('mrt-book-info').textContent = `${day} · KW ${kw(wMon(w))} · Slot ${slotIdx+1} (${t}–${endStr})`;
   document.getElementById('mrt-book-note').value='';
   document.getElementById('mrt-book-modal').style.display='flex';
