@@ -2164,11 +2164,24 @@ function renderTable() {
     const _t0time = p.t0slot ? (T0.find(s=>s.slot===p.t0slot)?.blutStart||'') : '';
     const _t11time = p.t1slot11 ? (T11.find(s=>s.slot===p.t1slot11)?.blutStart||'') : '';
     const _t12time = p.t1slot12 ? (T12.find(s=>s.slot===p.t1slot12)?.blutStart||'') : '';
-    const t0 = p.t0week!==undefined?`<span style="font-size:11px">${p.t0day?.slice(0,2)} ${_t0time}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
-    const t11 = p.t1week!==undefined?`<span style="font-size:11px">${p.t1day11?.slice(0,2)} ${_t11time}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
-    const t12 = p.t1week!==undefined?`<span style="font-size:11px">${p.t1day12?.slice(0,2)} ${_t12time}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
-    const t2 = p.t2date?`<span style="font-size:11px">${new Date(p.t2date+'T12:00').toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'2-digit'})}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
-    const t3 = p.t3date?`<span style="font-size:11px">${new Date(p.t3date).toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'2-digit'})}</span>`:'<span style="color:var(--g4);font-size:11px">—</span>';
+
+    // Calculate actual dates from week+day
+    const DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3};
+    const _weekDate = (week, day) => {
+      if(week===undefined||!day) return null;
+      return wDay(week, DAYOFF[day]??0);
+    };
+    const _fmtDate = d => d ? d.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'}) : '';
+
+    const _t0date  = _weekDate(p.t0week, p.t0day);
+    const _t11date = _weekDate(p.t1week, p.t1day11);
+    const _t12date = _weekDate(p.t1week, p.t1day12);
+
+    const t0  = p.t0week!==undefined ? `<span style="font-size:11px">${p.t0day?.slice(0,2)} ${_fmtDate(_t0date)}<br><span style="color:var(--g5)">${_t0time}</span></span>` : '<span style="color:var(--g4);font-size:11px">—</span>';
+    const t11 = p.t1week!==undefined ? `<span style="font-size:11px">${p.t1day11?.slice(0,2)} ${_fmtDate(_t11date)}<br><span style="color:var(--g5)">${_t11time}</span></span>` : '<span style="color:var(--g4);font-size:11px">—</span>';
+    const t12 = p.t1week!==undefined ? `<span style="font-size:11px">${p.t1day12?.slice(0,2)} ${_fmtDate(_t12date)}<br><span style="color:var(--g5)">${_t12time}</span></span>` : '<span style="color:var(--g4);font-size:11px">—</span>';
+    const t2  = p.t2date ? `<span style="font-size:11px">${new Date(p.t2date+'T12:00').toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'2-digit'})}</span>` : '<span style="color:var(--g4);font-size:11px">—</span>';
+    const t3  = p.t3date ? `<span style="font-size:11px">${new Date(p.t3date).toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'2-digit'})}</span>` : '<span style="color:var(--g4);font-size:11px">—</span>';
     // Recalls for this proband
     const pRecalls = Object.values(RECALLS).filter(r=>r.pid===p._id).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
     const recallCell = pRecalls.length
