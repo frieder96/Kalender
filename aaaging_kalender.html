@@ -5303,9 +5303,11 @@ window.sl5rmCalc = (exId) => {
 
 window.sl5rmSave = async () => {
   const {name} = _sp5rmSlotCtx;
+  // Find in SP_PROBANDS first, then fall back to main P collection
   const match = Object.values(SP_PROBANDS).find(p=>p.pid===name);
-  const clientId = match?._id;
-  if(!clientId){ toast('Proband nicht in 5RM-Datenbank', true); return; }
+  const mainProband = window._P ? Object.values(window._P()).find(p=>p.pid===name) : null;
+  const clientId = match?._id || mainProband?._id;
+  if(!clientId){ toast('Proband nicht gefunden', true); return; }
 
   const date = document.getElementById('sl5-date')?.value;
   const note = document.getElementById('sl5-note')?.value.trim();
@@ -5316,8 +5318,8 @@ window.sl5rmSave = async () => {
     if(w>0&&r>=1&&r<=10){results[ex.id]={weight:w,reps:r,orm:parseFloat(sp5rmBrz(w,r).toFixed(2))};hasData=true;}
   });
   if(!hasData){toast('Bitte mindestens eine Übung ausfüllen',true);return;}
-  const c = SP_PROBANDS[clientId]||{_id:clientId,sessions:[]};
-  const aaProband = window._P ? window._P()[clientId] : match;
+  const c = SP_PROBANDS[clientId]||{sessions:[]};
+  const aaProband = mainProband || match;
   const sessions=[...(c.sessions||[]),{id:Date.now().toString(),date,note,results}].sort((a,b)=>a.date.localeCompare(b.date));
   try{
     await window._setDoc(window._doc(window.db,'sp_probands',clientId),{sessions,pid:aaProband?.pid||name,lnr:aaProband?.lnr||'',updated:Date.now()});
