@@ -2300,10 +2300,10 @@ window.openAddProbandSlot = (w, termin, day, slot) => {
     if(termin==='T3.2' && p.t3slot12!==undefined) assigned.add(p._id);
   });
   const opts = Object.values(P)
-    .sort((a,b)=>(parseInt((a.lnr||'').replace(/\D/g,''))||0)-(parseInt((b.lnr||'').replace(/\D/g,''))||0))
+    .sort((a,b)=>(parseInt((a.pid||'').replace(/\D/g,''))||9999)-(parseInt((b.pid||'').replace(/\D/g,''))||9999))
     .map(p => {
       const alreadyBooked = assigned.has(p._id);
-      return `<option value="${p._id}" ${alreadyBooked?'disabled style="color:var(--g4)"':''}>${p.lnr}${p.pid?' · '+p.pid:''}${alreadyBooked?' (bereits gebucht)':''}</option>`;
+      return `<option value="${p._id}" ${alreadyBooked?'disabled style="color:var(--g4)"':''}>${p.pid||'—'}${p.lnr?' · '+p.lnr:''}${alreadyBooked?' (bereits gebucht)':''}</option>`;
     }).join('');
   document.getElementById('slot-assign-pid').innerHTML = '<option value="">— Proband auswählen —</option>' + opts;
 
