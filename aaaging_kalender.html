@@ -4063,6 +4063,7 @@ function spStartListeners(){
   window._onSnap(window._col(_db,'sp_probands'), snap=>{
     SP_PROBANDS={};
     snap.forEach(d=>{SP_PROBANDS[d.id]={...d.data(),_id:d.id};});
+    window.SP_PROBANDS = SP_PROBANDS;
     spEmit(); spSetSync(true);
   });
   window._onSnap(window._col(_db,'sp_slots'), snap=>{
@@ -5282,7 +5283,7 @@ window.spOpen5rmFromSlot = (name) => {
       <input type="text" id="sl5-note" placeholder="Notiz (optional)" style="flex:1;padding:6px 10px;border:1px solid #DDD;border-radius:8px;font-size:12px;outline:none">
     </div>
     <div style="max-height:55vh;overflow-y:auto;padding-right:4px">${exRows}</div>
-    ${isTrainer()?`<div style="display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #EAE7E2">
+    ${(window.isTrainer?window.isTrainer():true)?`<div style="display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #EAE7E2">
       <button onclick="spCloseTrainModal()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#888;font-size:12px;cursor:pointer">Abbrechen</button>
       <button onclick="sl5rmSave()" style="flex:2;padding:11px;border-radius:8px;border:none;background:#1A4A2A;color:#fff;font-size:12px;font-weight:700;cursor:pointer">💪 5RM speichern</button>
     </div>`:''}
@@ -5302,15 +5303,19 @@ window.sl5rmCalc = (exId) => {
 };
 
 window.sl5rmSave = async () => {
+  if(!_sp5rmSlotCtx){toast('Kein Kontext — Modal neu öffnen',true);return;}
   const {name} = _sp5rmSlotCtx;
-  // Find in SP_PROBANDS first, then fall back to main P collection
-  const match = Object.values(SP_PROBANDS).find(p=>p.pid===name);
-  const mainProband = window._P ? Object.values(window._P()).find(p=>p.pid===name) : null;
+  if(!name){toast('Kein Proband gesetzt',true);return;}
+  const spProbands = window.SP_PROBANDS || {};
+  const match = Object.values(spProbands).find(p=>p.pid===name);
+  const allP = window._P ? window._P() : {};
+  const mainProband = Object.values(allP).find(p=>p.pid===name);
   const clientId = match?._id || mainProband?._id;
-  if(!clientId){ toast('Proband nicht gefunden', true); return; }
+  if(!clientId){ toast('Proband "'+name+'" nicht gefunden', true); return; }
+  if(!window.db){toast('Keine Firebase-Verbindung',true);return;}
 
   const date = document.getElementById('sl5-date')?.value;
-  const note = document.getElementById('sl5-note')?.value.trim();
+  const note = document.getElementById('sl5-note')?.value?.trim()||'';
   const results = {}; let hasData=false;
   spGetActiveExercises().forEach(ex=>{
     const w=parseFloat(document.getElementById('sl5w-'+ex.id)?.value);
@@ -5318,13 +5323,13 @@ window.sl5rmSave = async () => {
     if(w>0&&r>=1&&r<=10){results[ex.id]={weight:w,reps:r,orm:parseFloat(sp5rmBrz(w,r).toFixed(2))};hasData=true;}
   });
   if(!hasData){toast('Bitte mindestens eine Übung ausfüllen',true);return;}
-  const c = SP_PROBANDS[clientId]||{sessions:[]};
+  const c = spProbands[clientId]||{sessions:[]};
   const aaProband = mainProband || match;
-  const sessions=[...(c.sessions||[]),{id:Date.now().toString(),date,note,results}].sort((a,b)=>a.date.localeCompare(b.date));
+  const sessions=[...(c.sessions||[]),{id:Date.now().toString(),date,note,results}].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   try{
     await window._setDoc(window._doc(window.db,'sp_probands',clientId),{sessions,pid:aaProband?.pid||name,lnr:aaProband?.lnr||'',updated:Date.now()});
     toast('5RM gespeichert ✓'); spCloseTrainModal();
-  }catch(e){toast('Fehler: '+e.message,true);}
+  }catch(e){toast('Fehler beim Speichern: '+e.message,true); console.error(e);}
 };
 
 window.spSelectClient=(id)=>{
