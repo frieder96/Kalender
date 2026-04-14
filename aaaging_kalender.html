@@ -1480,6 +1480,12 @@ window.isAdmin   = isAdmin;
 window.isTrainer = isTrainer;
 window.curTermin = 'T0';
 window._renderWeek = () => renderWeek();
+window._T0 = () => T0;
+window._T11 = () => T11;
+window._T12 = () => T12;
+window._wDay = wDay;
+window._localDate = _localDate;
+window._isAustrianHoliday = isAustrianHoliday;
 
 // Sperre lookup helpers
 function isSperred(termin, week, day, slot=null) {
@@ -4051,40 +4057,44 @@ function renderMonatsübersicht() {
   const el = document.getElementById('monat-content');
   if(!el) return;
 
+  // Use window-exposed helpers from ES module
+  const _P = window._P ? window._P() : {};
+  const T0 = window._T0 ? window._T0() : [];
+  const T11 = window._T11 ? window._T11() : [];
+  const T12 = window._T12 ? window._T12() : [];
+  const wDay = window._wDay;
+  const localDate = window._localDate;
+  const isHoliday = window._isAustrianHoliday;
+  if(!wDay || !localDate){ el.innerHTML='<div style="padding:20px;color:#888">Wird geladen…</div>'; return; }
+
   const MONATE = ['Jänner','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
   if(lbl) lbl.textContent = MONATE[_monatMonth] + ' ' + _monatYear;
 
-  const ps = Object.values(P);
+  const ps = Object.values(_P);
   const DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
 
-  // Build map: dateStr -> [{pid, lnr, type, time, aufpassen}]
   var events = {};
   function addEv(dateObj, pid, lnr, type, time, aufpassen) {
     if(!dateObj) return;
-    var ds = _localDate(dateObj);
+    var ds = localDate(dateObj);
     if(!events[ds]) events[ds] = [];
     events[ds].push({pid, lnr, type, time, aufpassen});
   }
 
   ps.forEach(function(p) {
-    // T0
     if(p.t0week !== undefined && p.t0day) {
       var slot = T0.find(function(s){ return s.slot===p.t0slot; });
       addEv(wDay(p.t0week, DAYOFF[p.t0day]||0), p.pid, p.lnr, 'T0', slot?slot.blutStart:'', p.aufpassen);
     }
-    // T1.1
     if(p.t1week !== undefined && p.t1day11) {
       var slot11 = T11.find(function(s){ return s.slot===p.t1slot11; });
       addEv(wDay(p.t1week, DAYOFF[p.t1day11]||0), p.pid, p.lnr, 'T1.1', slot11?slot11.blutStart:'', p.aufpassen);
     }
-    // T1.2
     if(p.t1week !== undefined && p.t1day12) {
       var slot12 = T12.find(function(s){ return s.slot===p.t1slot12; });
       addEv(wDay(p.t1week, DAYOFF[p.t1day12]||2), p.pid, p.lnr, 'T1.2', slot12?slot12.blutStart:'', p.aufpassen);
     }
-    // T2
     if(p.t2date) addEv(new Date(p.t2date+'T12:00'), p.pid, p.lnr, 'T2', p.t2time||'', p.aufpassen);
-    // T3
     if(p.t3date) addEv(new Date(p.t3date+'T12:00'), p.pid, p.lnr, 'T3', p.t3time||'', p.aufpassen);
   });
 
@@ -4101,7 +4111,7 @@ function renderMonatsübersicht() {
   var lastDay  = new Date(_monatYear, _monatMonth+1, 0);
   var startDow = (firstDay.getDay()+6)%7; // Mon=0
   var totalDays = lastDay.getDate();
-  var today = _localDate(new Date());
+  var today = localDate(new Date());
   var DAYS = ['Mo','Di','Mi','Do','Fr','Sa','So'];
 
   var html = '<div style="overflow-x:auto">'
@@ -4124,7 +4134,7 @@ function renderMonatsübersicht() {
     var isToday = ds === today;
     var dow = (date.getDay()+6)%7;
     var isWeekend = dow >= 5;
-    var holiday = isAustrianHoliday(date);
+    var holiday = isHoliday ? isHoliday(date) : null;
     var dayEvs = (events[ds]||[]).sort(function(a,b){ return (a.time||'').localeCompare(b.time||''); });
 
     var bgColor = isToday ? '#E3EEFF' : isWeekend||holiday ? '#F5F0E8' : '#fff';
