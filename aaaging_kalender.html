@@ -1117,6 +1117,10 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <div class="fg"><label class="fl">T3 Uhrzeit</label><input class="fi" type="time" id="ip-t3time"></div>
       </div>
       <div class="fg"><label class="fl">Notiz</label><textarea class="notiz-box" id="ip-notiz" placeholder="Besonderheiten, Anmerkungen …"></textarea></div>
+      <div class="fg" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#FFF8E1;border:1px solid #FFD54F;border-radius:var(--r)">
+        <input type="checkbox" id="ip-aufpassen" style="width:18px;height:18px;cursor:pointer;accent-color:#E65100">
+        <label for="ip-aufpassen" style="font-size:13px;font-weight:700;color:#E65100;cursor:pointer">⚠️ Aufpassen — wird im Kalender markiert</label>
+      </div>
     </div>
     <div class="mftr"><button class="btn btn-sm" onclick="closeProband()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveProband()">Speichern</button></div>
   </div>
@@ -1702,7 +1706,7 @@ function renderWeek() {
       const proHtml = isSperred
         ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSperred.grund?` · ${isSperred.grund}`:''} ${isSperred.termin!=='ALL'?`(${isSperred.termin})`:''}</div>`
         : p
-          ?`<div class="prow"><span class="pbadge">${p.pid}</span><span class="lbadge">${p.lnr}</span>${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button><button class="btn btn-xs btn-d" onclick="removeSlotAssignment('${p._id}','${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="Termin entfernen">✕</button>`:''}</div>`
+          ?`<div class="prow"><span class="pbadge">${p.pid}${p.aufpassen?` <span style="color:#E65100">⚠️</span>`:''}</span><span class="lbadge">${p.lnr}</span>${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button><button class="btn btn-xs btn-d" onclick="removeSlotAssignment('${p._id}','${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="Termin entfernen">✕</button>`:''}</div>`
           :`<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddProbandSlot(${cW},'${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
 
       const measRows=s.measures.map(m=>{
@@ -2192,7 +2196,7 @@ function renderTable() {
       <td><span class="lbadge">${p.lnr}</span></td>
       <td>${t0}</td><td>${t11}</td><td>${t12}</td><td>${recallCell}</td>
       <td>${t2}</td><td>${t3}</td>
-      <td style="font-size:11px;color:var(--g5);max-width:120px;overflow:hidden;text-overflow:ellipsis">${p.notiz||''}</td>
+      <td style="font-size:11px;color:var(--g5);max-width:120px;overflow:hidden;text-overflow:ellipsis">${p.aufpassen?'<span style="color:#E65100;font-weight:700">⚠️ </span>':''} ${p.notiz||''}</td>
       <td><div style="display:flex;gap:5px">${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">Bearbeiten</button><button class="btn btn-xs btn-d" onclick="delProband('${p._id}')">Löschen</button>`:'<span style="font-size:11px;color:var(--g4)">Nur Lesen</span>'}</div></td>
     </tr>`;
   }).join('');
@@ -2269,7 +2273,7 @@ window.openAddProband = () => {
   if(!isAdmin()){toast('Keine Berechtigung',true);return;}
   eId=null;
   document.getElementById('proband-modal-title').textContent='Proband anlegen';
-  ['ip-pid','ip-lnr','ip-notiz'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['ip-pid','ip-lnr','ip-notiz'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); document.getElementById('ip-aufpassen').checked=false;
   ['ip-t2date','ip-t2time','ip-t3date','ip-t3time'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   buildWeekSel('ip-t0week'); buildWeekSel('ip-t1week');
   // Reset week selectors but clear slot selections so termins are truly optional
@@ -2395,6 +2399,7 @@ window.openEditProband = id => {
   document.getElementById('ip-pid').value=p.pid||'';
   document.getElementById('ip-lnr').value=p.lnr||'';
   document.getElementById('ip-notiz').value=p.notiz||'';
+  document.getElementById('ip-aufpassen').checked=p.aufpassen||false;
   document.getElementById('ip-t2date').value=p.t2date||'';
   document.getElementById('ip-t2time').value=p.t2time||'';
   document.getElementById('ip-t3date').value=p.t3date||'';
@@ -2453,6 +2458,7 @@ window.saveProband = async () => {
     t3date:document.getElementById('ip-t3date').value||null,
     t3time:document.getElementById('ip-t3time').value||null,
     notiz:document.getElementById('ip-notiz').value.trim(),
+    aufpassen:document.getElementById('ip-aufpassen').checked||false,
     updated:Date.now()
   };
   try {
