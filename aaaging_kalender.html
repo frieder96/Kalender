@@ -667,6 +667,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
       <button class="ntab"     onclick="goTab('raumplan',this)">🏠 Raumplan</button>
       <button class="ntab"     onclick="goTab('studio',this)">Studio &amp; Training</button>
+      <button class="ntab"     onclick="goTab('monatsübersicht',this)">📅 Monatsübersicht</button>
       <button class="ntab"     onclick="goTab('fortschritt',this)">&#128202; Fortschritt</button>
     </div>
   </nav>
@@ -1041,6 +1042,19 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       </div>
     </div>
 
+
+    <!-- MONATSÜBERSICHT -->
+    <div id="tab-monatsübersicht" class="panel">
+      <div class="phdr"><div><div class="ptitle">Monatsübersicht</div><div class="psub">T0 · T1 · T2 · T3 aller Probanden</div></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn btn-sm" onclick="monatNav(-1)">←</button>
+          <span id="monat-label" style="font-size:14px;font-weight:700;color:var(--ub);min-width:140px;text-align:center"></span>
+          <button class="btn btn-sm" onclick="monatNav(1)">→</button>
+          <button class="btn btn-sm" onclick="monatGoToday()" style="font-size:11px">Heute</button>
+        </div>
+      </div>
+      <div id="monat-content"></div>
+    </div>
 
     <!-- FORTSCHRITT -->
     <div id="tab-fortschritt" class="panel">
@@ -4015,6 +4029,148 @@ window.toast=toast;
 </script>
 
 <script>
+// ── MONATSÜBERSICHT ──────────────────────────────────────────────
+let _monatYear = new Date().getFullYear();
+let _monatMonth = new Date().getMonth(); // 0-based
+
+window.monatNav = function(dir) {
+  _monatMonth += dir;
+  if(_monatMonth > 11){ _monatMonth=0; _monatYear++; }
+  if(_monatMonth < 0){ _monatMonth=11; _monatYear--; }
+  renderMonatsübersicht();
+};
+window.monatGoToday = function() {
+  const now = new Date();
+  _monatYear = now.getFullYear();
+  _monatMonth = now.getMonth();
+  renderMonatsübersicht();
+};
+
+function renderMonatsübersicht() {
+  const lbl = document.getElementById('monat-label');
+  const el = document.getElementById('monat-content');
+  if(!el) return;
+
+  const MONATE = ['Jänner','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  if(lbl) lbl.textContent = MONATE[_monatMonth] + ' ' + _monatYear;
+
+  const ps = Object.values(P);
+  const DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
+
+  // Build map: dateStr -> [{pid, lnr, type, time, aufpassen}]
+  var events = {};
+  function addEv(dateObj, pid, lnr, type, time, aufpassen) {
+    if(!dateObj) return;
+    var ds = _localDate(dateObj);
+    if(!events[ds]) events[ds] = [];
+    events[ds].push({pid, lnr, type, time, aufpassen});
+  }
+
+  ps.forEach(function(p) {
+    // T0
+    if(p.t0week !== undefined && p.t0day) {
+      var slot = T0.find(function(s){ return s.slot===p.t0slot; });
+      addEv(wDay(p.t0week, DAYOFF[p.t0day]||0), p.pid, p.lnr, 'T0', slot?slot.blutStart:'', p.aufpassen);
+    }
+    // T1.1
+    if(p.t1week !== undefined && p.t1day11) {
+      var slot11 = T11.find(function(s){ return s.slot===p.t1slot11; });
+      addEv(wDay(p.t1week, DAYOFF[p.t1day11]||0), p.pid, p.lnr, 'T1.1', slot11?slot11.blutStart:'', p.aufpassen);
+    }
+    // T1.2
+    if(p.t1week !== undefined && p.t1day12) {
+      var slot12 = T12.find(function(s){ return s.slot===p.t1slot12; });
+      addEv(wDay(p.t1week, DAYOFF[p.t1day12]||2), p.pid, p.lnr, 'T1.2', slot12?slot12.blutStart:'', p.aufpassen);
+    }
+    // T2
+    if(p.t2date) addEv(new Date(p.t2date+'T12:00'), p.pid, p.lnr, 'T2', p.t2time||'', p.aufpassen);
+    // T3
+    if(p.t3date) addEv(new Date(p.t3date+'T12:00'), p.pid, p.lnr, 'T3', p.t3time||'', p.aufpassen);
+  });
+
+  var TYPE_COLOR = {
+    'T0':  {bg:'#E3F0FF', border:'#7BAEE0', color:'#1A4A8A', label:'T0'},
+    'T1.1':{bg:'#E8F5E9', border:'#81C784', color:'#1B5E20', label:'T1.1'},
+    'T1.2':{bg:'#E8F5E9', border:'#81C784', color:'#1B5E20', label:'T1.2'},
+    'T2':  {bg:'#FFF3E0', border:'#FFB74D', color:'#E65100', label:'T2'},
+    'T3':  {bg:'#FCE4EC', border:'#F48FB1', color:'#880E4F', label:'T3'},
+  };
+
+  // Build calendar grid
+  var firstDay = new Date(_monatYear, _monatMonth, 1);
+  var lastDay  = new Date(_monatYear, _monatMonth+1, 0);
+  var startDow = (firstDay.getDay()+6)%7; // Mon=0
+  var totalDays = lastDay.getDate();
+  var today = _localDate(new Date());
+  var DAYS = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+
+  var html = '<div style="overflow-x:auto">'
+    + '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;min-width:700px">';
+
+  // Day headers
+  DAYS.forEach(function(d) {
+    html += '<div style="text-align:center;font-size:11px;font-weight:700;color:var(--g5);padding:6px 0;letter-spacing:.05em">' + d + '</div>';
+  });
+
+  // Empty cells before first day
+  for(var i=0; i<startDow; i++) {
+    html += '<div style="min-height:80px;background:var(--g1);border-radius:4px;opacity:.3"></div>';
+  }
+
+  // Day cells
+  for(var d=1; d<=totalDays; d++) {
+    var date = new Date(_monatYear, _monatMonth, d);
+    var ds = _localDate(date);
+    var isToday = ds === today;
+    var dow = (date.getDay()+6)%7;
+    var isWeekend = dow >= 5;
+    var holiday = isAustrianHoliday(date);
+    var dayEvs = (events[ds]||[]).sort(function(a,b){ return (a.time||'').localeCompare(b.time||''); });
+
+    var bgColor = isToday ? '#E3EEFF' : isWeekend||holiday ? '#F5F0E8' : '#fff';
+    var borderColor = isToday ? 'var(--ub)' : '#E0DDD8';
+
+    html += '<div style="min-height:80px;background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:6px;padding:4px;' + (isToday?'box-shadow:0 0 0 2px var(--ub)':'') + '">'
+      + '<div style="font-size:11px;font-weight:' + (isToday?'800':'600') + ';color:' + (isToday?'var(--ub)':isWeekend||holiday?'#A89070':'#555') + ';margin-bottom:3px">'
+      + d + (holiday?' 🎉':'')
+      + '</div>';
+
+    dayEvs.forEach(function(ev) {
+      var tc = TYPE_COLOR[ev.type] || {bg:'#eee',border:'#ccc',color:'#555',label:ev.type};
+      html += '<div style="background:' + tc.bg + ';border:1px solid ' + tc.border + ';border-radius:3px;padding:2px 4px;margin-bottom:2px;font-size:9.5px;line-height:1.3">'
+        + '<span style="font-weight:700;color:' + tc.color + '">' + tc.label + '</span>'
+        + ' <span style="color:#333">' + (ev.pid||'—') + (ev.aufpassen?' ⚠️':'') + '</span>'
+        + (ev.time?'<span style="color:#888;font-size:8.5px"> ' + ev.time + '</span>':'')
+        + '</div>';
+    });
+
+    html += '</div>';
+  }
+
+  // Fill remaining cells
+  var filled = startDow + totalDays;
+  var remainder = filled % 7;
+  if(remainder > 0) {
+    for(var i=remainder; i<7; i++) {
+      html += '<div style="min-height:80px;background:var(--g1);border-radius:4px;opacity:.3"></div>';
+    }
+  }
+
+  html += '</div></div>';
+
+  // Legend
+  html += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;padding:10px 14px;background:#fff;border:1px solid var(--g2);border-radius:var(--r)">';
+  Object.values(TYPE_COLOR).forEach(function(tc) {
+    html += '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px">'
+      + '<span style="width:12px;height:12px;border-radius:3px;background:' + tc.bg + ';border:1px solid ' + tc.border + ';display:inline-block"></span>'
+      + '<span style="color:' + tc.color + ';font-weight:600">' + tc.label + '</span>'
+      + '</span>';
+  });
+  html += '</div>';
+
+  el.innerHTML = html;
+}
+
 function goTab(name,btn){
   document.querySelectorAll('.ntab').forEach(b=>b.classList.remove('on'));
   if(btn) btn.classList.add('on');
@@ -4028,6 +4184,7 @@ function goTab(name,btn){
   if(name==='studio'){spRenderProbanden();}
   if(name==='raumplan'){ _rpWeek=cW; rpRender(); }
   if(name==='fortschritt'){ if(window.spRenderFortschritt) window.spRenderFortschritt(); }
+  if(name==='monatsübersicht'){ renderMonatsübersicht(); }
 }
 
 function setTermin(t, btn) {
