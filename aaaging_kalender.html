@@ -5481,8 +5481,11 @@ function sp5rmRenderHistory(){
   el.innerHTML=[...c.sessions].reverse().map(s=>{
     const rows=Object.entries(s.results).map(([exId,val])=>{
       const ex=SP_EXERCISES.find(e=>e.id===exId);
-      return `<tr><td>${ex?ex.icon+' '+ex.name:exId}</td><td>${val.weight}kg × ${val.reps}Wdh.</td><td>${sp5rmRound(val.orm).toFixed(1)}kg</td></tr>`;
+      const orm=sp5rmRound(val.orm);
+      const pctCells=sp5rmPcts.map(p=>`<td>${sp5rmRound(orm*p/100).toFixed(1)}</td>`).join('');
+      return `<tr><td>${ex?ex.icon+' '+ex.name:exId}</td><td>${val.weight}kg × ${val.reps}Wdh.</td><td><strong>${orm.toFixed(1)}kg</strong></td>${pctCells}</tr>`;
     }).join('');
+    const pctHeaders=sp5rmPcts.map(p=>`<th>${p}%</th>`).join('');
     return `<div class="session-card">
       <div class="session-header" onclick="sp5rmToggle('${s.id}')">
         <div><div class="date">📅 ${new Date(s.date+'T12:00:00').toLocaleDateString('de-AT',{day:'2-digit',month:'long',year:'numeric'})}</div>${s.note?`<div class="note">${s.note}</div>`:''}</div>
@@ -5492,7 +5495,7 @@ function sp5rmRenderHistory(){
         </div>
       </div>
       <div class="session-body" id="sp5sb-${s.id}">
-        <table class="session-table"><thead><tr><th>Übung</th><th>5RM</th><th>1RM</th></tr></thead><tbody>${rows}</tbody></table>
+        <table class="session-table"><thead><tr><th>Übung</th><th>5RM</th><th>1RM</th>${pctHeaders}</tr></thead><tbody>${rows}</tbody></table>
       </div>
     </div>`;
   }).join('');
