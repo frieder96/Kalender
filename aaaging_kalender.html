@@ -1484,7 +1484,6 @@ window._T0 = () => T0;
 window._T11 = () => T11;
 window._T12 = () => T12;
 window._wDay = wDay;
-window._localDate = _localDate;
 window._isAustrianHoliday = isAustrianHoliday;
 
 // Sperre lookup helpers
@@ -1659,6 +1658,7 @@ document.getElementById('linp-email').addEventListener('keydown',e=>{if(e.key===
 // ── RENDER CALENDAR ───────────────
 // Local date helper (avoids UTC timezone shift)
 const _localDate = d => { const p=x=>String(x).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; };
+window._localDate = _localDate;
 
 function renderWeek() {
   curTermin = window.curTermin || 'T0';
