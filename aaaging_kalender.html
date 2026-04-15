@@ -2366,22 +2366,22 @@ window.saveSlotAssign = async () => {
     update = {t0week:w, t0day:day, t0slot:slot};
   } else if(termin==='T1.1'){
     update = {t1week:w, t1day11:day, t1slot11:slot,
-      ...(p.t1day12 ? {t1day12:p.t1day12, t1slot12:p.t1slot12} : {})};
+      ...(p.t1day12&&p.t1slot12!==null ? {t1day12:p.t1day12, t1slot12:p.t1slot12} : {})};
   } else if(termin==='T1.2'){
-    update = {t1week:w, t1day12:day, t1slot12:slot,
-      ...(p.t1day11 ? {t1day11:p.t1day11, t1slot11:p.t1slot11} : {})};
+    update = {t1week: p.t1slot11!=null ? p.t1week : w, t1day12:day, t1slot12:slot,
+      ...(p.t1day11&&p.t1slot11!=null ? {t1day11:p.t1day11, t1slot11:p.t1slot11} : {})};
   } else if(termin==='T2.1'){
     update = {t2week:w, t2day11:day, t2slot11:slot,
-      ...(p.t2day12 ? {t2day12:p.t2day12, t2slot12:p.t2slot12} : {})};
+      ...(p.t2day12&&p.t2slot12!=null ? {t2day12:p.t2day12, t2slot12:p.t2slot12} : {})};
   } else if(termin==='T2.2'){
-    update = {t2week:w, t2day12:day, t2slot12:slot,
-      ...(p.t2day11 ? {t2day11:p.t2day11, t2slot11:p.t2slot11} : {})};
+    update = {t2week: p.t2slot11!=null ? p.t2week : w, t2day12:day, t2slot12:slot,
+      ...(p.t2day11&&p.t2slot11!=null ? {t2day11:p.t2day11, t2slot11:p.t2slot11} : {})};
   } else if(termin==='T3.1'){
     update = {t3week:w, t3day11:day, t3slot11:slot,
-      ...(p.t3day12 ? {t3day12:p.t3day12, t3slot12:p.t3slot12} : {})};
+      ...(p.t3day12&&p.t3slot12!=null ? {t3day12:p.t3day12, t3slot12:p.t3slot12} : {})};
   } else if(termin==='T3.2'){
-    update = {t3week:w, t3day12:day, t3slot12:slot,
-      ...(p.t3day11 ? {t3day11:p.t3day11, t3slot11:p.t3slot11} : {})};
+    update = {t3week: p.t3slot11!=null ? p.t3week : w, t3day12:day, t3slot12:slot,
+      ...(p.t3day11&&p.t3slot11!=null ? {t3day11:p.t3day11, t3slot11:p.t3slot11} : {})};
   }
 
   try {
