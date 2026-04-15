@@ -1547,8 +1547,8 @@ function getSubTermin(termin, day) {
 
 // Lookup helpers
 const byT0  = (w,day,slot) => Object.values(P).find(p=>p.t0week===w&&p.t0day===day&&p.t0slot===slot)||null;
-const byT11 = (w,day,slot) => Object.values(P).find(p=>p.t1week===w&&p.t1day11===day&&p.t1slot11===slot)||null;
-const byT12 = (w,day,slot) => Object.values(P).find(p=>p.t1week===w&&p.t1day12===day&&p.t1slot12===slot)||null;
+const byT11 = (w,day,slot) => Object.values(P).find(p=>(p.t1week11||p.t1week)===w&&p.t1day11===day&&p.t1slot11===slot)||null;
+const byT12 = (w,day,slot) => Object.values(P).find(p=>(p.t1week12||p.t1week)===w&&p.t1day12===day&&p.t1slot12===slot)||null;
 const byT21 = (w,day,slot) => Object.values(P).find(p=>p.t2week===w&&p.t2day11===day&&p.t2slot11===slot)||null;
 const byT22 = (w,day,slot) => Object.values(P).find(p=>p.t2week===w&&p.t2day12===day&&p.t2slot12===slot)||null;
 const byT31 = (w,day,slot) => Object.values(P).find(p=>p.t3week===w&&p.t3day11===day&&p.t3slot11===slot)||null;
@@ -2198,8 +2198,8 @@ function renderTable() {
     const _fmtDate = d => d ? d.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'}) : '';
 
     const _t0date  = _weekDate(p.t0week, p.t0day);
-    const _t11date = _weekDate(p.t1week, p.t1day11);
-    const _t12date = _weekDate(p.t1week, p.t1day12);
+    const _t11date = _weekDate(p.t1week11||p.t1week, p.t1day11);
+    const _t12date = _weekDate(p.t1week12||p.t1week, p.t1day12);
 
     const t0  = p.t0week!==undefined ? `<span style="font-size:11px">${p.t0day?.slice(0,2)} ${_fmtDate(_t0date)}<br><span style="color:var(--g5)">${_t0time}</span></span>` : '<span style="color:var(--g4);font-size:11px">—</span>';
     const t11 = p.t1week!==undefined ? `<span style="font-size:11px">${p.t1day11?.slice(0,2)} ${_fmtDate(_t11date)}<br><span style="color:var(--g5)">${_t11time}</span></span>` : '<span style="color:var(--g4);font-size:11px">—</span>';
@@ -2279,8 +2279,8 @@ window.updT1Slots = () => {
   const w=parseInt(document.getElementById('ip-t1week').value);
   const d11=document.getElementById('ip-t1day11').value;
   const d12=document.getElementById('ip-t1day12').value;
-  const occ11=new Set(Object.values(P).filter(p=>p.t1week===w&&p.t1day11===d11&&(!eId||p._id!==eId)).map(p=>p.t1slot11));
-  const occ12=new Set(Object.values(P).filter(p=>p.t1week===w&&p.t1day12===d12&&(!eId||p._id!==eId)).map(p=>p.t1slot12));
+  const occ11=new Set(Object.values(P).filter(p=>(p.t1week11||p.t1week)===w&&p.t1day11===d11&&(!eId||p._id!==eId)).map(p=>p.t1slot11));
+  const occ12=new Set(Object.values(P).filter(p=>(p.t1week12||p.t1week)===w&&p.t1day12===d12&&(!eId||p._id!==eId)).map(p=>p.t1slot12));
   document.getElementById('ip-t1s11').innerHTML=T11.filter(s=>s.day==='Montag'||s.day==='Dienstag').map(s=>{
     const tk=occ11.has(s.slot); return `<option value="${s.slot}" ${tk?'disabled':''}>${s.slot} · ${s.blutStart}${tk?' — belegt':''}</option>`;
   }).join('');
@@ -2329,8 +2329,8 @@ window.openAddProbandSlot = (w, termin, day, slot) => {
   const assigned = new Set();
   Object.values(P).forEach(p => {
     if(termin==='T0'   && p.t0week===w)  assigned.add(p._id);
-    if(termin==='T1.1' && p.t1week===w && p.t1slot11!==undefined) assigned.add(p._id);
-    if(termin==='T1.2' && p.t1week===w && p.t1slot12!==undefined) assigned.add(p._id);
+    if(termin==='T1.1' && (p.t1week11||p.t1week)===w && p.t1slot11!=null) assigned.add(p._id);
+    if(termin==='T1.2' && (p.t1week12||p.t1week)===w && p.t1slot12!=null) assigned.add(p._id);
     if(termin==='T2.1' && p.t2week===w && p.t2slot11!==undefined) assigned.add(p._id);
     if(termin==='T2.2' && p.t2week===w && p.t2slot12!==undefined) assigned.add(p._id);
     if(termin==='T3.1' && p.t3week===w && p.t3slot11!==undefined) assigned.add(p._id);
@@ -2365,23 +2365,23 @@ window.saveSlotAssign = async () => {
   if(termin==='T0'){
     update = {t0week:w, t0day:day, t0slot:slot};
   } else if(termin==='T1.1'){
-    update = {t1week:w, t1day11:day, t1slot11:slot,
-      ...(p.t1day12&&p.t1slot12!==null ? {t1day12:p.t1day12, t1slot12:p.t1slot12} : {})};
+    update = {t1week:w, t1week11:w, t1day11:day, t1slot11:slot,
+      ...(p.t1day12&&p.t1slot12!=null ? {t1week12:p.t1week12||p.t1week, t1day12:p.t1day12, t1slot12:p.t1slot12} : {})};
   } else if(termin==='T1.2'){
-    update = {t1week: p.t1slot11!=null ? p.t1week : w, t1day12:day, t1slot12:slot,
-      ...(p.t1day11&&p.t1slot11!=null ? {t1day11:p.t1day11, t1slot11:p.t1slot11} : {})};
+    update = {t1week:w, t1week12:w, t1day12:day, t1slot12:slot,
+      ...(p.t1day11&&p.t1slot11!=null ? {t1week11:p.t1week11||p.t1week, t1day11:p.t1day11, t1slot11:p.t1slot11} : {})};
   } else if(termin==='T2.1'){
-    update = {t2week:w, t2day11:day, t2slot11:slot,
-      ...(p.t2day12&&p.t2slot12!=null ? {t2day12:p.t2day12, t2slot12:p.t2slot12} : {})};
+    update = {t2week:w, t2week11:w, t2day11:day, t2slot11:slot,
+      ...(p.t2day12&&p.t2slot12!=null ? {t2week12:p.t2week12||p.t2week, t2day12:p.t2day12, t2slot12:p.t2slot12} : {})};
   } else if(termin==='T2.2'){
-    update = {t2week: p.t2slot11!=null ? p.t2week : w, t2day12:day, t2slot12:slot,
-      ...(p.t2day11&&p.t2slot11!=null ? {t2day11:p.t2day11, t2slot11:p.t2slot11} : {})};
+    update = {t2week:w, t2week12:w, t2day12:day, t2slot12:slot,
+      ...(p.t2day11&&p.t2slot11!=null ? {t2week11:p.t2week11||p.t2week, t2day11:p.t2day11, t2slot11:p.t2slot11} : {})};
   } else if(termin==='T3.1'){
-    update = {t3week:w, t3day11:day, t3slot11:slot,
-      ...(p.t3day12&&p.t3slot12!=null ? {t3day12:p.t3day12, t3slot12:p.t3slot12} : {})};
+    update = {t3week:w, t3week11:w, t3day11:day, t3slot11:slot,
+      ...(p.t3day12&&p.t3slot12!=null ? {t3week12:p.t3week12||p.t3week, t3day12:p.t3day12, t3slot12:p.t3slot12} : {})};
   } else if(termin==='T3.2'){
-    update = {t3week: p.t3slot11!=null ? p.t3week : w, t3day12:day, t3slot12:slot,
-      ...(p.t3day11&&p.t3slot11!=null ? {t3day11:p.t3day11, t3slot11:p.t3slot11} : {})};
+    update = {t3week:w, t3week12:w, t3day12:day, t3slot12:slot,
+      ...(p.t3day11&&p.t3slot11!=null ? {t3week11:p.t3week11||p.t3week, t3day11:p.t3day11, t3slot11:p.t3slot11} : {})};
   }
 
   try {
@@ -4088,11 +4088,11 @@ function renderMonatsübersicht() {
     }
     if(p.t1week !== undefined && p.t1day11) {
       var slot11 = T11.find(function(s){ return s.slot===p.t1slot11; });
-      addEv(wDay(p.t1week, DAYOFF[p.t1day11]||0), p.pid, p.lnr, 'T1.1', slot11?slot11.blutStart:'', p.aufpassen);
+      addEv(wDay(p.t1week11||p.t1week, DAYOFF[p.t1day11]||0), p.pid, p.lnr, 'T1.1', slot11?slot11.blutStart:'', p.aufpassen);
     }
     if(p.t1week !== undefined && p.t1day12) {
       var slot12 = T12.find(function(s){ return s.slot===p.t1slot12; });
-      addEv(wDay(p.t1week, DAYOFF[p.t1day12]||2), p.pid, p.lnr, 'T1.2', slot12?slot12.blutStart:'', p.aufpassen);
+      addEv(wDay(p.t1week12||p.t1week, DAYOFF[p.t1day12]||2), p.pid, p.lnr, 'T1.2', slot12?slot12.blutStart:'', p.aufpassen);
     }
     if(p.t2date) addEv(new Date(p.t2date+'T12:00'), p.pid, p.lnr, 'T2', p.t2time||'', p.aufpassen);
     if(p.t3date) addEv(new Date(p.t3date+'T12:00'), p.pid, p.lnr, 'T3', p.t3time||'', p.aufpassen);
