@@ -1536,6 +1536,7 @@ function isAustrianHoliday(dateObj) {
   ) || null;
 }
 window._isAustrianHoliday = isAustrianHoliday;
+window._getAustrianHolidays = getAustrianHolidays;
 
 // Sub-termin helper: T1/T2/T3 → .1 (Mo/Di) or .2 (Mi/Do)
 function getSubTermin(termin, day) {
@@ -4188,12 +4189,12 @@ function renderMonatsübersicht() {
 }
 function renderRecallHolidays() {
   const el = document.getElementById('recall-holidays'); if(!el) return;
+  if(!window._getAustrianHolidays){ el.innerHTML=''; return; }
   const now = new Date();
   const year = now.getFullYear();
-  // Get holidays for this year and next
   const holidays = [
-    ...getAustrianHolidays(year),
-    ...getAustrianHolidays(year+1)
+    ...window._getAustrianHolidays(year),
+    ...window._getAustrianHolidays(year+1)
   ].filter(h => h.date >= now).sort((a,b) => a.date-b.date).slice(0,6);
 
   if(!holidays.length){ el.innerHTML=''; return; }
