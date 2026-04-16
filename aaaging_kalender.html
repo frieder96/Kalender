@@ -754,6 +754,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <div><div class="ptitle">Supplement-Ausgabe &amp; Recalls</div><div class="psub">Flexible Zwischentermine · Supplement-Ausgaben · pro Proband eintragen</div></div>
         <div><button class="btn btn-sm btn-p" id="add-recall-btn" onclick="openAddRecall()">+ Recall eintragen</button></div>
       </div>
+      <div id="recall-holidays" style="margin-bottom:12px"></div>
       <div id="recall-list"></div>
     </div>
 
@@ -4185,6 +4186,31 @@ function renderMonatsübersicht() {
 
   el.innerHTML = html;
 }
+function renderRecallHolidays() {
+  const el = document.getElementById('recall-holidays'); if(!el) return;
+  const now = new Date();
+  const year = now.getFullYear();
+  // Get holidays for this year and next
+  const holidays = [
+    ...getAustrianHolidays(year),
+    ...getAustrianHolidays(year+1)
+  ].filter(h => h.date >= now).sort((a,b) => a.date-b.date).slice(0,6);
+
+  if(!holidays.length){ el.innerHTML=''; return; }
+
+  const items = holidays.map(h => {
+    const ds = h.date.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+    return `<span style="display:inline-flex;align-items:center;gap:5px;background:#FFF8E1;border:1px solid #FFD54F;border-radius:99px;padding:3px 10px;font-size:11.5px;white-space:nowrap">
+      <span>🎉</span><strong style="color:#E65100">${h.name}</strong><span style="color:#888">${ds}</span>
+    </span>`;
+  }).join('');
+
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:#FFFDE7;border:1px solid #FFE082;border-radius:var(--r)">
+    <span style="font-size:11px;font-weight:700;color:#E65100;white-space:nowrap">⚠️ Nächste Feiertage:</span>
+    ${items}
+  </div>`;
+}
+
 
 function goTab(name,btn){
   document.querySelectorAll('.ntab').forEach(b=>b.classList.remove('on'));
@@ -4194,6 +4220,7 @@ function goTab(name,btn){
   const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export',abwesenheit:'Abwesenheiten',raumplan:'Live Raumplan',studio:'Studio & Training'};
   document.getElementById('bcc').textContent=L[name]||name;
   if(name==='team'){tW=cW;renderTaskTab();}
+  if(name==='recalls'){ renderRecallHolidays(); }
   if(name==='abwesenheit'){renderAbsentCal();}
   if(name==='backup'){renderRoomList();}
   if(name==='studio'){spRenderProbanden();}
