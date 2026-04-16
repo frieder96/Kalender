@@ -1737,7 +1737,7 @@ function renderWeek() {
         const aRoom = a?.room || a2?.room || '';
 
         // Check absence for assigned persons
-        const _checkAbsent = (memberId) => {
+        const _checkAbsent = (memberId, slotTime) => {
           if(!memberId) return false;
           const member = TEAM[memberId];
           if(!member) return false;
@@ -1746,11 +1746,16 @@ function renderWeek() {
             const n=(ab.name||ab.email||'').toLowerCase();
             const mn=member.name.toLowerCase();
             if(!n||!(n.includes(mn)||mn.includes(n))) return false;
-            return dateStr>=ab.from && dateStr<=(ab.to||ab.from);
+            if(!(dateStr>=ab.from && dateStr<=(ab.to||ab.from))) return false;
+            // If absence has time range, check if slot time falls within it
+            if(ab.timeFrom && ab.timeTo && slotTime) {
+              return slotTime >= ab.timeFrom && slotTime < ab.timeTo;
+            }
+            return true; // full day absence
           });
         };
-        const p1Absent = a?.person ? _checkAbsent(a.person) : false;
-        const p2Absent = a2?.person ? _checkAbsent(a2.person) : false;
+        const p1Absent = a?.person ? _checkAbsent(a.person, m.t||s.blutStart) : false;
+        const p2Absent = a2?.person ? _checkAbsent(a2.person, m.t||s.blutStart) : false;
         const anyAbsent = p1Absent || p2Absent;
         const rowBg = anyAbsent ? 'background:#FDF2F4;border-radius:4px;' : '';
         const absentHint = anyAbsent ? `<span style="font-size:9.5px;color:#C8102E;font-weight:700;margin-left:4px">🏖️ nicht verfügbar</span>` : '';
@@ -1770,7 +1775,7 @@ function renderWeek() {
           `${cW}_${curTermin}_${d.label}_${s.slot}_${m.label}_3`.replace(/[^a-zA-Z0-9_]/g,'_')];
         const _pAssigns = [a, a2, ASSIGN[_pKeys[2]]];
         const _pNames = _pAssigns.map(ax => ax?.person?(TEAM[ax.person]?.name||ax.person):null);
-        const _pAbsent = _pAssigns.map(ax => ax?.person?_checkAbsent(ax.person):false);
+        const _pAbsent = _pAssigns.map(ax => ax?.person?_checkAbsent(ax.person, m.t||s.blutStart):false);
 
         const assignSection = !isSperred&&isAdmin()
           ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
