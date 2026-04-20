@@ -1867,7 +1867,7 @@ function renderEEGWeek() {
   const content = document.getElementById('cal-content');
   const hdrColor = 'var(--teegc)';
 
-  content.innerHTML = `<div class="dgrid" style="grid-template-columns:repeat(4,1fr)">${EEG_DAYS.map(d => {
+  content.innerHTML = `<div class="dgrid" style="grid-template-columns:repeat(5,1fr)">${EEG_DAYS.map(d => {
     const date = wDay(cW, d.off);
     const dayFilled = EEG_SLOTS.filter(s => byEEG(cW,d.label,s.slot)).length;
     const pct = Math.round(dayFilled/EEG_SLOTS.length*100);
