@@ -1851,10 +1851,28 @@ function renderWeek() {
       const daySperr = !slotSperr && Object.values(SPERREN).find(sp =>
         sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) && _tMatch(sp.termin));
       const _slotHoliday = !slotSperr && !daySperr ? isAustrianHoliday(date) : null;
+
+      // Check if Telomer has this slot booked (only applies to T1 Mo/Di Slots 1-4)
+      const _telBooking = (curTermin==='T1' && (d.label==='Montag'||d.label==='Dienstag') && s.slot<=4 && !p)
+        ? Object.values(window._TELP||{}).find(tp => {
+            // Check any of T0/T1/T2 termins
+            if(tp.t0week===cW && tp.t0day===d.label && tp.t0slot===s.slot) return true;
+            if(tp.t1week===cW && tp.t1day===d.label && tp.t1slot===s.slot) return true;
+            if(tp.t2week===cW && tp.t2day===d.label && tp.t2slot===s.slot) return true;
+            return false;
+          })
+        : null;
+      const _telTermin = _telBooking ? (
+        _telBooking.t0week===cW && _telBooking.t0day===d.label && _telBooking.t0slot===s.slot ? 'T0' :
+        _telBooking.t1week===cW && _telBooking.t1day===d.label && _telBooking.t1slot===s.slot ? 'T1' : 'T2'
+      ) : null;
+
       const isSperred = slotSperr || daySperr || _slotHoliday;
 
       const proHtml = isSperred
         ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSperred.grund?` · ${isSperred.grund}`:''} ${isSperred.termin!=='ALL'?`(${isSperred.termin})`:''}</div>`
+        : _telBooking
+          ? `<div class="prow" style="background:#F3E5F5;border-radius:4px;padding:6px 8px"><span style="font-size:10px;color:#5E35B1;font-weight:700;margin-right:6px">🧬 TELOMER ${_telTermin}</span><span style="background:#5E35B1;color:#fff;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700">${_telBooking.tid}${_telBooking.aufpassen?' ⚠️':''}</span></div>`
         : p
           ?`<div class="prow"><span class="pbadge">${p.pid}${p.aufpassen?` <span style="color:#E65100">⚠️</span>`:''}</span><span class="lbadge">${p.lnr}</span>${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button><button class="btn btn-xs btn-d" onclick="removeSlotAssignment('${p._id}','${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="Termin entfernen">✕</button>`:''}</div>`
           :`<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddProbandSlot(${cW},'${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
