@@ -1114,7 +1114,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 <!-- TELOMER PROBAND MODAL -->
 <div class="ov" id="tel-proband-modal" onclick="if(event.target===this)closeTelProband()">
   <div class="modal">
-    <div class="mhdr" style="background:#5E35B1"><span class="mtitle" id="tel-proband-title">Neuer Telomer-Proband</span><button class="mclose" onclick="closeTelProband()">×</button></div>
+    <div class="mhdr" style="background:#8B5A4A;color:#fff"><span class="mtitle" id="tel-proband-title">Neuer Telomer-Proband</span><button class="mclose" onclick="closeTelProband()">×</button></div>
     <div class="mbody">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="fg"><label class="fl">TEL-ID</label><input class="fi" id="telp-tid" placeholder="TEL001"></div>
@@ -1136,7 +1136,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 <!-- TELOMER SLOT ZUWEISEN MODAL -->
 <div class="ov" id="tel-assign-modal" onclick="if(event.target===this)closeTelAssign()">
   <div class="modal">
-    <div class="mhdr" style="background:#5E35B1"><span class="mtitle" id="tel-assign-title">Slot belegen</span><button class="mclose" onclick="closeTelAssign()">×</button></div>
+    <div class="mhdr" style="background:#8B5A4A;color:#fff"><span class="mtitle" id="tel-assign-title">Slot belegen</span><button class="mclose" onclick="closeTelAssign()">×</button></div>
     <div class="mbody">
       <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="tel-assign-info"></div>
       <div class="fg"><label class="fl">Telomer-Proband</label>
@@ -1872,7 +1872,7 @@ function renderWeek() {
       const proHtml = isSperred
         ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSperred.grund?` · ${isSperred.grund}`:''} ${isSperred.termin!=='ALL'?`(${isSperred.termin})`:''}</div>`
         : _telBooking
-          ? `<div class="prow" style="background:#F3E5F5;border-radius:4px;padding:6px 8px"><span style="font-size:10px;color:#5E35B1;font-weight:700;margin-right:6px">🧬 TELOMER ${_telTermin}</span><span style="background:#5E35B1;color:#fff;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700">${_telBooking.tid}${_telBooking.aufpassen?' ⚠️':''}</span></div>`
+          ? `<div class="prow" style="background:#EAD4CB;border-radius:4px;padding:6px 8px"><span style="font-size:10px;color:#8B5A4A;font-weight:700;margin-right:6px">🧬 TELOMER ${_telTermin}</span><span style="background:#8B5A4A;color:#fff;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700">${_telBooking.tid}${_telBooking.aufpassen?' ⚠️':''}</span></div>`
         : p
           ?`<div class="prow"><span class="pbadge">${p.pid}${p.aufpassen?` <span style="color:#E65100">⚠️</span>`:''}</span><span class="lbadge">${p.lnr}</span>${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button><button class="btn btn-xs btn-d" onclick="removeSlotAssignment('${p._id}','${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="Termin entfernen">✕</button>`:''}</div>`
           :`<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddProbandSlot(${cW},'${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
@@ -6208,7 +6208,7 @@ window.switchStudy = function(s) {
   if(s==='telomer') {
     aa.style.display='none'; tel.style.display='flex';
     btnAa.style.background='transparent'; btnAa.style.color='rgba(255,255,255,.7)'; btnAa.style.borderBottomColor='transparent';
-    btnTel.style.background='#5E35B1'; btnTel.style.color='#fff'; btnTel.style.borderBottomColor='#fff';
+    btnTel.style.background='#EAD4CB'; btnTel.style.color='#4A2A1F'; btnTel.style.borderBottomColor='#fff';
     goTab('tel-kalender', document.querySelector('#nav-telomer .ntab'));
   } else {
     aa.style.display='flex'; tel.style.display='none';
@@ -6273,7 +6273,7 @@ window.renderTelKalender = function() {
     var date = wDay(_telCW, d.off);
     var dateStr = localDate(date);
     var hd = isHoliday ? isHoliday(date) : null;
-    var headerBg = hd ? '#5A3A00' : '#5E35B1';
+    var headerBg = hd ? '#5A3A00' : '#8B5A4A';
     html += '<div>'
       + '<div style="background:' + headerBg + ';border-radius:var(--r) var(--r) 0 0;padding:9px 12px">'
       + '<div style="font-size:14px;font-weight:600;color:#fff">' + d.label + '</div>'
@@ -6292,8 +6292,8 @@ window.renderTelKalender = function() {
         var isBooked = !!telP;
         var isBlocked = !!aaP && !isBooked;
 
-        var bgColor = isBooked ? '#F3E5F5' : isBlocked ? '#FFE0E0' : '#fff';
-        var border = isBooked ? '#7E57C2' : isBlocked ? '#E57373' : '#E0DDD8';
+        var bgColor = isBooked ? '#EAD4CB' : isBlocked ? '#FFE0E0' : '#fff';
+        var border = isBooked ? '#8B5A4A' : isBlocked ? '#E57373' : '#E0DDD8';
 
         html += '<div style="background:' + bgColor + ';border:1px solid ' + border + ';border-radius:8px;padding:8px;margin-bottom:6px">'
           + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding-bottom:5px;border-bottom:1px solid ' + border + '">'
@@ -6304,7 +6304,7 @@ window.renderTelKalender = function() {
         // Proband row
         if(isBooked) {
           html += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;flex-wrap:wrap">'
-            + '<span style="background:#5E35B1;color:#fff;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700">' + telP.tid + (telP.aufpassen?' ⚠️':'') + '</span>'
+            + '<span style="background:#8B5A4A;color:#fff;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700">' + telP.tid + (telP.aufpassen?' ⚠️':'') + '</span>'
             + (telP.lnr ? '<span style="background:var(--ubl);color:var(--ub);padding:1px 6px;border-radius:99px;font-size:10px">' + telP.lnr + '</span>' : '')
             + (isAdmin ? '<button style="background:none;border:none;color:#888;cursor:pointer;font-size:11px;margin-left:auto" onclick="removeTelAssign(\'' + telP._id + '\')" title="Proband entfernen">✕</button>' : '')
             + '</div>';
@@ -6334,7 +6334,7 @@ window.renderTelKalender = function() {
           html += '<div style="font-size:10.5px;color:#C62828;padding:4px">🔒 AAAging: ' + aaP + '</div>';
         } else {
           if(isAdmin) {
-            html += '<button style="background:#5E35B1;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:10.5px;cursor:pointer;width:100%" onclick="openTelAssign(' + _telCW + ',\'' + d.label + '\',' + s.slot + ')">+ Proband zuweisen</button>';
+            html += '<button style="background:#8B5A4A;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:10.5px;cursor:pointer;width:100%" onclick="openTelAssign(' + _telCW + ',\'' + d.label + '\',' + s.slot + ')">+ Proband zuweisen</button>';
           } else {
             html += '<span style="color:#aaa;font-size:10px">frei</span>';
           }
@@ -6347,7 +6347,7 @@ window.renderTelKalender = function() {
   html += '</div>';
 
   html += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;padding:10px 14px;background:#fff;border:1px solid var(--g2);border-radius:var(--r);font-size:11.5px">'
-    + '<span><span style="display:inline-block;width:12px;height:12px;background:#F3E5F5;border:1px solid #7E57C2;border-radius:3px;vertical-align:middle;margin-right:4px"></span>Telomer belegt</span>'
+    + '<span><span style="display:inline-block;width:12px;height:12px;background:#EAD4CB;border:1px solid #8B5A4A;border-radius:3px;vertical-align:middle;margin-right:4px"></span>Telomer belegt</span>'
     + '<span><span style="display:inline-block;width:12px;height:12px;background:#FFE0E0;border:1px solid #E57373;border-radius:3px;vertical-align:middle;margin-right:4px"></span>AAAging belegt</span>'
     + '<span><span style="display:inline-block;width:12px;height:12px;background:#fff;border:1px solid #E0DDD8;border-radius:3px;vertical-align:middle;margin-right:4px"></span>Frei</span>'
     + '</div>';
