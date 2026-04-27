@@ -898,6 +898,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
               <input type="file" accept=".json" style="display:none" onchange="importFullBackup(this)">
             </label>
             <button class="btn btn-sm" onclick="migrateStudioWeeks()" style="background:#7A3A00;color:#fff;border-color:#7A3A00" title="Einmalige Migration: relative → absolute Wochen-Keys">🔧 Studio-Wochen migrieren</button>
+            <button class="btn btn-sm" onclick="migrateT0Slots()" style="background:#1A4A2A;color:#fff;border-color:#1A4A2A" title="T0-Termine ab KW 19 auf neues 10-Slot-System umstellen">🔄 T0-Slots migrieren (ab KW 19)</button>
           </div>
           <div id="backup-result" style="margin-top:8px;font-size:12px"></div>
           <div style="background:#FFF8E8;border:1px solid #E8CFA0;border-left:4px solid #C89820;border-radius:var(--r);padding:9px 14px;font-size:11.5px;color:#5C3E00;margin-top:10px">
@@ -1114,7 +1115,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 <!-- TELOMER PROBAND MODAL -->
 <div class="ov" id="tel-proband-modal" onclick="if(event.target===this)closeTelProband()">
   <div class="modal">
-    <div class="mhdr" style="background:#8B5A4A;color:#fff"><span class="mtitle" id="tel-proband-title">Neuer Telomer-Proband</span><button class="mclose" onclick="closeTelProband()">×</button></div>
+    <div class="mhdr" style="background:#EAD4CB;color:#4A2A1F"><span class="mtitle" id="tel-proband-title">Neuer Telomer-Proband</span><button class="mclose" onclick="closeTelProband()">×</button></div>
     <div class="mbody">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="fg"><label class="fl">TEL-ID</label><input class="fi" id="telp-tid" placeholder="TEL001"></div>
@@ -1136,7 +1137,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 <!-- TELOMER SLOT ZUWEISEN MODAL -->
 <div class="ov" id="tel-assign-modal" onclick="if(event.target===this)closeTelAssign()">
   <div class="modal">
-    <div class="mhdr" style="background:#8B5A4A;color:#fff"><span class="mtitle" id="tel-assign-title">Slot belegen</span><button class="mclose" onclick="closeTelAssign()">×</button></div>
+    <div class="mhdr" style="background:#EAD4CB;color:#4A2A1F"><span class="mtitle" id="tel-assign-title">Slot belegen</span><button class="mclose" onclick="closeTelAssign()">×</button></div>
     <div class="mbody">
       <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="tel-assign-info"></div>
       <div class="fg"><label class="fl">Telomer-Proband</label>
@@ -1485,6 +1486,24 @@ const T0 = T0_STARTS.map((bs,i) => {
   ]};
 });
 
+// New T0 (ab KW 19 / 04.05.2026): 10 Slots à 20 Min, ohne Frühstück/Isokinetik
+const T0_STARTS_NEW = ['07:00','07:20','07:40','08:00','08:20','08:40','09:00','09:20','09:40','10:00'];
+const T0_NEW = T0_STARTS_NEW.map((bs,i) => {
+  const sn=i+1; const [bH,bM]=bs.split(':').map(Number);
+  return { slot:sn, blutStart:bs, measures: [
+    {label:'Einschlussuntersuchung',cls:'ceinschl',t:bs,persons:2},
+    {label:'BIA',cls:'cbia',t:am(bH,bM,20)},
+    {label:'Mikrokern',cls:'cmikro',t:am(bH,bM,40),persons:3},
+    {label:'MMS',cls:'cmms',t:am(bH,bM,60)},
+  ]};
+});
+
+function getT0ForWeek(w) {
+  const weekDate = wMon(w);
+  const weekNum = kw(weekDate);
+  return weekNum >= 19 ? T0_NEW : T0;
+}
+
 // T1.1: 8 slots (1-4 Mo, 5-8 Di)
 const T11_STARTS = ['08:00','08:00','08:15','08:15','08:30','08:30','08:45','08:45'];
 const T11 = T11_STARTS.map((bs,i) => {
@@ -1805,7 +1824,8 @@ function renderWeek() {
   let days, slotSets, getters, phaseLabel, headerColor;
   if (curTermin==='T0') {
     days=[{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
-    slotSets=days.map(()=>T0); getters=days.map(()=>byT0); phaseLabel='T0'; headerColor='var(--t0c)';
+    const _t0 = getT0ForWeek(cW);
+    slotSets=days.map(()=>_t0); getters=days.map(()=>byT0); phaseLabel='T0'; headerColor='var(--t0c)';
   } else if (curTermin==='T1') {
     days=[{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
     const _slotsByDay={'Montag':T11,'Dienstag':T11,'Mittwoch':T12,'Donnerstag':T12};
@@ -1872,7 +1892,7 @@ function renderWeek() {
       const proHtml = isSperred
         ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSperred.grund?` · ${isSperred.grund}`:''} ${isSperred.termin!=='ALL'?`(${isSperred.termin})`:''}</div>`
         : _telBooking
-          ? `<div class="prow" style="background:#EAD4CB;border-radius:4px;padding:6px 8px"><span style="font-size:10px;color:#8B5A4A;font-weight:700;margin-right:6px">🧬 TELOMER ${_telTermin}</span><span style="background:#8B5A4A;color:#fff;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700">${_telBooking.tid}${_telBooking.aufpassen?' ⚠️':''}</span></div>`
+          ? `<div class="prow" style="background:#EAD4CB;border-radius:4px;padding:6px 8px"><span style="font-size:10px;color:#4A2A1F;font-weight:700;margin-right:6px">🧬 TELOMER ${_telTermin}</span><span style="background:#EAD4CB;color:#4A2A1F;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700;border:1px solid #C9A999">${_telBooking.tid}${_telBooking.aufpassen?' ⚠️':''}</span></div>`
         : p
           ?`<div class="prow"><span class="pbadge">${p.pid}${p.aufpassen?` <span style="color:#E65100">⚠️</span>`:''}</span><span class="lbadge">${p.lnr}</span>${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button><button class="btn btn-xs btn-d" onclick="removeSlotAssignment('${p._id}','${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="Termin entfernen">✕</button>`:''}</div>`
           :`<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddProbandSlot(${cW},'${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
@@ -2339,7 +2359,8 @@ function renderTable() {
   const ps=Object.values(P).sort((a,b)=>a.lnr.localeCompare(b.lnr));
   if(!ps.length){tbody.innerHTML='<tr><td colspan="10" class="te">Noch keine Probanden angelegt.</td></tr>';return;}
   tbody.innerHTML=ps.map(p=>{
-    const _t0time = p.t0slot ? (T0.find(s=>s.slot===p.t0slot)?.blutStart||'') : '';
+    const _t0Slots = p.t0week!==undefined ? getT0ForWeek(p.t0week) : T0;
+    const _t0time = p.t0slot ? (_t0Slots.find(s=>s.slot===p.t0slot)?.blutStart||'') : '';
     const _t11time = p.t1slot11 ? (T11.find(s=>s.slot===p.t1slot11)?.blutStart||'') : '';
     const _t12time = p.t1slot12 ? (T12.find(s=>s.slot===p.t1slot12)?.blutStart||'') : '';
 
@@ -3462,6 +3483,40 @@ window.saveSperren = async () => {
     closeSperren();
     toast(`${sperrenSlot?'Slot':'Tag'} gesperrt ✓`);
   } catch(e){ toast('Fehler: '+e.message,true); }
+};
+
+// ── T0 SLOT MIGRATION (KW 19+: 4-slot to 10-slot system) ─────────
+window.migrateT0Slots = async () => {
+  if(!isAdmin()){toast('Nur Admin',true);return;}
+  const resultEl = document.getElementById('backup-result');
+  // Map old slot → new slot for KW >= 19
+  const SLOT_MAP = {1: 2, 2: 4, 3: 7, 4: 9}; // 07:30→07:20, 08:00→08:00, 09:00→09:00, 09:30→09:40
+  const probands = Object.values(P).filter(p => {
+    if(p.t0week === undefined) return false;
+    const weekDate = wMon(p.t0week);
+    return kw(weekDate) >= 19;
+  });
+  if(!probands.length){ resultEl.innerHTML = '<span style="color:#888">Keine T0-Termine ab KW 19 gefunden.</span>'; return; }
+
+  if(!confirm(`${probands.length} Probanden mit T0-Termin ab KW 19 gefunden.\n\nMapping:\n  Slot 1 (07:30) → Slot 2 (07:20)\n  Slot 2 (08:00) → Slot 4 (08:00)\n  Slot 3 (09:00) → Slot 7 (09:00)\n  Slot 4 (09:30) → Slot 9 (09:40)\n\nFortfahren?`)) return;
+
+  resultEl.innerHTML = '⏳ Migriere…';
+  let ok=0, fail=0;
+  try {
+    const fns = window._fbFns;
+    for(const p of probands) {
+      const newSlot = SLOT_MAP[p.t0slot];
+      if(!newSlot){ fail++; continue; }
+      try {
+        await fns.updateDoc(fns.doc(window.db,'probanden',p._id), {t0slot: newSlot, updated: Date.now()});
+        ok++;
+      } catch(e){ fail++; console.error(e); }
+    }
+    resultEl.innerHTML = `<span style="color:#2E8B57">✓ Migration abgeschlossen: ${ok} umgestellt${fail?', '+fail+' Fehler':''}.</span>`;
+    toast(`T0-Migration: ${ok} Termine umgestellt ✓`);
+  } catch(e){
+    resultEl.innerHTML = `<span style="color:#C8102E">Fehler: ${e.message}</span>`;
+  }
 };
 
 // ── STUDIO WEEK MIGRATION (relative → absolute) ───────────────────
@@ -6273,11 +6328,11 @@ window.renderTelKalender = function() {
     var date = wDay(_telCW, d.off);
     var dateStr = localDate(date);
     var hd = isHoliday ? isHoliday(date) : null;
-    var headerBg = hd ? '#5A3A00' : '#8B5A4A';
+    var headerBg = hd ? '#5A3A00' : '#EAD4CB';
     html += '<div>'
       + '<div style="background:' + headerBg + ';border-radius:var(--r) var(--r) 0 0;padding:9px 12px">'
-      + '<div style="font-size:14px;font-weight:600;color:#fff">' + d.label + '</div>'
-      + '<div style="font-size:10.5px;color:rgba(255,255,255,.7);margin-top:2px">' + fD(date)
+      + '<div style="font-size:14px;font-weight:600;color:' + (hd?'#fff':'#4A2A1F') + '">' + d.label + '</div>'
+      + '<div style="font-size:10.5px;color:' + (hd?'rgba(255,255,255,.7)':'#7A5A4D') + ';margin-top:2px">' + fD(date)
       + (hd ? ' · 🎉 ' + hd.name : '')
       + '</div></div>'
       + '<div style="background:#fff;border:1px solid var(--g2);border-top:none;border-radius:0 0 var(--r) var(--r);padding:6px;min-height:200px">';
@@ -6293,7 +6348,7 @@ window.renderTelKalender = function() {
         var isBlocked = !!aaP && !isBooked;
 
         var bgColor = isBooked ? '#EAD4CB' : isBlocked ? '#FFE0E0' : '#fff';
-        var border = isBooked ? '#8B5A4A' : isBlocked ? '#E57373' : '#E0DDD8';
+        var border = isBooked ? '#C9A999' : isBlocked ? '#E57373' : '#E0DDD8';
 
         html += '<div style="background:' + bgColor + ';border:1px solid ' + border + ';border-radius:8px;padding:8px;margin-bottom:6px">'
           + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding-bottom:5px;border-bottom:1px solid ' + border + '">'
@@ -6304,7 +6359,7 @@ window.renderTelKalender = function() {
         // Proband row
         if(isBooked) {
           html += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;flex-wrap:wrap">'
-            + '<span style="background:#8B5A4A;color:#fff;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700">' + telP.tid + (telP.aufpassen?' ⚠️':'') + '</span>'
+            + '<span style="background:#EAD4CB;color:#4A2A1F;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;border:1px solid #C9A999">' + telP.tid + (telP.aufpassen?' ⚠️':'') + '</span>'
             + (telP.lnr ? '<span style="background:var(--ubl);color:var(--ub);padding:1px 6px;border-radius:99px;font-size:10px">' + telP.lnr + '</span>' : '')
             + (isAdmin ? '<button style="background:none;border:none;color:#888;cursor:pointer;font-size:11px;margin-left:auto" onclick="removeTelAssign(\'' + telP._id + '\')" title="Proband entfernen">✕</button>' : '')
             + '</div>';
@@ -6334,7 +6389,7 @@ window.renderTelKalender = function() {
           html += '<div style="font-size:10.5px;color:#C62828;padding:4px">🔒 AAAging: ' + aaP + '</div>';
         } else {
           if(isAdmin) {
-            html += '<button style="background:#8B5A4A;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:10.5px;cursor:pointer;width:100%" onclick="openTelAssign(' + _telCW + ',\'' + d.label + '\',' + s.slot + ')">+ Proband zuweisen</button>';
+            html += '<button style="background:#EAD4CB;color:#4A2A1F;border:1px solid #C9A999;border-radius:4px;padding:4px 10px;font-size:10.5px;cursor:pointer;width:100%" onclick="openTelAssign(' + _telCW + ',\'' + d.label + '\',' + s.slot + ')">+ Proband zuweisen</button>';
           } else {
             html += '<span style="color:#aaa;font-size:10px">frei</span>';
           }
