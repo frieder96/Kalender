@@ -6280,7 +6280,17 @@ window.setTelTermin = function(t, btn) {
 };
 
 window.telWNav = function(dir) { _telCW += dir; renderTelKalender(); };
-window.telWToday = function() { _telCW = (typeof cW !== 'undefined') ? cW : 0; renderTelKalender(); };
+window.telWToday = function() {
+  // Compute current week from START
+  const start = window.START;
+  if(start) {
+    const now = new Date(); now.setHours(12,0,0,0);
+    const day = now.getDay()||7;
+    const thisMon = new Date(now); thisMon.setDate(now.getDate()-day+1);
+    _telCW = Math.max(0, Math.round((thisMon - start)/(7*86400000)));
+  }
+  renderTelKalender();
+};
 
 window.renderTelKalender = function() {
   var el = document.getElementById('tel-calendar-content'); if(!el) return;
@@ -6355,43 +6365,51 @@ window.renderTelKalender = function() {
           + '<span style="color:#888;font-family:monospace;font-size:11px">' + s.blutStart + '</span>'
           + '</div>';
 
-        // Proband row
+        // Proband row (or empty)
         if(isBooked) {
           html += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;flex-wrap:wrap">'
             + '<span style="background:#EAD4CB;color:#4A2A1F;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;border:1px solid #C9A999">' + telP.tid + (telP.aufpassen?' ⚠️':'') + '</span>'
             + (telP.lnr ? '<span style="background:var(--ubl);color:var(--ub);padding:1px 6px;border-radius:99px;font-size:10px">' + telP.lnr + '</span>' : '')
             + (isAdmin ? '<button style="background:none;border:none;color:#888;cursor:pointer;font-size:11px;margin-left:auto" onclick="removeTelAssign(\'' + telP._id + '\')" title="Proband entfernen">✕</button>' : '')
             + '</div>';
+        } else if(isBlocked) {
+          html += '<div style="font-size:10.5px;color:#C62828;padding:4px 0;margin-bottom:4px">🔒 AAAging: ' + aaP + '</div>';
+        } else {
+          if(isAdmin) {
+            html += '<div style="margin-bottom:5px"><button style="background:#EAD4CB;color:#4A2A1F;border:1px solid #C9A999;border-radius:4px;padding:3px 10px;font-size:10.5px;cursor:pointer" onclick="openTelAssign(' + _telCW + ',\'' + d.label + '\',' + s.slot + ')">+ Proband</button></div>';
+          }
+        }
 
-          // Measure rows with assignment
+        // Measure rows — always visible (even when slot is empty)
+        if(!isBlocked) {
           s.measures.forEach(function(m) {
             var aKey = ('TEL_' + _telCW + '_' + _telCurTermin + '_' + d.label + '_' + s.slot + '_' + m.label).replace(/[^a-zA-Z0-9_]/g,'_');
             var a = ASSIGN[aKey];
             var pName = a && a.person ? (TEAM[a.person] && TEAM[a.person].name) || a.person : null;
             var aRoom = a && a.room ? a.room : null;
+            var nPersons = m.persons || 1;
 
             var cls = m.cls || 'cbia';
-            html += '<div style="display:flex;align-items:center;gap:4px;margin:3px 0;font-size:10.5px">'
+            html += '<div style="display:flex;align-items:center;gap:4px;margin:3px 0;font-size:10.5px;flex-wrap:wrap">'
               + '<span class="chip ' + cls + '" style="flex-shrink:0">' + m.label + ' <span class="ct">' + m.t + '</span></span>'
-              + '<span style="flex:1">' + (aRoom ? '<span style="font-size:9.5px;color:var(--ub);margin-left:3px">📍 ' + aRoom + '</span>' : '') + '</span>';
+              + (aRoom ? '<span style="font-size:9.5px;color:var(--ub);margin-left:3px">📍 ' + aRoom + '</span>' : '')
+              + '<span style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:2px">';
 
-            if(isAdmin) {
-              html += '<button class="assign-btn" style="font-size:10px" onclick="openAssignModal(\'' + aKey + '\',\'' + m.label.replace(/'/g,"\\'") + '\',\'Telomer ' + _telCurTermin + ' ' + d.label + ' Slot ' + s.slot + '\',\'' + dateStr + '\',\'' + m.t + '\')">'
-                + (pName ? '<span class="team-chip">' + pName + '</span>' : '+ P1')
-                + '</button>';
-            } else {
-              html += pName ? '<span class="team-chip">' + pName + '</span>' : '';
+            // Multi-person support
+            for(var pi = 0; pi < nPersons; pi++) {
+              var pKey = pi === 0 ? aKey : (aKey + '_' + (pi+1));
+              var pa = ASSIGN[pKey];
+              var ppName = pa && pa.person ? (TEAM[pa.person] && TEAM[pa.person].name) || pa.person : null;
+              if(isAdmin) {
+                html += '<button class="assign-btn" style="font-size:10px" onclick="openAssignModal(\'' + pKey + '\',\'' + m.label.replace(/'/g,"\\'") + (nPersons>1?' (' + (pi+1) + ')':'') + '\',\'Telomer ' + _telCurTermin + ' ' + d.label + ' Slot ' + s.slot + '\',\'' + dateStr + '\',\'' + m.t + '\')">'
+                  + (ppName ? '<span class="team-chip">' + ppName + '</span>' : '+ P' + (pi+1))
+                  + '</button>';
+              } else if(ppName) {
+                html += '<span class="team-chip">' + ppName + '</span>';
+              }
             }
-            html += '</div>';
+            html += '</span></div>';
           });
-        } else if(isBlocked) {
-          html += '<div style="font-size:10.5px;color:#C62828;padding:4px">🔒 AAAging: ' + aaP + '</div>';
-        } else {
-          if(isAdmin) {
-            html += '<button style="background:#EAD4CB;color:#4A2A1F;border:1px solid #C9A999;border-radius:4px;padding:4px 10px;font-size:10.5px;cursor:pointer;width:100%" onclick="openTelAssign(' + _telCW + ',\'' + d.label + '\',' + s.slot + ')">+ Proband zuweisen</button>';
-          } else {
-            html += '<span style="color:#aaa;font-size:10px">frei</span>';
-          }
         }
         html += '</div>';
       });
