@@ -1545,7 +1545,7 @@ window._T21=T21; window._T22=T22; window._T31=T31; window._T32=T32;
 // 4 slots pro Tag (Mo-Fr), gleiche Startzeiten wie T1 Slots 1-4 (8:00, 8:00, 8:15, 8:15)
 // Teilt sich Slots mit AAAging T1.1 (Mo/Di Slots 1-4) - gemeinsame Belegung!
 // T0 und T2: MIT Blutabnahme, T1: OHNE Blutabnahme
-const TEL_STARTS = ['08:00','08:00','08:15','08:15'];
+const TEL_STARTS = ['08:00','08:00','08:30','08:30'];
 const TEL_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 
 function _buildTelSlots(withBlood) {
@@ -1871,19 +1871,22 @@ function renderWeek() {
         sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) && _tMatch(sp.termin));
       const _slotHoliday = !slotSperr && !daySperr ? isAustrianHoliday(date) : null;
 
-      // Check if Telomer has this slot booked (only applies to T1 Mo/Di Slots 1-4)
-      const _telBooking = (curTermin==='T1' && (d.label==='Montag'||d.label==='Dienstag') && s.slot<=4 && !p)
+      // Check if Telomer has a slot at the same start time (Telomer slot times: 8:00, 8:00, 8:30, 8:30)
+      const _telSlotMatch = (telSlotNum) => {
+        const TEL_TIMES = ['08:00','08:00','08:30','08:30'];
+        return TEL_TIMES[telSlotNum-1] === s.blutStart;
+      };
+      const _telBooking = (curTermin==='T1' && (d.label==='Montag'||d.label==='Dienstag') && !p)
         ? Object.values(window._TELP||{}).find(tp => {
-            // Check any of T0/T1/T2 termins
-            if(tp.t0week===cW && tp.t0day===d.label && tp.t0slot===s.slot) return true;
-            if(tp.t1week===cW && tp.t1day===d.label && tp.t1slot===s.slot) return true;
-            if(tp.t2week===cW && tp.t2day===d.label && tp.t2slot===s.slot) return true;
+            if(tp.t0week===cW && tp.t0day===d.label && tp.t0slot && _telSlotMatch(tp.t0slot)) return true;
+            if(tp.t1week===cW && tp.t1day===d.label && tp.t1slot && _telSlotMatch(tp.t1slot)) return true;
+            if(tp.t2week===cW && tp.t2day===d.label && tp.t2slot && _telSlotMatch(tp.t2slot)) return true;
             return false;
           })
         : null;
       const _telTermin = _telBooking ? (
-        _telBooking.t0week===cW && _telBooking.t0day===d.label && _telBooking.t0slot===s.slot ? 'T0' :
-        _telBooking.t1week===cW && _telBooking.t1day===d.label && _telBooking.t1slot===s.slot ? 'T1' : 'T2'
+        _telBooking.t0week===cW && _telBooking.t0day===d.label && _telBooking.t0slot ? 'T0' :
+        _telBooking.t1week===cW && _telBooking.t1day===d.label && _telBooking.t1slot ? 'T1' : 'T2'
       ) : null;
 
       const isSperred = slotSperr || daySperr || _slotHoliday;
@@ -6307,11 +6310,19 @@ window.renderTelKalender = function() {
   var mo = wMon(_telCW);
   if(lbl && kwFn) lbl.textContent = 'KW ' + kwFn(mo) + ' / ' + mo.getFullYear();
 
+  // Map AAAging T1.1 occupied slots — by start time, since slot numbers differ
+  // Telomer 1+2 = 8:00 (= AAAging Slots 1+2), Telomer 3+4 = 8:30 (= AAAging Slots 5+6)
   var allP = window._P ? window._P() : {};
-  var aaOccupied = {};
+  var aaOccupiedByTime = {}; // key: day_starttime → P-ID
+  var T11 = window._T11 ? window._T11() : [];
   Object.values(allP).forEach(function(p) {
     if((p.t1week11||p.t1week)===_telCW && p.t1day11 && p.t1slot11) {
-      aaOccupied[p.t1day11 + '_' + p.t1slot11] = p.pid||'?';
+      var aaSlot = T11.find(function(s){ return s.slot===p.t1slot11; });
+      if(aaSlot) {
+        var k = p.t1day11 + '_' + aaSlot.blutStart;
+        if(!aaOccupiedByTime[k]) aaOccupiedByTime[k] = [];
+        aaOccupiedByTime[k].push(p.pid||'?');
+      }
     }
   });
 
@@ -6352,7 +6363,9 @@ window.renderTelKalender = function() {
       slots.forEach(function(s) {
         var key = d.label + '_' + s.slot;
         var telP = telAssigned[key];
-        var aaP = aaOccupied[key];
+        // Block by start-time match: AAAging slots with same start time on same day
+        var aaConflict = (d.label==='Montag'||d.label==='Dienstag') ? aaOccupiedByTime[d.label + '_' + s.blutStart] : null;
+        var aaP = aaConflict && aaConflict.length ? aaConflict.join(', ') : null;
         var isBooked = !!telP;
         var isBlocked = !!aaP && !isBooked;
 
