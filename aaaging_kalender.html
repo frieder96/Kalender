@@ -682,6 +682,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <button class="ntab"     onclick="goTab('team',this)">Team &amp; Aufgaben</button>
       <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
       <button class="ntab"     onclick="goTab('raumplan',this)">🏠 Raumplan</button>
+      <button class="ntab"     onclick="goTab('monatsübersicht',this)">📅 Monatsübersicht</button>
       <button class="ntab"     onclick="goTab('backup',this)">Backup &amp; Export</button>
     </div>
   </nav>
@@ -1140,8 +1141,12 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div class="mhdr" style="background:#EAD4CB;color:#4A2A1F"><span class="mtitle" id="tel-assign-title">Slot belegen</span><button class="mclose" onclick="closeTelAssign()">×</button></div>
     <div class="mbody">
       <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="tel-assign-info"></div>
-      <div class="fg"><label class="fl">Telomer-Proband</label>
+      <div class="fg"><label class="fl">Bestehenden Telomer-Proband zuweisen</label>
         <select class="fi" id="tel-assign-pid"></select>
+      </div>
+      <div style="border-top:1px solid var(--g2);margin:14px 0 10px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--g4)">oder</span>
+        <button class="btn btn-sm" onclick="telSlotAssignOpenNew()" style="font-size:11px">+ Neuen Telomer-Proband anlegen</button>
       </div>
     </div>
     <div class="mfoot">
@@ -1502,6 +1507,7 @@ function getT0ForWeek(w) {
   const weekNum = kw(weekDate);
   return weekNum >= 19 ? T0_NEW : T0;
 }
+window._getT0ForWeek = getT0ForWeek;
 
 // T1.1: 8 slots (1-4 Mo, 5-8 Di)
 const T11_STARTS = ['08:00','08:00','08:15','08:15','08:30','08:30','08:45','08:45'];
@@ -1872,15 +1878,31 @@ function renderWeek() {
       const _slotHoliday = !slotSperr && !daySperr ? isAustrianHoliday(date) : null;
 
       // Check if Telomer has a slot at the same start time (Telomer slot times: 8:00, 8:00, 8:30, 8:30)
+      // Mo/Di: exact start time match. Mi/Do: 3h overlap window
       const _telSlotMatch = (telSlotNum) => {
         const TEL_TIMES = ['08:00','08:00','08:30','08:30'];
         return TEL_TIMES[telSlotNum-1] === s.blutStart;
       };
-      const _telBooking = (curTermin==='T1' && (d.label==='Montag'||d.label==='Dienstag') && !p)
+      const _telTimeOverlap = (telTime) => {
+        // Telomer slot occupies ~3h on Mi/Do. AAAging T1.2 slot is 1h.
+        const _t = (t) => { const p=t.split(':').map(Number); return p[0]*60+p[1]; };
+        const telStart = _t(telTime), telEnd = telStart+180;
+        const aaStart = _t(s.blutStart), aaEnd = aaStart+60;
+        return telStart < aaEnd && aaStart < telEnd;
+      };
+      const _telBooking = (curTermin==='T1')
         ? Object.values(window._TELP||{}).find(tp => {
-            if(tp.t0week===cW && tp.t0day===d.label && tp.t0slot && _telSlotMatch(tp.t0slot)) return true;
-            if(tp.t1week===cW && tp.t1day===d.label && tp.t1slot && _telSlotMatch(tp.t1slot)) return true;
-            if(tp.t2week===cW && tp.t2day===d.label && tp.t2slot && _telSlotMatch(tp.t2slot)) return true;
+            const TEL_TIMES = ['08:00','08:00','08:30','08:30'];
+            const checkSlot = (week, day, slot) => {
+              if(week!==cW || day!==d.label || !slot) return false;
+              const tStart = TEL_TIMES[slot-1]; if(!tStart) return false;
+              if(d.label==='Montag'||d.label==='Dienstag') return tStart===s.blutStart;
+              if(d.label==='Mittwoch'||d.label==='Donnerstag') return _telTimeOverlap(tStart);
+              return false;
+            };
+            if(checkSlot(tp.t0week, tp.t0day, tp.t0slot)) return true;
+            if(checkSlot(tp.t1week, tp.t1day, tp.t1slot)) return true;
+            if(checkSlot(tp.t2week, tp.t2day, tp.t2slot)) return true;
             return false;
           })
         : null;
@@ -1891,13 +1913,20 @@ function renderWeek() {
 
       const isSperred = slotSperr || daySperr || _slotHoliday;
 
+      // KW 20: warning only. KW 21+: block (treat as sperred when telomer has booking)
+      const _wkNum = kw(wMon(cW));
+      const _telBlocks = _telBooking && _wkNum !== 20 && !p;
+      const _telWarn = _telBooking && !isSperred && !_telBlocks
+        ? `<div style="font-size:9.5px;color:#5E2A1F;background:#EAD4CB;border:1px solid #C9A999;border-radius:4px;padding:3px 6px;margin-bottom:4px">🧬 Telomer ${_telTermin} parallel: <strong>${_telBooking.tid}</strong></div>`
+        : '';
+
       const proHtml = isSperred
         ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSperred.grund?` · ${isSperred.grund}`:''} ${isSperred.termin!=='ALL'?`(${isSperred.termin})`:''}</div>`
-        : _telBooking
+        : _telBlocks
           ? `<div class="prow" style="background:#EAD4CB;border-radius:4px;padding:6px 8px"><span style="font-size:10px;color:#4A2A1F;font-weight:700;margin-right:6px">🧬 TELOMER ${_telTermin}</span><span style="background:#EAD4CB;color:#4A2A1F;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700;border:1px solid #C9A999">${_telBooking.tid}${_telBooking.aufpassen?' ⚠️':''}</span></div>`
         : p
-          ?`<div class="prow"><span class="pbadge">${p.pid}${p.aufpassen?` <span style="color:#E65100">⚠️</span>`:''}</span><span class="lbadge">${p.lnr}</span>${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button><button class="btn btn-xs btn-d" onclick="removeSlotAssignment('${p._id}','${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="Termin entfernen">✕</button>`:''}</div>`
-          :`<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddProbandSlot(${cW},'${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
+          ? _telWarn + `<div class="prow"><span class="pbadge">${p.pid}${p.aufpassen?` <span style="color:#E65100">⚠️</span>`:''}</span><span class="lbadge">${p.lnr}</span>${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button><button class="btn btn-xs btn-d" onclick="removeSlotAssignment('${p._id}','${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="Termin entfernen">✕</button>`:''}</div>`
+          : _telWarn + `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddProbandSlot(${cW},'${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
 
       const measRows=s.measures.map(m=>{
         const aKey=`${cW}_${curTermin}_${d.label}_${s.slot}_${m.label}`.replace(/[^a-zA-Z0-9_]/g,'_');
@@ -4346,7 +4375,8 @@ function renderMonatsübersicht() {
 
   ps.forEach(function(p) {
     if(p.t0week !== undefined && p.t0day) {
-      var slot = T0.find(function(s){ return s.slot===p.t0slot; });
+      var t0Slots = window._getT0ForWeek ? window._getT0ForWeek(p.t0week) : T0;
+      var slot = t0Slots.find(function(s){ return s.slot===p.t0slot; });
       addEv(wDay(p.t0week, DAYOFF[p.t0day]||0), p.pid, p.lnr, 'T0', slot?slot.blutStart:'', p.aufpassen);
     }
     if(p.t1week !== undefined && p.t1day11) {
@@ -4361,12 +4391,30 @@ function renderMonatsübersicht() {
     if(p.t3date) addEv(new Date(p.t3date+'T12:00'), p.pid, p.lnr, 'T3', p.t3time||'', p.aufpassen);
   });
 
+  // Telomer events
+  var TELP = window._TELP || {};
+  var TEL_TIMES = ['08:00','08:00','08:30','08:30'];
+  Object.values(TELP).forEach(function(tp) {
+    if(tp.t0week !== undefined && tp.t0day && tp.t0slot) {
+      addEv(wDay(tp.t0week, DAYOFF[tp.t0day]||0), tp.tid, tp.lnr, 'TEL T0', TEL_TIMES[tp.t0slot-1]||'', tp.aufpassen);
+    }
+    if(tp.t1week !== undefined && tp.t1day && tp.t1slot) {
+      addEv(wDay(tp.t1week, DAYOFF[tp.t1day]||0), tp.tid, tp.lnr, 'TEL T1', TEL_TIMES[tp.t1slot-1]||'', tp.aufpassen);
+    }
+    if(tp.t2week !== undefined && tp.t2day && tp.t2slot) {
+      addEv(wDay(tp.t2week, DAYOFF[tp.t2day]||0), tp.tid, tp.lnr, 'TEL T2', TEL_TIMES[tp.t2slot-1]||'', tp.aufpassen);
+    }
+  });
+
   var TYPE_COLOR = {
-    'T0':  {bg:'#E3F0FF', border:'#7BAEE0', color:'#1A4A8A', label:'T0'},
-    'T1.1':{bg:'#E8F5E9', border:'#81C784', color:'#1B5E20', label:'T1.1'},
-    'T1.2':{bg:'#E8F5E9', border:'#81C784', color:'#1B5E20', label:'T1.2'},
-    'T2':  {bg:'#FFF3E0', border:'#FFB74D', color:'#E65100', label:'T2'},
-    'T3':  {bg:'#FCE4EC', border:'#F48FB1', color:'#880E4F', label:'T3'},
+    'T0':     {bg:'#E3F0FF', border:'#7BAEE0', color:'#1A4A8A', label:'T0'},
+    'T1.1':   {bg:'#E8F5E9', border:'#81C784', color:'#1B5E20', label:'T1.1'},
+    'T1.2':   {bg:'#E8F5E9', border:'#81C784', color:'#1B5E20', label:'T1.2'},
+    'T2':     {bg:'#FFF3E0', border:'#FFB74D', color:'#E65100', label:'T2'},
+    'T3':     {bg:'#FCE4EC', border:'#F48FB1', color:'#880E4F', label:'T3'},
+    'TEL T0': {bg:'#EAD4CB', border:'#C9A999', color:'#4A2A1F', label:'🧬 T0'},
+    'TEL T1': {bg:'#EAD4CB', border:'#C9A999', color:'#4A2A1F', label:'🧬 T1'},
+    'TEL T2': {bg:'#EAD4CB', border:'#C9A999', color:'#4A2A1F', label:'🧬 T2'},
   };
 
   // Build calendar grid
@@ -6310,12 +6358,14 @@ window.renderTelKalender = function() {
   var mo = wMon(_telCW);
   if(lbl && kwFn) lbl.textContent = 'KW ' + kwFn(mo) + ' / ' + mo.getFullYear();
 
-  // Map AAAging T1.1 occupied slots — by start time, since slot numbers differ
-  // Telomer 1+2 = 8:00 (= AAAging Slots 1+2), Telomer 3+4 = 8:30 (= AAAging Slots 5+6)
+  // Map AAAging T1.1 (Mo/Di) and T1.2 (Mi/Do) occupied slots — by start time
+  // Telomer Mi/Do also conflicts with T1.2 if times overlap
   var allP = window._P ? window._P() : {};
-  var aaOccupiedByTime = {}; // key: day_starttime → P-ID
+  var aaOccupiedByTime = {}; // key: day_starttime → P-IDs[]
   var T11 = window._T11 ? window._T11() : [];
+  var T12 = window._T12 ? window._T12() : [];
   Object.values(allP).forEach(function(p) {
+    // T1.1 Mo/Di
     if((p.t1week11||p.t1week)===_telCW && p.t1day11 && p.t1slot11) {
       var aaSlot = T11.find(function(s){ return s.slot===p.t1slot11; });
       if(aaSlot) {
@@ -6324,7 +6374,39 @@ window.renderTelKalender = function() {
         aaOccupiedByTime[k].push(p.pid||'?');
       }
     }
+    // T1.2 Mi/Do — these occupy a 1h slot from blutStart
+    if((p.t1week12||p.t1week)===_telCW && p.t1day12 && p.t1slot12) {
+      var aaSlot12 = T12.find(function(s){ return s.slot===p.t1slot12; });
+      if(aaSlot12) {
+        var k12 = p.t1day12 + '_T12_' + aaSlot12.blutStart;
+        if(!aaOccupiedByTime[k12]) aaOccupiedByTime[k12] = [];
+        aaOccupiedByTime[k12].push(p.pid||'?');
+      }
+    }
   });
+
+  // Helper: parse HH:MM to minutes
+  function _toMin(t) { var p = t.split(':').map(Number); return p[0]*60+p[1]; }
+
+  // Helper: for a given Telomer slot on a day, check AAAging T1.2 overlap (Mi/Do only)
+  // Telomer slots on Mi/Do occupy approx 3h. AAAging T1.2 slots are 1h.
+  function _telAaT12Conflict(day, telStartTime) {
+    if(day!=='Mittwoch' && day!=='Donnerstag') return null;
+    var telStart = _toMin(telStartTime);
+    var telEnd = telStart + 180; // ~3 hours
+    var conflicts = [];
+    Object.keys(aaOccupiedByTime).forEach(function(k) {
+      if(!k.startsWith(day + '_T12_')) return;
+      var aaTime = k.substring((day + '_T12_').length);
+      var aaStart = _toMin(aaTime);
+      var aaEnd = aaStart + 60;
+      // Check overlap
+      if(telStart < aaEnd && aaStart < telEnd) {
+        conflicts.push.apply(conflicts, aaOccupiedByTime[k]);
+      }
+    });
+    return conflicts.length ? conflicts.join(', ') : null;
+  }
 
   var telAssigned = {};
   Object.values(window._TELP||{}).forEach(function(tp) {
@@ -6363,11 +6445,17 @@ window.renderTelKalender = function() {
       slots.forEach(function(s) {
         var key = d.label + '_' + s.slot;
         var telP = telAssigned[key];
-        // Block by start-time match: AAAging slots with same start time on same day
-        var aaConflict = (d.label==='Montag'||d.label==='Dienstag') ? aaOccupiedByTime[d.label + '_' + s.blutStart] : null;
-        var aaP = aaConflict && aaConflict.length ? aaConflict.join(', ') : null;
+        // Block by start-time match: Mo/Di (T1.1) or Mi/Do (T1.2 time overlap)
+        var aaConflict = (d.label==='Montag'||d.label==='Dienstag')
+          ? aaOccupiedByTime[d.label + '_' + s.blutStart]
+          : null;
+        var aaT12 = _telAaT12Conflict(d.label, s.blutStart);
+        var aaP = aaConflict && aaConflict.length ? aaConflict.join(', ') : aaT12;
         var isBooked = !!telP;
-        var isBlocked = !!aaP && !isBooked;
+        // KW 20: only warning. KW 21+: actual blocking
+        var weekNum = kwFn ? kwFn(mo) : 0;
+        var hasAaWarn = !!aaP && weekNum === 20 && !isBooked;
+        var isBlocked = !!aaP && weekNum !== 20 && !isBooked;
 
         var bgColor = isBooked ? '#EAD4CB' : isBlocked ? '#FFE0E0' : '#fff';
         var border = isBooked ? '#C9A999' : isBlocked ? '#E57373' : '#E0DDD8';
@@ -6377,6 +6465,11 @@ window.renderTelKalender = function() {
           + '<strong style="font-size:12px">Slot ' + s.slot + '</strong>'
           + '<span style="color:#888;font-family:monospace;font-size:11px">' + s.blutStart + '</span>'
           + '</div>';
+
+        // AAAging warning banner (KW 20 only) — informative, doesn't block
+        if(hasAaWarn) {
+          html += '<div style="font-size:9.5px;color:#8A4500;background:#FFF3E0;border:1px solid #FFCC80;border-radius:4px;padding:3px 6px;margin-bottom:5px">⚠️ AAAging parallel: ' + aaP + '</div>';
+        }
 
         // Proband row (or empty)
         if(isBooked) {
@@ -6393,7 +6486,7 @@ window.renderTelKalender = function() {
           }
         }
 
-        // Measure rows — always visible (even when slot is empty)
+        // Measure rows — visible unless blocked
         if(!isBlocked) {
           s.measures.forEach(function(m) {
             var aKey = ('TEL_' + _telCW + '_' + _telCurTermin + '_' + d.label + '_' + s.slot + '_' + m.label).replace(/[^a-zA-Z0-9_]/g,'_');
@@ -6498,6 +6591,13 @@ window.removeTelAssign = async function(telpId) {
 // ── TELOMER PROBANDEN LIST ────────────────────────────────────────
 var _telEditId = null;
 
+window.telSlotAssignOpenNew = function() {
+  // Save slot context so saveTelProband can auto-assign after creating
+  window._telPendingSlot = window._telAssignCtx;
+  closeTelAssign();
+  openAddTelProband();
+};
+
 window.openAddTelProband = function() {
   if(!window.isAdmin || !window.isAdmin()){ toast('Keine Berechtigung',true); return; }
   _telEditId = null;
@@ -6523,7 +6623,7 @@ window.openEditTelProband = function(id) {
   document.getElementById('tel-proband-modal').classList.add('open');
 };
 
-window.closeTelProband = function(){ document.getElementById('tel-proband-modal').classList.remove('open'); };
+window.closeTelProband = function(){ document.getElementById('tel-proband-modal').classList.remove('open'); window._telPendingSlot = null; };
 
 window.saveTelProband = async function() {
   var tid = document.getElementById('telp-tid').value.trim();
@@ -6532,6 +6632,15 @@ window.saveTelProband = async function() {
   var aufpassen = document.getElementById('telp-aufpassen').checked;
   if(!tid){ toast('TEL-ID ist Pflicht', true); return; }
   var data = {tid, lnr, notiz, aufpassen, updated:Date.now()};
+
+  // If pending slot context, add the assignment to data before saving
+  var pending = window._telPendingSlot;
+  if(pending && !_telEditId) {
+    if(pending.termin==='T0'){ data.t0week=pending.w; data.t0day=pending.day; data.t0slot=pending.slot; }
+    else if(pending.termin==='T1'){ data.t1week=pending.w; data.t1day=pending.day; data.t1slot=pending.slot; }
+    else if(pending.termin==='T2'){ data.t2week=pending.w; data.t2day=pending.day; data.t2slot=pending.slot; }
+  }
+
   try {
     var fns = window._fbFns;
     if(_telEditId){
@@ -6539,7 +6648,9 @@ window.saveTelProband = async function() {
     } else {
       await fns.addDoc(fns.collection(window.db,'telomer_probanden'), Object.assign({created:Date.now()}, data));
     }
-    closeTelProband(); toast('Gespeichert ✓');
+    closeTelProband();
+    window._telPendingSlot = null;
+    toast(pending ? 'Proband angelegt & zugewiesen ✓' : 'Gespeichert ✓');
   } catch(e){ toast('Fehler: ' + e.message, true); }
 };
 
