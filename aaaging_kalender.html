@@ -1243,14 +1243,15 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <input type="hidden" id="ir-pid">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="fg"><label class="fl">Datum</label><input class="fi" type="date" id="ir-date" oninput="recalcSachetEnd()"></div>
-        <div class="fg"><label class="fl">Uhrzeit</label><input class="fi" type="time" id="ir-time"></div>
+        <div class="fg"><label class="fl">Datum</label><input class="fi" type="date" id="ir-date" oninput="recalcSachetEnd(); irCheckAbsent()"></div>
+        <div class="fg"><label class="fl">Uhrzeit</label><input class="fi" type="time" id="ir-time" oninput="irCheckAbsent()"></div>
       </div>
 
       <div class="fg"><label class="fl">Durchgeführt von <span style="font-weight:400;color:var(--g4)">(optional)</span></label>
-        <input class="fi" id="ir-person-search" list="ir-person-list" placeholder="Name suchen…" autocomplete="off" oninput="irSyncPerson()">
+        <input class="fi" id="ir-person-search" list="ir-person-list" placeholder="Name suchen…" autocomplete="off" oninput="irSyncPerson(); irCheckAbsent()">
         <datalist id="ir-person-list"></datalist>
         <input type="hidden" id="ir-person">
+        <div id="ir-absent-warn" style="display:none;margin-top:6px;font-size:11.5px;color:#C62828;background:#FFEBEE;border:1px solid #EF9A9A;border-radius:4px;padding:6px 10px"></div>
       </div>
       <div class="fg"><label class="fl">Sachets ausgegeben <span style="font-weight:400;color:var(--g4)">(optional)</span></label>
         <div style="display:flex;align-items:center;gap:8px">
@@ -2859,6 +2860,7 @@ window.openAddRecall = () => {
     Object.values(TEAM).sort((a,b)=>a.name.localeCompare(b.name)).map(m=>`<option value="${m.name}" data-id="${m._id}">`).join('');
   document.getElementById('ir-person-search').value='';
   document.getElementById('ir-person').value='';
+  const _wa=document.getElementById('ir-absent-warn');if(_wa)_wa.style.display='none';
   document.getElementById('recall-modal').classList.add('open');
 };
 
@@ -2884,6 +2886,7 @@ window.openEditRecall = id => {
   document.getElementById('ir-person-search').value = _rPerson ? _rPerson.name : '';
   document.getElementById('ir-person').value = r.person||'';
   document.getElementById('recall-modal').classList.add('open');
+  setTimeout(irCheckAbsent,0);
 };
 
 window.irSyncPid = () => {
@@ -2896,6 +2899,37 @@ window.irSyncPerson = () => {
   const m = Object.values(TEAM).find(m=>m.name===search);
   if(m) document.getElementById('ir-person').value = m._id;
   else if(!search) document.getElementById('ir-person').value = '';
+};
+
+window.irCheckAbsent = () => {
+  const warnEl = document.getElementById('ir-absent-warn');
+  if(!warnEl) return;
+  const personId = document.getElementById('ir-person').value;
+  const personSearch = document.getElementById('ir-person-search')?.value||'';
+  const date = document.getElementById('ir-date').value;
+  const time = document.getElementById('ir-time').value || '00:00';
+  if(!date || (!personId && !personSearch)){ warnEl.style.display='none'; return; }
+  const m = personId ? TEAM[personId] : Object.values(TEAM).find(t=>t.name===personSearch);
+  if(!m){ warnEl.style.display='none'; return; }
+  const memberName = m.name.toLowerCase();
+  const absences = Object.values(ABSENT).filter(ab => {
+    const n = (ab.name||ab.email||'').toLowerCase();
+    if(!n || (!n.includes(memberName) && !memberName.includes(n))) return false;
+    if(!(date >= ab.from && date <= (ab.to||ab.from))) return false;
+    if(ab.timeFrom && ab.timeTo && time) {
+      return time >= ab.timeFrom && time < ab.timeTo;
+    }
+    return true;
+  });
+  if(absences.length) {
+    const ab = absences[0];
+    const timeRange = ab.timeFrom ? ` von ${ab.timeFrom} bis ${ab.timeTo}` : ' (ganztägig)';
+    const dateStr = new Date(date+'T12:00').toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit'});
+    warnEl.innerHTML = `🏖️ <strong>${m.name}</strong> ist am ${dateStr}${timeRange} abwesend${ab.grund?` (${ab.grund})`:''}!`;
+    warnEl.style.display='block';
+  } else {
+    warnEl.style.display='none';
+  }
 };
 window.closeRecall = () => { document.getElementById('recall-modal').classList.remove('open'); recallEditId=null; };
 
