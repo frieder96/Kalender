@@ -1771,7 +1771,7 @@ function startDB() {
     SPERREN={}; snap.forEach(d=>{SPERREN[d.id]={...d.data(),_id:d.id}}); renderWeek();
   });
   onSnapshot(collection(db,'abwesenheiten'), snap => {
-    ABSENT={}; snap.forEach(d=>{ABSENT[d.id]={...d.data(),_id:d.id}}); renderAbsentCal();
+    ABSENT={}; snap.forEach(d=>{ABSENT[d.id]={...d.data(),_id:d.id}}); renderAbsentCal(); renderRecalls();
   });
   onSnapshot(collection(db,'recall_rooms'), snap => {
     ROOMS={}; snap.forEach(d=>{ROOMS[d.id]={...d.data(),_id:d.id}}); renderRoomList(); refreshRoomDropdown(); renderRoomBlockList();
@@ -2434,6 +2434,29 @@ function renderRecalls() {
   if(!rs.length){el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--g4);font-style:italic">Noch keine Recalls eingetragen.</div>';return;}
   el.innerHTML=rs.map(r=>{
     const p=Object.values(P).find(x=>x._id===r.pid);
+    // Check if assigned person is absent on this date/time
+    let absentWarn = '';
+    if(r.person && r.date) {
+      const m = TEAM[r.person] || Object.values(TEAM).find(t=>t.name===r.person||t.email===r.person);
+      if(m) {
+        const memberName = m.name.toLowerCase();
+        const recallTime = r.time || '00:00';
+        const absences = Object.values(ABSENT).filter(ab => {
+          const n = (ab.name||ab.email||'').toLowerCase();
+          if(!n || (!n.includes(memberName) && !memberName.includes(n))) return false;
+          if(!(r.date >= ab.from && r.date <= (ab.to||ab.from))) return false;
+          if(ab.timeFrom && ab.timeTo && recallTime) {
+            return recallTime >= ab.timeFrom && recallTime < ab.timeTo;
+          }
+          return true;
+        });
+        if(absences.length) {
+          const ab = absences[0];
+          const timeRange = ab.timeFrom ? ` (${ab.timeFrom}–${ab.timeTo})` : ' (ganztägig)';
+          absentWarn = `<div style="font-size:11px;color:#C62828;background:#FFEBEE;border:1px solid #EF9A9A;border-radius:4px;padding:4px 8px;margin-top:6px">🏖️ <strong>${m.name}</strong> ist am ${new Date(r.date+'T12:00').toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'})}${timeRange} abwesend!</div>`;
+        }
+      }
+    }
     return `<div class="recall-card">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div style="display:flex;align-items:center;gap:10px">
@@ -2445,6 +2468,7 @@ function renderRecalls() {
         </div>
         ${isAdmin()?`<div style="display:flex;gap:5px"><button class="btn btn-xs" onclick="openEditRecall('${r._id}')">Bearbeiten</button><button class="btn btn-xs btn-d" onclick="delRecall('${r._id}')">Löschen</button></div>`:''}
       </div>
+      ${absentWarn}
     </div>`;
   }).join('');
 }
