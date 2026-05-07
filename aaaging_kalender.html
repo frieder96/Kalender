@@ -1423,6 +1423,10 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
           <option value="T3.2">Nur T3.2 — Mi/Do</option>
           <option value="EEG">Nur EEG</option>
           <option value="MRT">Nur MRT</option>
+          <option value="TEL_T0">🧬 Telomer T0</option>
+          <option value="TEL_T1">🧬 Telomer T1</option>
+          <option value="TEL_T2">🧬 Telomer T2</option>
+          <option value="TEL_ALL">🧬 Telomer (alle)</option>
         </select>
       </div>
     </div>
@@ -1769,7 +1773,7 @@ function startDB() {
     ASSIGN={}; snap.forEach(d=>{ASSIGN[d.id]={...d.data(),_id:d.id}}); window._ASSIGN=ASSIGN; renderWeek(); renderTaskTab(); if(window.renderTelKalender) window.renderTelKalender();
   });
   onSnapshot(collection(db,'sperren'), snap => {
-    SPERREN={}; snap.forEach(d=>{SPERREN[d.id]={...d.data(),_id:d.id}}); renderWeek();
+    SPERREN={}; snap.forEach(d=>{SPERREN[d.id]={...d.data(),_id:d.id}}); window._SPERREN=SPERREN; renderWeek(); if(window.renderTelKalender) window.renderTelKalender();
   });
   onSnapshot(collection(db,'abwesenheiten'), snap => {
     ABSENT={}; snap.forEach(d=>{ABSENT[d.id]={...d.data(),_id:d.id}}); renderAbsentCal(); renderRecalls();
@@ -6480,73 +6484,98 @@ window.renderTelKalender = function() {
   var isHoliday = window._isAustrianHoliday;
   var ASSIGN = window._ASSIGN || {};
   var TEAM = window._teamCache || {};
+  var SPERREN = window._SPERREN || {};
   var isAdmin = window.isAdmin && window.isAdmin();
+  var telTerminKey = 'TEL_' + _telCurTermin; // TEL_T0/TEL_T1/TEL_T2
 
-  // Measure color classes (reuse existing CSS)
   var html = '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">';
   TEL_DAYS.forEach(function(d) {
     var date = wDay(_telCW, d.off);
     var dateStr = localDate(date);
     var hd = isHoliday ? isHoliday(date) : null;
-    var headerBg = hd ? '#5A3A00' : '#EAD4CB';
+
+    // Day-level sperre check
+    var daySperre = Object.values(SPERREN).find(function(sp) {
+      return sp.week===_telCW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) &&
+        (sp.termin===telTerminKey || sp.termin==='ALL' || sp.termin==='TEL_ALL');
+    });
+
+    var headerBg = hd ? '#5A3A00' : daySperre ? '#7A1A1A' : '#EAD4CB';
+    var dayLockBtn = isAdmin && !hd ? '<button style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 6px;color:' + (daySperre?'#fff':'rgba(0,0,0,.4)') + '" onclick="openSperrenDay(' + _telCW + ',\'' + telTerminKey + '\',\'' + d.label + '\')" title="' + (daySperre?'Tag-Sperre aufheben':'Tag sperren') + '">🔒</button>' : '';
+
     html += '<div>'
-      + '<div style="background:' + headerBg + ';border-radius:var(--r) var(--r) 0 0;padding:9px 12px">'
-      + '<div style="font-size:14px;font-weight:600;color:' + (hd?'#fff':'#4A2A1F') + '">' + d.label + '</div>'
-      + '<div style="font-size:10.5px;color:' + (hd?'rgba(255,255,255,.7)':'#7A5A4D') + ';margin-top:2px">' + fD(date)
-      + (hd ? ' · 🎉 ' + hd.name : '')
-      + '</div></div>'
+      + '<div style="background:' + headerBg + ';border-radius:var(--r) var(--r) 0 0;padding:9px 12px;display:flex;justify-content:space-between;align-items:flex-start">'
+      + '<div>'
+      + '<div style="font-size:14px;font-weight:600;color:' + (hd||daySperre?'#fff':'#4A2A1F') + '">' + d.label + '</div>'
+      + '<div style="font-size:10.5px;color:' + (hd||daySperre?'rgba(255,255,255,.7)':'#7A5A4D') + ';margin-top:2px">' + fD(date)
+      + (hd ? ' · 🎉 ' + hd.name : daySperre ? ' · 🔒 ' + (daySperre.grund||'gesperrt') : '')
+      + '</div>'
+      + '</div>'
+      + dayLockBtn
+      + '</div>'
       + '<div style="background:#fff;border:1px solid var(--g2);border-top:none;border-radius:0 0 var(--r) var(--r);padding:6px;min-height:200px">';
 
     if(hd) {
       html += '<div style="padding:20px 10px;text-align:center;color:#888;font-size:11px;font-style:italic">Feiertag — nicht buchbar</div>';
+    } else if(daySperre) {
+      html += '<div style="padding:20px 10px;text-align:center;color:#C62828;font-size:11px;font-style:italic">🔒 Tag gesperrt' + (daySperre.grund?' · '+daySperre.grund:'') + '</div>';
     } else {
       slots.forEach(function(s) {
         var key = d.label + '_' + s.slot;
         var telP = telAssigned[key];
-        // Block by start-time match: Mo/Di (T1.1) or Mi/Do (T1.2 time overlap)
+        // Slot-level sperre
+        var slotSperre = Object.values(SPERREN).find(function(sp) {
+          return sp.week===_telCW && sp.day===d.label && Number(sp.slot)===Number(s.slot) &&
+            (sp.termin===telTerminKey || sp.termin==='ALL' || sp.termin==='TEL_ALL');
+        });
+        // AAAging conflicts
         var aaConflict = (d.label==='Montag'||d.label==='Dienstag')
           ? aaOccupiedByTime[d.label + '_' + s.blutStart]
           : null;
         var aaT12 = _telAaT12Conflict(d.label, s.blutStart);
         var aaP = aaConflict && aaConflict.length ? aaConflict.join(', ') : aaT12;
         var isBooked = !!telP;
-        // KW 20: only warning. KW 21+: actual blocking
         var weekNum = kwFn ? kwFn(mo) : 0;
         var hasAaWarn = !!aaP && weekNum === 20 && !isBooked;
-        var isBlocked = !!aaP && weekNum !== 20 && !isBooked;
+        var aaBlocks = !!aaP && weekNum !== 20 && !isBooked;
+        var isBlocked = !!slotSperre || aaBlocks;
 
         var bgColor = isBooked ? '#EAD4CB' : isBlocked ? '#FFE0E0' : '#fff';
         var border = isBooked ? '#C9A999' : isBlocked ? '#E57373' : '#E0DDD8';
 
+        var slotLockBtn = isAdmin ? '<button style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;color:' + (slotSperre?'#C8102E':'rgba(0,0,0,.3)') + '" onclick="openSperrenSlot(' + _telCW + ',\'' + telTerminKey + '\',\'' + d.label + '\',' + s.slot + ')" title="' + (slotSperre?'Slot-Sperre aufheben':'Slot sperren') + '">🔒</button>' : '';
+
         html += '<div style="background:' + bgColor + ';border:1px solid ' + border + ';border-radius:8px;padding:8px;margin-bottom:6px">'
           + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding-bottom:5px;border-bottom:1px solid ' + border + '">'
           + '<strong style="font-size:12px">Slot ' + s.slot + '</strong>'
-          + '<span style="color:#888;font-family:monospace;font-size:11px">' + s.blutStart + '</span>'
+          + '<span style="display:flex;align-items:center;gap:4px"><span style="color:#888;font-family:monospace;font-size:11px">' + s.blutStart + '</span>' + slotLockBtn + '</span>'
           + '</div>';
 
-        // AAAging warning banner (KW 20 only) — informative, doesn't block
-        if(hasAaWarn) {
+        if(slotSperre) {
+          html += '<div style="font-size:10.5px;color:#C62828;padding:4px 0">🔒 Gesperrt' + (slotSperre.grund?' · '+slotSperre.grund:'') + '</div>';
+        } else if(hasAaWarn) {
           html += '<div style="font-size:9.5px;color:#8A4500;background:#FFF3E0;border:1px solid #FFCC80;border-radius:4px;padding:3px 6px;margin-bottom:5px">⚠️ AAAging parallel: ' + aaP + '</div>';
         }
 
-        // Proband row (or empty)
-        if(isBooked) {
-          html += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;flex-wrap:wrap">'
-            + '<span style="background:#EAD4CB;color:#4A2A1F;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;border:1px solid #C9A999">' + telP.tid + (telP.aufpassen?' ⚠️':'') + '</span>'
-            + (telP.lnr ? '<span style="background:var(--ubl);color:var(--ub);padding:1px 6px;border-radius:99px;font-size:10px">' + telP.lnr + '</span>' : '')
-            + (isAdmin ? '<button style="background:none;border:none;color:#888;cursor:pointer;font-size:11px;margin-left:auto" onclick="removeTelAssign(\'' + telP._id + '\')" title="Proband entfernen">✕</button>' : '')
-            + '</div>';
-        } else if(isBlocked) {
-          html += '<div style="font-size:10.5px;color:#C62828;padding:4px 0;margin-bottom:4px">🔒 AAAging: ' + aaP + '</div>';
-        } else {
-          if(isAdmin) {
-            html += '<div style="margin-bottom:5px"><button style="background:#EAD4CB;color:#4A2A1F;border:1px solid #C9A999;border-radius:4px;padding:3px 10px;font-size:10.5px;cursor:pointer" onclick="openTelAssign(' + _telCW + ',\'' + d.label + '\',' + s.slot + ')">+ Proband</button></div>';
+        // Proband row (or empty) — skip if slotSperre
+        if(!slotSperre) {
+          if(isBooked) {
+            html += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;flex-wrap:wrap">'
+              + '<span style="background:#EAD4CB;color:#4A2A1F;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;border:1px solid #C9A999">' + telP.tid + (telP.aufpassen?' ⚠️':'') + '</span>'
+              + (telP.lnr ? '<span style="background:var(--ubl);color:var(--ub);padding:1px 6px;border-radius:99px;font-size:10px">' + telP.lnr + '</span>' : '')
+              + (isAdmin ? '<button style="background:none;border:none;color:#888;cursor:pointer;font-size:11px;margin-left:auto" onclick="removeTelAssign(\'' + telP._id + '\')" title="Proband entfernen">✕</button>' : '')
+              + '</div>';
+          } else if(aaBlocks) {
+            html += '<div style="font-size:10.5px;color:#C62828;padding:4px 0;margin-bottom:4px">🔒 AAAging: ' + aaP + '</div>';
+          } else {
+            if(isAdmin) {
+              html += '<div style="margin-bottom:5px"><button style="background:#EAD4CB;color:#4A2A1F;border:1px solid #C9A999;border-radius:4px;padding:3px 10px;font-size:10.5px;cursor:pointer" onclick="openTelAssign(' + _telCW + ',\'' + d.label + '\',' + s.slot + ')">+ Proband</button></div>';
+            }
           }
-        }
 
-        // Measure rows — visible unless blocked
-        if(!isBlocked) {
-          s.measures.forEach(function(m) {
+          // Measure rows — visible unless blocked
+          if(!isBlocked) {
+            s.measures.forEach(function(m) {
             var aKey = ('TEL_' + _telCW + '_' + _telCurTermin + '_' + d.label + '_' + s.slot + '_' + m.label).replace(/[^a-zA-Z0-9_]/g,'_');
             var a = ASSIGN[aKey];
             var pName = a && a.person ? (TEAM[a.person] && TEAM[a.person].name) || a.person : null;
@@ -6574,6 +6603,7 @@ window.renderTelKalender = function() {
             }
             html += '</span></div>';
           });
+        }
         }
         html += '</div>';
       });
