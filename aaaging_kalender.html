@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AAAging — Studienkalender | Universität Wien</title>
+<title>NuTraLab Studienkalender | Universität Wien</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@300;400;600&family=Source+Sans+3:wght@300;400;600;700&family=Source+Sans+Pro:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -611,7 +611,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <svg width="40" height="40" viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/><circle cx="50" cy="50" r="37" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.25)" stroke-width="1"/><path d="M31 44 L36 28 L43 39 L50 24 L57 39 L64 28 L69 44 Z" fill="rgba(255,255,255,.9)"/><path d="M29 46 L29 66 Q29 75 50 81 Q71 75 71 66 L71 46 Z" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.45)" stroke-width="1"/><text x="50" y="71" text-anchor="middle" font-family="Georgia,serif" font-size="21" font-weight="bold" fill="rgba(255,255,255,.92)">U</text></svg>
     <div>
       <div class="login-hdr-name">Universität Wien</div>
-      <div class="login-hdr-sub">AAAging Studie · Studienkalender</div>
+      <div class="login-hdr-sub">NuTraLab Studienkalender</div>
     </div>
   </div>
   <div class="login-nav-bar"></div>
@@ -647,7 +647,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <svg class="useal" viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/><circle cx="50" cy="50" r="37" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.25)" stroke-width="1"/><path d="M31 44 L36 28 L43 39 L50 24 L57 39 L64 28 L69 44 Z" fill="rgba(255,255,255,.9)"/><path d="M29 46 L29 66 Q29 75 50 81 Q71 75 71 66 L71 46 Z" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.45)" stroke-width="1"/><text x="50" y="71" text-anchor="middle" font-family="Georgia,serif" font-size="21" font-weight="bold" fill="rgba(255,255,255,.92)">U</text></svg>
         <div>
           <div class="uname">Universität Wien</div>
-          <div class="utag">AAAging Studie · Studienkalender</div>
+          <div class="utag">NuTraLab Studienkalender</div>
         </div>
       </div>
       <div class="hdr-right">
@@ -1776,7 +1776,7 @@ function startDB() {
     SPERREN={}; snap.forEach(d=>{SPERREN[d.id]={...d.data(),_id:d.id}}); window._SPERREN=SPERREN; renderWeek(); if(window.renderTelKalender) window.renderTelKalender();
   });
   onSnapshot(collection(db,'abwesenheiten'), snap => {
-    ABSENT={}; snap.forEach(d=>{ABSENT[d.id]={...d.data(),_id:d.id}}); renderAbsentCal(); renderRecalls();
+    ABSENT={}; snap.forEach(d=>{ABSENT[d.id]={...d.data(),_id:d.id}}); window._ABSENT=ABSENT; renderAbsentCal(); renderRecalls(); if(window.renderTelKalender) window.renderTelKalender();
   });
   onSnapshot(collection(db,'recall_rooms'), snap => {
     ROOMS={}; snap.forEach(d=>{ROOMS[d.id]={...d.data(),_id:d.id}}); renderRoomList(); refreshRoomDropdown(); renderRoomBlockList();
@@ -6503,6 +6503,19 @@ window.renderTelKalender = function() {
     var headerBg = hd ? '#5A3A00' : daySperre ? '#7A1A1A' : '#EAD4CB';
     var dayLockBtn = isAdmin && !hd ? '<button style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 6px;color:' + (daySperre?'#fff':'rgba(0,0,0,.4)') + '" onclick="openSperrenDay(' + _telCW + ',\'' + telTerminKey + '\',\'' + d.label + '\')" title="' + (daySperre?'Tag-Sperre aufheben':'Tag sperren') + '">🔒</button>' : '';
 
+    // Absent team members for this day
+    var ABSENT = window._ABSENT || {};
+    var _absEntries = Object.values(ABSENT).filter(function(ab){
+      return dateStr >= ab.from && dateStr <= (ab.to||ab.from);
+    });
+    var _absNames = _absEntries.map(function(ab){
+      var n = ab.name || (ab.email ? ab.email.split('@')[0] : '') || '';
+      return ab.timeFrom ? n + ' (' + ab.timeFrom + '–' + ab.timeTo + ')' : n;
+    }).filter(Boolean);
+    var absentNote = _absNames.length
+      ? '<div style="font-size:9.5px;color:' + (hd||daySperre?'rgba(255,220,160,.95)':'#7A4530') + ';margin-top:3px">🏖️ Abwesend: ' + _absNames.join(', ') + '</div>'
+      : '';
+
     html += '<div>'
       + '<div style="background:' + headerBg + ';border-radius:var(--r) var(--r) 0 0;padding:9px 12px;display:flex;justify-content:space-between;align-items:flex-start">'
       + '<div>'
@@ -6510,6 +6523,7 @@ window.renderTelKalender = function() {
       + '<div style="font-size:10.5px;color:' + (hd||daySperre?'rgba(255,255,255,.7)':'#7A5A4D') + ';margin-top:2px">' + fD(date)
       + (hd ? ' · 🎉 ' + hd.name : daySperre ? ' · 🔒 ' + (daySperre.grund||'gesperrt') : '')
       + '</div>'
+      + absentNote
       + '</div>'
       + dayLockBtn
       + '</div>'
