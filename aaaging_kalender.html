@@ -1519,15 +1519,26 @@ const T11_STARTS = ['08:00','08:00','08:15','08:15','08:30','08:30','08:45','08:
 const T11 = T11_STARTS.map((bs,i) => {
   const sn=i+1; const [bH,bM]=bs.split(':').map(Number);
   const day = sn<=4?'Montag':'Dienstag'; const isFirst=sn<=4;
-  return { slot:sn, day, blutStart:bs, measures: isFirst ? [
-    {label:'Blutabnahme',cls:'cblut',t:bs,persons:2},{label:'BIA',cls:'cbia',t:am(bH,bM,15)},
-    {label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30),persons:3},{label:'Frühstück',cls:'cfrueh',t:am(bH,bM,45),noAssign:true},
-    {label:'24h Recall',cls:'crecall',t:am(bH,bM,60)},{label:'Fragebogen',cls:'cfb',t:am(bH,bM,120)},
-  ] : [
-    {label:'Blutabnahme',cls:'cblut',t:bs,persons:2},{label:'BIA',cls:'cbia',t:am(bH,bM,15)},
-    {label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30),persons:3},{label:'Frühstück',cls:'cfrueh',t:am(bH,bM,45),noAssign:true},
-    {label:'Fragebogen',cls:'cfb',t:am(bH,bM,60)},{label:'24h Recall',cls:'crecall',t:am(bH,bM,90)},
-  ]};
+  const isOdd = sn%2===1;
+  const measures = [];
+  // Blutabnahme/BIA tauschen sich um: odd Slot → Blutabnahme zuerst, even Slot → BIA zuerst
+  if(isOdd) {
+    measures.push({label:'Blutabnahme',cls:'cblut',t:bs,persons:2});
+    measures.push({label:'BIA',cls:'cbia',t:am(bH,bM,15)});
+  } else {
+    measures.push({label:'BIA',cls:'cbia',t:bs});
+    measures.push({label:'Blutabnahme',cls:'cblut',t:am(bH,bM,15),persons:2});
+  }
+  measures.push({label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30),persons:3});
+  measures.push({label:'Frühstück',cls:'cfrueh',t:am(bH,bM,45),noAssign:true});
+  if(isFirst) {
+    measures.push({label:'24h Recall',cls:'crecall',t:am(bH,bM,60)});
+    measures.push({label:'Fragebogen',cls:'cfb',t:am(bH,bM,120)});
+  } else {
+    measures.push({label:'Fragebogen',cls:'cfb',t:am(bH,bM,60)});
+    measures.push({label:'24h Recall',cls:'crecall',t:am(bH,bM,90)});
+  }
+  return { slot:sn, day, blutStart:bs, measures };
 });
 
 // T1.2: 8 slots (1-4 Mi, 5-8 Do) — RBANS nach 75min (statt 105min), 24h Recall bleibt
@@ -1562,16 +1573,37 @@ const TEL_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwo
 function _buildTelSlots(withBlood) {
   return TEL_STARTS.map((bs,i) => {
     const sn=i+1; const [bH,bM]=bs.split(':').map(Number);
+    const isOdd = sn%2===1;
     // Vorbesprechung starts 15 min before blutabnahme/start
     const inviteTime = am(bH,bM,-15);
     const measures = [];
     measures.push({label:'Vorbesprechung',cls:'cfrueh',t:inviteTime});
-    if(withBlood) measures.push({label:'Blutabnahme',cls:'cblut',t:bs,persons:2});
-    measures.push({label:'BIA',cls:'cbia',t:am(bH,bM, withBlood?15:0)});
-    measures.push({label:'Mikrokern',cls:'cmikro',t:am(bH,bM, withBlood?30:15),persons:3});
-    measures.push({label:'Beinpresse',cls:'ciso',t:am(bH,bM, withBlood?45:30)});
-    measures.push({label:'Kognitive Testbatterie',cls:'crbans',t:am(bH,bM, withBlood?105:90)});
-    measures.push({label:'Fragebogen',cls:'cfb',t:am(bH,bM, withBlood?165:150)});
+    // Blutabnahme/BIA tauschen sich um (T0/T2 mit Blutabnahme): odd → Blutabnahme zuerst, even → BIA zuerst
+    if(withBlood) {
+      if(isOdd) {
+        measures.push({label:'Blutabnahme',cls:'cblut',t:bs,persons:2});
+        measures.push({label:'BIA',cls:'cbia',t:am(bH,bM,15)});
+      } else {
+        measures.push({label:'BIA',cls:'cbia',t:bs});
+        measures.push({label:'Blutabnahme',cls:'cblut',t:am(bH,bM,15),persons:2});
+      }
+      measures.push({label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30),persons:3});
+    } else {
+      // T1 — ohne Blutabnahme
+      measures.push({label:'BIA',cls:'cbia',t:bs});
+      measures.push({label:'Mikrokern',cls:'cmikro',t:am(bH,bM,15),persons:3});
+    }
+    // Beinpresse vs Kogn-Test+Fragebogen tauschen sich um
+    const splitOffset = withBlood ? 45 : 30;
+    if(isOdd) {
+      measures.push({label:'Beinpresse',cls:'ciso',t:am(bH,bM, splitOffset)});
+      measures.push({label:'Kognitive Testbatterie',cls:'crbans',t:am(bH,bM, splitOffset+60)});
+      measures.push({label:'Fragebogen',cls:'cfb',t:am(bH,bM, splitOffset+105)});
+    } else {
+      measures.push({label:'Kognitive Testbatterie',cls:'crbans',t:am(bH,bM, splitOffset)});
+      measures.push({label:'Fragebogen',cls:'cfb',t:am(bH,bM, splitOffset+45)});
+      measures.push({label:'Beinpresse',cls:'ciso',t:am(bH,bM, splitOffset+60)});
+    }
     return { slot:sn, blutStart:bs, inviteTime, measures };
   });
 }
