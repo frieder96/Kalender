@@ -1562,14 +1562,17 @@ const TEL_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwo
 function _buildTelSlots(withBlood) {
   return TEL_STARTS.map((bs,i) => {
     const sn=i+1; const [bH,bM]=bs.split(':').map(Number);
+    // Vorbesprechung starts 15 min before blutabnahme/start
+    const inviteTime = am(bH,bM,-15);
     const measures = [];
+    measures.push({label:'Vorbesprechung',cls:'cfrueh',t:inviteTime});
     if(withBlood) measures.push({label:'Blutabnahme',cls:'cblut',t:bs,persons:2});
     measures.push({label:'BIA',cls:'cbia',t:am(bH,bM, withBlood?15:0)});
     measures.push({label:'Mikrokern',cls:'cmikro',t:am(bH,bM, withBlood?30:15),persons:3});
     measures.push({label:'Beinpresse',cls:'ciso',t:am(bH,bM, withBlood?45:30)});
     measures.push({label:'Kognitive Testbatterie',cls:'crbans',t:am(bH,bM, withBlood?105:90)});
     measures.push({label:'Fragebogen',cls:'cfb',t:am(bH,bM, withBlood?165:150)});
-    return { slot:sn, blutStart:bs, measures };
+    return { slot:sn, blutStart:bs, inviteTime, measures };
   });
 }
 const TEL_T0 = _buildTelSlots(true);   // T0 mit Blutabnahme
@@ -6595,7 +6598,7 @@ window.renderTelKalender = function() {
         html += '<div style="background:' + bgColor + ';border:1px solid ' + border + ';border-radius:8px;padding:8px;margin-bottom:6px">'
           + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding-bottom:5px;border-bottom:1px solid ' + border + '">'
           + '<strong style="font-size:12px">Slot ' + s.slot + '</strong>'
-          + '<span style="display:flex;align-items:center;gap:4px"><span style="color:#888;font-family:monospace;font-size:11px">' + s.blutStart + '</span>' + slotLockBtn + '</span>'
+          + '<span style="display:flex;align-items:center;gap:4px"><span style="color:#888;font-family:monospace;font-size:11px" title="Einladung: ' + (s.inviteTime||s.blutStart) + ' · Start: ' + s.blutStart + '">' + (s.inviteTime||s.blutStart) + '</span>' + slotLockBtn + '</span>'
           + '</div>';
 
         if(slotSperre) {
