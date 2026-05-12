@@ -686,6 +686,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
       <button class="ntab"     onclick="goTab('raumplan',this)">🏠 Raumplan</button>
       <button class="ntab"     onclick="goTab('monatsübersicht',this)">📅 Monatsübersicht</button>
+      <button class="ntab"     onclick="goTab('tel-fortschritt',this)">&#128202; Fortschritt</button>
       <button class="ntab"     onclick="goTab('backup',this)">Backup &amp; Export</button>
     </div>
   </nav>
@@ -709,12 +710,12 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 
       <div class="termin-tabs">
         <button class="ttab t0 on" onclick="setTermin('T0',this)">T0 — Voruntersuchung</button>
+        <button class="ttab tfam" onclick="setTermin('FAM',this)">Familiarisierung</button>
         <button class="ttab t1" onclick="setTermin('T1',this)">T1 — Hauptuntersuchung</button>
         <button class="ttab t2" onclick="setTermin('T2',this)">T2 — Folgeuntersuchung</button>
         <button class="ttab t3" onclick="setTermin('T3',this)">T3 — Abschlussuntersuchung</button>
         <button class="ttab teeg" onclick="setTermin('EEG',this)">EEG</button>
         <button class="ttab tmrt" onclick="setTermin('MRT',this)">MRT</button>
-        <button class="ttab tfam" onclick="setTermin('FAM',this)">Familiarisierung</button>
         <button class="ttab tg" onclick="setTermin('GESAMT',this)">Gesamtübersicht</button>
       </div>
 
@@ -1112,6 +1113,11 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         </div>
       </div>
       <div id="tel-proband-list" style="padding:4px 0"></div>
+    </div>
+
+    <div id="tab-tel-fortschritt" class="panel">
+      <div class="phdr"><div><div class="ptitle">🧬 Telomer Fortschritt &amp; Motivation</div><div class="psub">Studienziel · Probanden-Pipeline · Funfact des Tages</div></div></div>
+      <div id="tel-fortschritt-content" style="padding:4px 0"></div>
     </div>
 
   </main>
@@ -7236,8 +7242,119 @@ window.exportTelProbanden = function() {
       renderTelKalender();
     }
     if(name==='tel-probanden'){ renderTelProbanden(); }
+    if(name==='tel-fortschritt'){ renderTelFortschritt(); }
   };
 })();
+
+// ── TELOMER FORTSCHRITT ─────────────────────────────────────────
+var TEL_FUNFACTS = [
+  "Telomere sind die Endkappen unserer Chromosomen — sie schützen das Erbgut vor Verschleiß.",
+  "Ein menschliches Telomer verliert bei jeder Zellteilung etwa 50–100 Basenpaare.",
+  "Elizabeth Blackburn erhielt 2009 den Nobelpreis für die Entdeckung des Enzyms Telomerase.",
+  "Sportliche Aktivität ist mit längeren Telomeren assoziiert — Bewegung lohnt sich auf zellulärer Ebene.",
+  "Stress kann die Telomer-Verkürzung beschleunigen — Achtsamkeit kann sie verlangsamen.",
+  "Telomerlänge gilt als ein biologischer Marker für Zellalterung — nicht zu verwechseln mit dem chronologischen Alter.",
+  "In Keimzellen ist Telomerase aktiv — sie verhindert die Verkürzung über Generationen hinweg.",
+  "Bei Geburt sind menschliche Telomere etwa 8.000–13.000 Basenpaare lang.",
+  "Schlafqualität, Ernährung und soziale Verbundenheit wirken nachweislich auf die Telomerlänge.",
+  "Mediterrane Ernährung wurde in Studien mit längeren Telomeren in Verbindung gebracht.",
+  "Telomere wurden erstmals 1938 von Hermann Muller entdeckt — er prägte auch den Begriff.",
+  "Krebszellen können Telomerase reaktivieren, um sich unbegrenzt zu teilen — daher ist es ein Forschungsziel für Therapien.",
+  "Männer haben tendenziell kürzere Telomere als Frauen — eine Erklärung für unterschiedliche Lebenserwartung.",
+  "Die längsten Telomere im Tierreich finden sich bei kleinen Nagetieren — sie können bis zu 80.000 Basenpaare lang sein.",
+  "Telomere sind wie die Plastikkappen an Schnürsenkeln — ohne sie zerfasert das Ende.",
+  "Akuter psychischer Stress kann innerhalb von Tagen messbar auf die Telomere wirken.",
+  "Olympische Athleten zeigen oft längere Telomere als nicht-trainierende Gleichaltrige.",
+  "Stiller Tabakkonsum und Passivrauchen verkürzen die Telomere zusätzlich.",
+  "Forscher arbeiten an Telomerase-Aktivatoren — bisher kein Anti-Aging-Wundermittel.",
+  "Das Wort Telomer kommt aus dem Griechischen: telos = Ende, meros = Teil."
+];
+
+var TEL_MEILENSTEINE = [
+  {n:10,  msg:"10 Telomer-Probanden! Toller Start!"},
+  {n:25,  msg:"Ein Viertel geschafft — weiter so!"},
+  {n:50,  msg:"50 Probanden — Halbzeit bei den Starts!"},
+  {n:63,  msg:"Halbzeit! 63 von 126 Telomer-Probanden!"},
+  {n:100, msg:"100 Telomer-Probanden — unglaublich!"},
+  {n:126, msg:"Vollständige Rekrutierung! Das ganze Team hat es geschafft!"}
+];
+var TEL_ZIEL_P = 126;
+
+window.renderTelFortschritt = function() {
+  var el = document.getElementById('tel-fortschritt-content');
+  if(!el) return;
+
+  var tps = Object.values(window._TELP || {});
+  var t0done = tps.filter(function(tp){ return tp.t0week !== undefined && tp.t0day; }).length;
+  var t1done = tps.filter(function(tp){ return tp.t1week !== undefined && tp.t1day; }).length;
+  var t2done = tps.filter(function(tp){ return tp.t2week !== undefined && tp.t2day; }).length;
+
+  var dayIdx = Math.floor(Date.now() / 86400000) % TEL_FUNFACTS.length;
+  var funfact = TEL_FUNFACTS[dayIdx];
+
+  var milestone = null;
+  for (var i = TEL_MEILENSTEINE.length - 1; i >= 0; i--) {
+    if (t0done >= TEL_MEILENSTEINE[i].n) { milestone = TEL_MEILENSTEINE[i]; break; }
+  }
+  var nextM = TEL_MEILENSTEINE.find(function(m){ return m.n > t0done; });
+
+  function pct(v, max) { return max > 0 ? Math.min(100, Math.round(v / max * 100)) : 0; }
+  function bar(v, max, col) {
+    return '<div style="background:var(--g2);border-radius:99px;height:10px;overflow:hidden;margin-top:6px">'
+      + '<div style="background:' + col + ';height:100%;width:' + pct(v,max) + '%;border-radius:99px"></div></div>';
+  }
+
+  var pipelineCells = [
+    {label:"T0", n:t0done, color:"#8B5A4A"},
+    {label:"T1 (+12 Wo)", n:t1done, color:"#A37363"},
+    {label:"T2 (+24 Wo)", n:t2done, color:"#C9A999"}
+  ];
+
+  var pipelineHtml = "";
+  pipelineCells.forEach(function(s) {
+    pipelineHtml += '<div style="text-align:center">'
+      + '<div style="font-size:28px;font-weight:800;color:' + s.color + '">' + s.n + '</div>'
+      + '<div style="font-size:10px;color:var(--g5);margin-top:2px">' + s.label + '</div>'
+      + bar(s.n, tps.length || 1, s.color)
+      + '</div>';
+  });
+
+  var milestoneStyle = milestone
+    ? 'background:linear-gradient(135deg,#5E2A1F,#8B5A4A);border:1px solid transparent'
+    : 'background:#fff;border:1px solid var(--g2)';
+  var milestoneContent = milestone
+    ? '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.1em;margin-bottom:12px">MEILENSTEIN</div>'
+      + '<div style="font-size:16px;font-weight:800;color:#fff;line-height:1.4">&#127942; ' + milestone.msg + '</div>'
+      + (nextM ? '<div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:8px">Nächstes Ziel: ' + nextM.n + ' Probanden</div>' : '')
+    : '<div style="font-size:10px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">MEILENSTEIN</div>'
+      + '<div style="font-size:13px;color:var(--g5)">Nächstes Ziel: <strong style="color:#8B5A4A">'
+      + TEL_MEILENSTEINE[0].n + ' Probanden</strong></div>';
+
+  el.innerHTML =
+    '<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh);margin-bottom:16px">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">STUDIENZIEL TELOMER</div>'
+    + '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">'
+    + '<span style="font-size:36px;font-weight:800;color:#8B5A4A">' + t0done + '</span>'
+    + '<span style="font-size:16px;color:var(--g4)"> / ' + TEL_ZIEL_P + '</span>'
+    + '<span style="font-size:13px;color:var(--g5);margin-left:auto">' + pct(t0done,TEL_ZIEL_P) + '%</span>'
+    + '</div>' + bar(t0done, TEL_ZIEL_P, '#8B5A4A')
+    + '<div style="font-size:11px;color:var(--g4);margin-top:6px">' + (TEL_ZIEL_P - t0done) + ' Probanden noch ausstehend</div>'
+    + '</div>'
+
+    + '<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh);margin-bottom:16px">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:16px">TELOMER-PIPELINE</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">'
+    + pipelineHtml + '</div></div>'
+
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
+    + '<div style="background:linear-gradient(135deg,#5E2A1F,#8B5A4A);border-radius:var(--rl);padding:24px;box-shadow:var(--sh)">'
+    + '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.7);letter-spacing:.1em;margin-bottom:12px">🧬 FUNFACT DES TAGES</div>'
+    + '<div style="font-size:14px;color:#fff;line-height:1.6">' + funfact + '</div>'
+    + '</div>'
+    + '<div style="' + milestoneStyle + ';border-radius:var(--rl);padding:24px;box-shadow:var(--sh)">'
+    + milestoneContent
+    + '</div></div>';
+};
 </script>
 </body>
 </html>
