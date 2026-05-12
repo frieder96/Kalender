@@ -2007,13 +2007,52 @@ function renderWeek() {
         ? `<div style="font-size:9.5px;color:#5E2A1F;background:#EAD4CB;border:1px solid #C9A999;border-radius:4px;padding:3px 6px;margin-bottom:4px">🧬 Telomer ${_telTermin} parallel: <strong>${_telBooking.tid}</strong></div>`
         : '';
 
+      // Cross-termin AAAging conflict: T0 ↔ T1 in same week
+      const _crossOverlap = (slotStart1, len1, slotStart2, len2) => {
+        const _t = (t) => { const p=t.split(':').map(Number); return p[0]*60+p[1]; };
+        const a = _t(slotStart1), b = a+len1, c = _t(slotStart2), e = c+len2;
+        return a < e && c < b;
+      };
+      let _aaCrossInfo = '';
+      if(curTermin==='T1' && (d.label==='Montag'||d.label==='Dienstag')) {
+        // Looking at T1.1, check for T0 conflicts
+        const _t0Conflicts = Object.values(P).filter(p2 => {
+          if(p2.t0week!==cW || p2.t0day!==d.label || !p2.t0slot) return false;
+          const t0Slots = window._getT0ForWeek ? window._getT0ForWeek(p2.t0week) : T0;
+          const t0Slot = t0Slots.find(ss => ss.slot===p2.t0slot);
+          return t0Slot && _crossOverlap(t0Slot.blutStart, 60, s.blutStart, 60);
+        });
+        if(_t0Conflicts.length) {
+          _aaCrossInfo = `<div style="font-size:9.5px;color:#1A4A8A;background:#E3F0FF;border:1px solid #7BAEE0;border-radius:4px;padding:3px 6px;margin-bottom:4px">📘 T0 parallel: <strong>${_t0Conflicts.map(p=>p.pid).join(', ')}</strong></div>`;
+        }
+      } else if(curTermin==='T0' && d.off<=3) {
+        // Looking at T0, check for T1.1 (Mo/Di) and T1.2 (Mi/Do) conflicts
+        const _t1Conflicts = Object.values(P).filter(p2 => {
+          // T1.1
+          if((p2.t1week11||p2.t1week)===cW && p2.t1day11===d.label && p2.t1slot11) {
+            const t11Slot = T11.find(ss => ss.slot===p2.t1slot11);
+            if(t11Slot && _crossOverlap(t11Slot.blutStart, 60, s.blutStart, 60)) return true;
+          }
+          // T1.2
+          if((p2.t1week12||p2.t1week)===cW && p2.t1day12===d.label && p2.t1slot12) {
+            const t12Slots = window._isKW27 && window._isKW27(cW) ? getT12ForWeek(cW) : T12;
+            const t12Slot = t12Slots.find(ss => ss.slot===p2.t1slot12);
+            if(t12Slot && _crossOverlap(t12Slot.blutStart, 60, s.blutStart, 60)) return true;
+          }
+          return false;
+        });
+        if(_t1Conflicts.length) {
+          _aaCrossInfo = `<div style="font-size:9.5px;color:#1B5E20;background:#E8F5E9;border:1px solid #81C784;border-radius:4px;padding:3px 6px;margin-bottom:4px">📘 T1 parallel: <strong>${_t1Conflicts.map(p=>p.pid).join(', ')}</strong></div>`;
+        }
+      }
+
       const proHtml = isSperred
         ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSperred.grund?` · ${isSperred.grund}`:''} ${isSperred.termin!=='ALL'?`(${isSperred.termin})`:''}</div>`
         : _telBlocks
-          ? `<div class="prow" style="background:#EAD4CB;border-radius:4px;padding:6px 8px"><span style="font-size:10px;color:#4A2A1F;font-weight:700;margin-right:6px">🧬 TELOMER ${_telTermin}</span><span style="background:#EAD4CB;color:#4A2A1F;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700;border:1px solid #C9A999">${_telBooking.tid}${_telBooking.aufpassen?' ⚠️':''}</span></div>`
+          ? _aaCrossInfo + `<div class="prow" style="background:#EAD4CB;border-radius:4px;padding:6px 8px"><span style="font-size:10px;color:#4A2A1F;font-weight:700;margin-right:6px">🧬 TELOMER ${_telTermin}</span><span style="background:#EAD4CB;color:#4A2A1F;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700;border:1px solid #C9A999">${_telBooking.tid}${_telBooking.aufpassen?' ⚠️':''}</span></div>`
         : p
-          ? _telWarn + `<div class="prow"><span class="pbadge">${p.pid}${p.aufpassen?` <span style="color:#E65100">⚠️</span>`:''}</span><span class="lbadge">${p.lnr}</span>${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button><button class="btn btn-xs btn-d" onclick="removeSlotAssignment('${p._id}','${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="Termin entfernen">✕</button>`:''}</div>`
-          : _telWarn + `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddProbandSlot(${cW},'${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
+          ? _aaCrossInfo + _telWarn + `<div class="prow"><span class="pbadge">${p.pid}${p.aufpassen?` <span style="color:#E65100">⚠️</span>`:''}</span><span class="lbadge">${p.lnr}</span>${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button><button class="btn btn-xs btn-d" onclick="removeSlotAssignment('${p._id}','${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="Termin entfernen">✕</button>`:''}</div>`
+          : _aaCrossInfo + _telWarn + `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddProbandSlot(${cW},'${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
 
       const measRows=s.measures.map(m=>{
         const aKey=`${cW}_${curTermin}_${d.label}_${s.slot}_${m.label}`.replace(/[^a-zA-Z0-9_]/g,'_');
