@@ -21,6 +21,7 @@
   --t3c:#5D5DBB; --t3bg:#EEEEF8; --t3bd:#C0C0E0;
   --teegc:#7A3DB0; --teegbg:#F5EEFB; --teegbd:#C9A8E8;
   --tmlrtc:#0A6E8A; --tmlrtbg:#E5F4F8; --tmlrtbd:#80C4D8;
+  --tfamc:#B8590E; --tfambg:#FBEFE2; --tfambd:#E8B585;
   --r:4px; --rl:6px; --sh:0 1px 4px rgba(42,94,161,.1);
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -102,6 +103,8 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 .ttab.teeg.on{background:var(--teegc);color:#fff;border-color:var(--teegc)}
 .ttab.tmrt{border-color:var(--tmlrtbd);color:var(--tmlrtc);background:var(--tmlrtbg)}
 .ttab.tmrt.on{background:var(--tmlrtc);color:#fff;border-color:var(--tmlrtc)}
+.ttab.tfam{border-color:var(--tfambd);color:var(--tfamc);background:var(--tfambg)}
+.ttab.tfam.on{background:var(--tfamc);color:#fff;border-color:var(--tfamc)}
 
 /* WEEK TOOLBAR */
 .wtbar{display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;flex-wrap:wrap;background:#fff;border:1px solid var(--g2);border-left:4px solid var(--ub);border-radius:var(--r);padding:10px 14px;box-shadow:var(--sh)}
@@ -711,6 +714,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <button class="ttab t3" onclick="setTermin('T3',this)">T3 — Abschlussuntersuchung</button>
         <button class="ttab teeg" onclick="setTermin('EEG',this)">EEG</button>
         <button class="ttab tmrt" onclick="setTermin('MRT',this)">MRT</button>
+        <button class="ttab tfam" onclick="setTermin('FAM',this)">Familiarisierung</button>
         <button class="ttab tg" onclick="setTermin('GESAMT',this)">Gesamtübersicht</button>
       </div>
 
@@ -1326,6 +1330,31 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div class="mftr"><button class="btn btn-sm" onclick="closeMrtSlotModal()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveMrtSlotTime()">Hinzufügen</button></div>
   </div>
 </div>
+
+<!-- FAM BOOK MODAL -->
+<div class="ov" id="fam-book-modal" style="display:none" onclick="if(event.target===this)closeFAMBookModal()">
+  <div class="modal">
+    <div class="mhdr" style="background:var(--tfamc)"><span class="mtitle">Familiarisierung — Slot belegen</span><button class="mclose" onclick="closeFAMBookModal()">×</button></div>
+    <div class="mbody">
+      <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="fam-book-info"></div>
+      <div class="fg"><label class="fl">Proband</label><select class="fi" id="fam-book-pid"></select></div>
+      <div class="fg"><label class="fl">Notiz <span style="font-weight:400;color:var(--g4)">(optional)</span></label><input class="fi" id="fam-book-note" placeholder="z.B. mit Pause"></div>
+    </div>
+    <div class="mftr"><button class="btn btn-sm" onclick="closeFAMBookModal()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveFAMBooking()">Speichern</button></div>
+  </div>
+</div>
+
+<!-- FAM CUSTOM SLOT MODAL -->
+<div class="ov" id="fam-slot-modal" style="display:none" onclick="if(event.target===this)closeFamSlotModal()">
+  <div class="modal">
+    <div class="mhdr" style="background:var(--tfamc)"><span class="mtitle">Familiarisierung-Slot hinzufügen</span><button class="mclose" onclick="closeFamSlotModal()">×</button></div>
+    <div class="mbody">
+      <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="fam-slot-info"></div>
+      <div class="fg"><label class="fl">Startzeit (1 Std Slot)</label><input class="fi" type="time" id="fam-slot-time"></div>
+    </div>
+    <div class="mftr"><button class="btn btn-sm" onclick="closeFamSlotModal()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveFamSlotTime()">Hinzufügen</button></div>
+  </div>
+</div>
 <div class="ov" id="member-modal" onclick="if(event.target===this)closeMemberModal()">
   <div class="modal">
     <div class="mhdr"><span class="mtitle" id="member-modal-title">Teammitglied hinzufügen</span><button class="mclose" onclick="closeMemberModal()">×</button></div>
@@ -1652,6 +1681,8 @@ const MRT_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwo
 
 // State for EEG/MRT bookings and MRT custom slots
 let EEG_BOOKINGS={}, MRT_BOOKINGS={}, MRT_SLOTS={};
+let FAM_BOOKINGS={}, FAM_SLOTS={};
+const FAM_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 
 // ── DATE UTILS ───────────────────
 const wMon = w => { const d=new Date(START); d.setDate(d.getDate()+w*7); return d; };
@@ -1771,6 +1802,11 @@ function getMrtSlotsForDay(w, day) {
   const stored = Object.values(MRT_SLOTS).find(s=>s.week===w&&s.day===day);
   return stored?.times || [];
 }
+const byFAM = (w,day,slotIdx) => Object.values(FAM_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.slotIdx===slotIdx)||null;
+function getFamSlotsForDay(w, day) {
+  const stored = Object.values(FAM_SLOTS).find(s=>s.week===w&&s.day===day);
+  return stored?.times || [];
+}
 
 // ── FIREBASE INIT ─────────────────
 const app  = initializeApp(firebaseConfig);
@@ -1846,6 +1882,12 @@ function startDB() {
   });
   onSnapshot(collection(db,'mrt_slots'), snap => {
     MRT_SLOTS={}; snap.forEach(d=>{MRT_SLOTS[d.id]={...d.data(),_id:d.id}}); renderWeek();
+  });
+  onSnapshot(collection(db,'fam_bookings'), snap => {
+    FAM_BOOKINGS={}; snap.forEach(d=>{FAM_BOOKINGS[d.id]={...d.data(),_id:d.id}}); renderWeek();
+  });
+  onSnapshot(collection(db,'fam_slots'), snap => {
+    FAM_SLOTS={}; snap.forEach(d=>{FAM_SLOTS[d.id]={...d.data(),_id:d.id}}); renderWeek();
   });
 }
 
@@ -1925,6 +1967,8 @@ function renderWeek() {
     renderEEGWeek(); return;
   } else if (curTermin==='MRT') {
     renderMRTWeek(); return;
+  } else if (curTermin==='FAM') {
+    renderFAMWeek(); return;
   }
 
   let filled=0, total=0;
@@ -2350,6 +2394,107 @@ function renderMRTWeek() {
         <div class="drow"><span class="ddate">${fD(date)} · ${dayFilled}/${times.length}</span><span class="dphase">MRT</span></div>
         ${dayBlockedNote}${mrtAbsentNote}
         <div class="dfill"><div class="dfill-bar" style="width:${pct}%"></div></div>
+      </div>
+      ${slotCards}
+      ${addSlotBtn}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderFAMWeek() {
+  const mo = wMon(cW), k = kw(mo);
+  document.getElementById('wbadge').textContent = `KW ${k} · ${mo.getFullYear()}`;
+  const fri = wDay(cW,4);
+  document.getElementById('wrange').textContent = `${fD(mo)} – ${fD(fri)}`;
+
+  const content = document.getElementById('cal-content');
+  const hdrColor = 'var(--tfamc)';
+
+  let filled=0, total=0;
+  FAM_DAYS.forEach(d => {
+    const times = getFamSlotsForDay(cW, d.label);
+    total += times.length;
+    times.forEach((_,i) => { if(byFAM(cW,d.label,i)) filled++; });
+  });
+  document.getElementById('wfill').textContent = `${filled} / ${total} Slots belegt`;
+
+  content.innerHTML = `<div class="dgrid" style="grid-template-columns:repeat(5,1fr)">${FAM_DAYS.map(d => {
+    const date = wDay(cW, d.off);
+    const times = getFamSlotsForDay(cW, d.label);
+    const dayFilled = times.filter((_,i)=>byFAM(cW,d.label,i)).length;
+    const pct = times.length ? Math.round(dayFilled/times.length*100) : 0;
+
+    const daySperre = Object.values(SPERREN).find(sp =>
+      sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) && (sp.termin==='FAM'||sp.termin==='ALL'));
+    const _famHoliday = isAustrianHoliday(wDay(cW,d.off));
+    const hdrColorFinal = daySperre ? '#8B1A1A' : _famHoliday ? '#5A3A00' : hdrColor;
+    const dayBlockedNote = daySperre
+      ? `<div style="font-size:9.5px;color:rgba(255,220,220,.9);margin-top:3px">⛔ ${daySperre.grund||'Gesperrt'}</div>`
+      : _famHoliday ? `<div style="font-size:9.5px;color:rgba(255,220,160,.9);margin-top:3px">🎉 ${_famHoliday.name}</div>` : '';
+    const dayLockBtn = isAdmin()
+      ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'FAM','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>` : '';
+    const _famDayStr = _localDate(wDay(cW,d.off));
+    const _famAbsentE = Object.values(ABSENT).filter(ab=>_famDayStr>=ab.from&&_famDayStr<=(ab.to||ab.from));
+    const _famAbsent = _famAbsentE.map(ab=>{const n=ab.name||ab.email?.split('@')[0]||'';return ab.timeFrom?`${n} (${ab.timeFrom}–${ab.timeTo})`:n;}).filter(Boolean);
+    const famAbsentNote = _famAbsent.length ? `<div style="font-size:9.5px;color:rgba(255,220,160,.95);margin-top:3px">🏖️ ${_famAbsent.join(', ')}</div>` : '';
+
+    const addSlotBtn = isAdmin() && !daySperre
+      ? `<button class="btn btn-xs" style="margin:6px 0 4px;width:100%;font-size:10px" onclick="openAddFamSlot(${cW},'${d.label}')">+ Slot hinzufügen</button>` : '';
+
+    const slotCards = times.length === 0
+      ? `<div style="padding:1rem;text-align:center;font-size:11px;color:var(--g4);font-style:italic">Keine Slots eingetragen</div>`
+      : times.map((t,i) => {
+          const bk = byFAM(cW, d.label, i);
+          const slotSperr = Object.values(SPERREN).find(sp =>
+            sp.week===cW && sp.day===d.label && Number(sp.slot)===Number(i) && (sp.termin==='FAM'||sp.termin==='ALL'));
+          const isSp = slotSperr || daySperre;
+          // 1 hour slot
+          const [hh,mm] = t.split(':').map(Number);
+          const endMin = hh*60+mm+60;
+          const endStr = `${String(Math.floor(endMin/60)).padStart(2,'0')}:${String(endMin%60).padStart(2,'0')}`;
+
+          // Person assignment via ASSIGN system - 1 person
+          const aKey = `${cW}_FAM_${d.label}_${i}_Familiarisierung`.replace(/[^a-zA-Z0-9_]/g,'_');
+          const a = ASSIGN[aKey];
+          const pName = a?.person ? (TEAM[a.person]?.name||a.person) : null;
+          const aRoom = a?.room || 'Isokinet';
+
+          const proHtml = isSp
+            ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong></div>`
+            : bk
+              ? `<div class="prow"><span class="pbadge">${bk.pid}</span><span class="lbadge">${bk.lnr}</span>${isAdmin()?`<button class="btn btn-xs btn-d" onclick="delFAMBooking('${bk._id}')">✕</button>`:''}</div>${bk.note?`<div style="font-size:10.5px;color:var(--g5);font-style:italic;margin-top:3px;padding:3px 6px;background:var(--g1);border-radius:3px">📝 ${bk.note}</div>`:''}`
+              : `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()&&!daySperre?`<button class="btn btn-xs btn-p" onclick="openFAMBookModal(${cW},'${d.label}',${i})">+ Zuweisen</button>`:''}</div>`;
+
+          const personRow = !isSp ? `<div class="meas-row" style="margin-top:4px">
+            <span class="chip ciso" style="min-width:0;flex-shrink:0;font-size:9px">Durchführung · 📍 ${aRoom}</span>
+            <span style="flex:1"></span>
+            ${isAdmin() ? `<button class="assign-btn" onclick="openAssignModal('${aKey}','Familiarisierung','FAM ${d.label} Slot ${i+1}','${_localDate(date)}','${t}')">${pName?`<span class="team-chip">${pName}</span>`:'+ P1'}</button>` : (pName?`<span class="team-chip">${pName}</span>`:'')}
+          </div>` : '';
+
+          const lockIcon = isAdmin()
+            ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'FAM','${d.label}',${i})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>` : '';
+          const delSlotBtn = isAdmin()
+            ? `<button class="slot-lock-btn" onclick="delFamSlotTime(${cW},'${d.label}',${i})" title="Slot entfernen" style="color:#C8102E">✕</button>` : '';
+
+          return `<div class="sc ${bk&&!isSp?'booked':''} ${isSp?'slot-blocked':''}">
+            <div class="sc-top">
+              <span class="sc-num">Slot ${i+1}</span>
+              <div style="display:flex;align-items:center;gap:2px">
+                <span class="sc-time">${t}–${endStr}</span>
+                ${lockIcon}${delSlotBtn}
+              </div>
+            </div>
+            <div class="sc-body">${proHtml}${personRow}</div>
+          </div>`;
+        }).join('');
+
+    return `<div class="dcol">
+      <div class="dayhdr-top" style="background:${hdrColorFinal};border-radius:var(--r) var(--r) 0 0">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="dname">${d.label}</div>${dayLockBtn}
+        </div>
+        <div class="drow"><span class="ddate">${fD(date)} · ${dayFilled}/${times.length}</span><span class="dphase">FAM</span></div>
+        ${dayBlockedNote}${famAbsentNote}
       </div>
       ${slotCards}
       ${addSlotBtn}
@@ -4211,6 +4356,77 @@ window.delMrtSlotTime = async (w, day, idx) => {
   try {
     const {setDoc,doc:fdoc}=window._fbFns;
     await setDoc(fdoc(db,'mrt_slots',existing._id),{week:w,day,times});
+    toast('Slot entfernt ✓');
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+
+// ── FAMILIARISIERUNG ──────────────
+let _famBookCtx = null, _famSlotCtx = null;
+window.openFAMBookModal = (w, day, slotIdx) => {
+  _famBookCtx = {w, day, slotIdx};
+  const times = getFamSlotsForDay(w, day);
+  const t = times[slotIdx] || '?';
+  const [hh,mm] = t.split(':').map(Number);
+  const endMin = hh*60+mm+60;
+  const endStr = `${String(Math.floor(endMin/60)).padStart(2,'0')}:${String(endMin%60).padStart(2,'0')}`;
+  const sel = document.getElementById('fam-book-pid');
+  sel.innerHTML = Object.values(P).sort((a,b)=>(parseInt((a.pid||'').replace(/\D/g,''))||0)-(parseInt((b.pid||'').replace(/\D/g,''))||0)).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
+  document.getElementById('fam-book-info').textContent = `${day} · KW ${kw(wMon(w))} · Slot ${slotIdx+1} (${t}–${endStr}) · 📍 Isokinet`;
+  document.getElementById('fam-book-note').value='';
+  document.getElementById('fam-book-modal').style.display='flex';
+};
+window.closeFAMBookModal = () => { document.getElementById('fam-book-modal').style.display='none'; };
+window.saveFAMBooking = async () => {
+  if(!_famBookCtx) return;
+  const {w,day,slotIdx} = _famBookCtx;
+  const pid_sel = document.getElementById('fam-book-pid').value;
+  const p = Object.values(P).find(x=>x._id===pid_sel);
+  if(!p){toast('Proband nicht gefunden',true);return;}
+  try {
+    const {addDoc,collection:col} = window._fbFns;
+    const note=document.getElementById('fam-book-note').value.trim();
+    await addDoc(col(db,'fam_bookings'),{week:w,day,slotIdx,pid:p.pid,lnr:p.lnr,probandId:p._id,note,created:Date.now()});
+    toast('Familiarisierung gebucht ✓'); closeFAMBookModal();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+window.delFAMBooking = async (id) => {
+  if(!confirm('Buchung wirklich löschen?')) return;
+  try { const {deleteDoc,doc:fdoc}=window._fbFns; await deleteDoc(fdoc(db,'fam_bookings',id)); toast('Buchung gelöscht ✓'); }
+  catch(e){toast('Fehler: '+e.message,true);}
+};
+window.openAddFamSlot = (w, day) => {
+  _famSlotCtx = {w, day};
+  document.getElementById('fam-slot-info').textContent = `${day} · KW ${kw(wMon(w))}`;
+  document.getElementById('fam-slot-time').value = '';
+  document.getElementById('fam-slot-modal').style.display='flex';
+};
+window.closeFamSlotModal = () => { document.getElementById('fam-slot-modal').style.display='none'; };
+window.saveFamSlotTime = async () => {
+  if(!_famSlotCtx) return;
+  const {w,day} = _famSlotCtx;
+  const t = document.getElementById('fam-slot-time').value;
+  if(!t){toast('Bitte Uhrzeit eingeben',true);return;}
+  const {setDoc,doc:fdoc} = window._fbFns;
+  try {
+    const existing = Object.values(FAM_SLOTS).find(s=>s.week===w&&s.day===day);
+    if(existing){
+      const times = [...(existing.times||[]),t].sort();
+      await setDoc(fdoc(db,'fam_slots',existing._id),{week:w,day,times});
+    } else {
+      const {addDoc,collection:col}=window._fbFns;
+      await addDoc(col(db,'fam_slots'),{week:w,day,times:[t]});
+    }
+    toast('Slot hinzugefügt ✓'); closeFamSlotModal();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+window.delFamSlotTime = async (w, day, idx) => {
+  if(!confirm('Slot wirklich entfernen?')) return;
+  const existing = Object.values(FAM_SLOTS).find(s=>s.week===w&&s.day===day);
+  if(!existing) return;
+  const times = existing.times.filter((_,i)=>i!==idx);
+  try {
+    const {setDoc,doc:fdoc}=window._fbFns;
+    await setDoc(fdoc(db,'fam_slots',existing._id),{week:w,day,times});
     toast('Slot entfernt ✓');
   } catch(e){toast('Fehler: '+e.message,true);}
 };
