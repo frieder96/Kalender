@@ -1554,6 +1554,22 @@ const T12 = Array.from({length:8},(_,i) => {
   ]};
 });
 
+// KW 27 (29.06.-02.07.2026): Sonderwoche — T1.2 stündlich 10:00-17:00 an allen 4 Tagen
+const T12_KW27 = Array.from({length:8},(_,i) => {
+  const sn=i+1, sH=10+i, sMm=0;
+  const iso=`${String(sH).padStart(2,'0')}:${String(sMm).padStart(2,'0')}`;
+  return { slot:sn, blutStart:iso, measures:[
+    {label:'Isokinetik',cls:'ciso',t:iso},
+    {label:'RBANS',cls:'crbans',t:am(sH,sMm,30)},
+    {label:'24h Recall',cls:'crecall',t:am(sH,sMm,75)},
+  ]};
+});
+function getT12ForWeek(w) {
+  return kw(wMon(w))===27 ? T12_KW27 : T12;
+}
+function isKW27(w) { return kw(wMon(w))===27; }
+window._isKW27 = isKW27;
+
 // T2 & T3: same structure as T1 but T2.1/T3.1 (Mo/Di) have no 24h Recall
 const T21 = T11.map(s => ({...s, measures: s.measures.filter(m=>m.label!=='24h Recall')}));
 const T22 = T12.map(s => ({...s}));
@@ -1653,6 +1669,7 @@ const DOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
 let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={}, ROOMS={}, ROOM_BLOCKS={}, TELP={};
 window._P = () => P;
 let cW=0, curTermin='T0';
+let _kw27T1Sub = 'T1.1'; // 'T1.1' or 'T1.2' — only relevant in KW 27
 let eId=null, recallEditId=null, assignKey=null, tW=0;
 let sperrenEditId=null, sperrenDay=null, sperrenSlot=null, sperrenTermin=null;
 let absentEditId=null, curMonth=new Date().getMonth(), curYear=new Date().getFullYear();
@@ -1728,6 +1745,8 @@ window._getAustrianHolidays = getAustrianHolidays;
 // Sub-termin helper: T1/T2/T3 → .1 (Mo/Di) or .2 (Mi/Do)
 function getSubTermin(termin, day) {
   const is1 = day==='Montag'||day==='Dienstag';
+  // KW 27: T1 uses the sub-view state instead of day
+  if(termin==='T1' && isKW27(cW)) return _kw27T1Sub;
   if(termin==='T1') return is1 ? 'T1.1' : 'T1.2';
   if(termin==='T2') return is1 ? 'T2.1' : 'T2.2';
   if(termin==='T3') return is1 ? 'T3.1' : 'T3.2';
@@ -1873,9 +1892,22 @@ function renderWeek() {
     slotSets=days.map(()=>_t0); getters=days.map(()=>byT0); phaseLabel='T0'; headerColor='var(--t0c)';
   } else if (curTermin==='T1') {
     days=[{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
-    const _slotsByDay={'Montag':T11,'Dienstag':T11,'Mittwoch':T12,'Donnerstag':T12};
-    slotSets=days.map(d=>_slotsByDay[d.label]);
-    getters=days.map(d=>d.label==='Montag'||d.label==='Dienstag'?byT11:byT12);
+    const _isKw27 = isKW27(cW);
+    if(_isKw27) {
+      // KW 27: alle 4 Tage zeigen entweder T1.1 (Vormittag) ODER T1.2 (Nachmittag)
+      if(_kw27T1Sub === 'T1.1') {
+        slotSets = days.map(()=>T11);
+        getters = days.map(()=>byT11);
+      } else {
+        const _t12kw = getT12ForWeek(cW);
+        slotSets = days.map(()=>_t12kw);
+        getters = days.map(()=>byT12);
+      }
+    } else {
+      const _slotsByDay={'Montag':T11,'Dienstag':T11,'Mittwoch':T12,'Donnerstag':T12};
+      slotSets=days.map(d=>_slotsByDay[d.label]);
+      getters=days.map(d=>d.label==='Montag'||d.label==='Dienstag'?byT11:byT12);
+    }
     phaseLabel='T1'; headerColor='var(--t1c)';
   } else if (curTermin==='T2') {
     days=[{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
@@ -1899,7 +1931,19 @@ function renderWeek() {
   days.forEach((d,i)=>{ slotSets[i].forEach(s=>{ total++; if(getters[i](cW,d.label,s.slot))filled++; }); });
   document.getElementById('wfill').textContent=`${filled} / ${total} Slots belegt`;
 
-  content.innerHTML = `<div class="dgrid">${days.map((d,i)=>{
+  // KW 27 sub-tabs for T1 (Mo/Di + Mi/Do both run T1.1 morning + T1.2 afternoon)
+  let _kw27Banner = '';
+  if(curTermin==='T1' && isKW27(cW)) {
+    _kw27Banner = `<div style="margin-bottom:14px;padding:10px 14px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:var(--r)">
+      <div style="font-size:11px;font-weight:700;color:#E65100;margin-bottom:6px">⚡ Sonderwoche KW 27 (29.06.–02.07.) — T1.1 und T1.2 an allen 4 Tagen</div>
+      <div style="display:flex;gap:6px">
+        <button onclick="setKW27T1Sub('T1.1')" style="padding:6px 14px;border:1px solid #E65100;border-radius:4px;background:${_kw27T1Sub==='T1.1'?'#E65100':'#fff'};color:${_kw27T1Sub==='T1.1'?'#fff':'#E65100'};font-size:11px;font-weight:700;cursor:pointer">T1.1 (Vormittag · Blut)</button>
+        <button onclick="setKW27T1Sub('T1.2')" style="padding:6px 14px;border:1px solid #E65100;border-radius:4px;background:${_kw27T1Sub==='T1.2'?'#E65100':'#fff'};color:${_kw27T1Sub==='T1.2'?'#fff':'#E65100'};font-size:11px;font-weight:700;cursor:pointer">T1.2 (Nachmittag · 10–17 Uhr)</button>
+      </div>
+    </div>`;
+  }
+
+  content.innerHTML = _kw27Banner + `<div class="dgrid">${days.map((d,i)=>{
     const date=wDay(cW,d.off);
     const slots=slotSets[i];
     const getter=getters[i];
@@ -3302,6 +3346,7 @@ function buildWJList() {
 window.openWJ=()=>{buildWJList();document.getElementById('wjov').classList.add('open');};
 window.closeWJ=()=>document.getElementById('wjov').classList.remove('open');
 window.selW=w=>{cW=w;renderWeek();closeWJ();if(window.curTermin==='T1')loadSportStatus();};
+window.setKW27T1Sub = sub => { _kw27T1Sub = sub; renderWeek(); };
 window.chW=n=>{cW=Math.max(0,Math.min(N_WEEKS-1,cW+n));renderWeek();if(window.curTermin==='T1')loadSportStatus();};
 window.goToday=()=>{const d=Math.floor((new Date()-START)/(7*86400000));cW=Math.max(0,Math.min(N_WEEKS-1,d));renderWeek();if(window.curTermin==='T1')loadSportStatus();};
 
