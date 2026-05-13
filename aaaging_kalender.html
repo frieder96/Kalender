@@ -3345,7 +3345,10 @@ window.openAssignModal = (key, measure, label, slotDate, slotTime) => {
       else if((kTermin==='T2.2') && T22[kSlot-1]) kSlotDef = T22[kSlot-1];
       else if((kTermin==='T3.1'||kTermin==='T3') && T31[kSlot-1]) kSlotDef = T31[kSlot-1];
       else if((kTermin==='T3.2') && T32[kSlot-1]) kSlotDef = T32[kSlot-1];
-      else if(isTel && window._TEL_T0 && window._TEL_T0[kSlot-1]) kSlotDef = window._TEL_T0[kSlot-1];
+      else if(isTel) {
+        const telPool = kTermin==='T0' ? window._TEL_T0 : kTermin==='T1' ? window._TEL_T1 : kTermin==='T2' ? window._TEL_T2 : null;
+        if(telPool && telPool[kSlot-1]) kSlotDef = telPool[kSlot-1];
+      }
       if(!kSlotDef) continue;
       // Find the specific measure time
       const kMeasureLabel = parts.slice(4).join('_').replace(/_/g,' ');
@@ -3403,10 +3406,12 @@ window.openAssignModal = (key, measure, label, slotDate, slotTime) => {
     if(!slotDate || !slotTime || !roomName) return null;
     const [sh, sm] = slotTime.split(':').map(Number);
     const slotMin = sh*60 + sm;
+    const DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
+
+    // 1) Check existing explicit ASSIGN entries
     for(const [k, a] of Object.entries(ASSIGN)) {
       if(k === key) continue;
       if(a.room !== roomName) continue;
-      // Parse key date/time
       const isTel = k.startsWith('TEL_');
       const parts = isTel ? k.substring(4).split('_') : k.split('_');
       if(parts.length < 5) continue;
@@ -3414,7 +3419,6 @@ window.openAssignModal = (key, measure, label, slotDate, slotTime) => {
       const kTermin = parts[1];
       const kDay = parts[2];
       const kSlot = parseInt(parts[3]);
-      const DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
       const dOff = DAYOFF[kDay];
       if(dOff===undefined || isNaN(kw)) continue;
       const kDate = _localDate(wDay(kw, dOff));
@@ -3427,18 +3431,82 @@ window.openAssignModal = (key, measure, label, slotDate, slotTime) => {
       else if((kTermin==='T2.2') && T22[kSlot-1]) kSlotDef = T22[kSlot-1];
       else if((kTermin==='T3.1'||kTermin==='T3') && T31[kSlot-1]) kSlotDef = T31[kSlot-1];
       else if((kTermin==='T3.2') && T32[kSlot-1]) kSlotDef = T32[kSlot-1];
-      else if(isTel && window._TEL_T0 && window._TEL_T0[kSlot-1]) kSlotDef = window._TEL_T0[kSlot-1];
+      else if(isTel) {
+        const telPool = kTermin==='T0' ? window._TEL_T0 : kTermin==='T1' ? window._TEL_T1 : kTermin==='T2' ? window._TEL_T2 : null;
+        if(telPool && telPool[kSlot-1]) kSlotDef = telPool[kSlot-1];
+      }
       if(!kSlotDef) continue;
       const kMeasure = (kSlotDef.measures||[]).find(mm => mm.label.replace(/[^a-zA-Z0-9_]/g,'_')===parts.slice(4).join('_'));
       const mTime = kMeasure ? kMeasure.t : kSlotDef.blutStart;
       if(!mTime) continue;
-      const [mh,mm] = mTime.split(':').map(Number);
-      const mMin = mh*60+mm;
-      // Only block if exact same time
+      const [mh,mmin] = mTime.split(':').map(Number);
+      const mMin = mh*60+mmin;
       if(mMin === slotMin) {
         return (isTel?'🧬 Tel ':'') + kTermin + ' ' + kDay + ' ' + mTime;
       }
     }
+
+    // 2) Implicit room reservation: check probanden bookings (Telomer + AAAging) for measures matching AUTO_ROOMS
+    const matchesAutoRoom = (label) => {
+      const m = Object.entries(AUTO_ROOMS).find(([k])=>label.toLowerCase().includes(k.toLowerCase()));
+      return m && m[1] === roomName;
+    };
+
+    // 2a) Telomer probanden
+    const TELP = window._TELP || {};
+    for(const tp of Object.values(TELP)) {
+      const termins = [
+        {pool: window._TEL_T0, week:tp.t0week, day:tp.t0day, slot:tp.t0slot, label:'TEL T0'},
+        {pool: window._TEL_T1, week:tp.t1week, day:tp.t1day, slot:tp.t1slot, label:'TEL T1'},
+        {pool: window._TEL_T2, week:tp.t2week, day:tp.t2day, slot:tp.t2slot, label:'TEL T2'},
+      ];
+      for(const t of termins) {
+        if(!t.pool || t.week===undefined || !t.day || !t.slot) continue;
+        const dOff = DAYOFF[t.day];
+        if(dOff===undefined) continue;
+        const tDate = _localDate(wDay(t.week, dOff));
+        if(tDate !== slotDate) continue;
+        const sdef = t.pool[t.slot-1];
+        if(!sdef) continue;
+        for(const m of (sdef.measures||[])) {
+          if(!m.t || !matchesAutoRoom(m.label)) continue;
+          const [mh,mmin] = m.t.split(':').map(Number);
+          if(mh*60+mmin === slotMin) {
+            return '🧬 ' + t.label + ' ' + (tp.tid||'') + ' ' + m.label;
+          }
+        }
+      }
+    }
+
+    // 2b) AAAging probanden
+    const allP_ = window._P ? window._P() : {};
+    for(const p2 of Object.values(allP_)) {
+      const termins = [
+        {pool: window._getT0ForWeek ? window._getT0ForWeek(p2.t0week) : T0, week:p2.t0week, day:p2.t0day, slot:p2.t0slot, label:'T0'},
+        {pool: T11, week:(p2.t1week11||p2.t1week), day:p2.t1day11, slot:p2.t1slot11, label:'T1.1'},
+        {pool: T12, week:(p2.t1week12||p2.t1week), day:p2.t1day12, slot:p2.t1slot12, label:'T1.2'},
+      ];
+      for(const t of termins) {
+        if(!t.pool || t.week===undefined || !t.day || !t.slot) continue;
+        const dOff = DAYOFF[t.day];
+        if(dOff===undefined) continue;
+        const tDate = _localDate(wDay(t.week, dOff));
+        if(tDate !== slotDate) continue;
+        const sdef = t.pool[t.slot-1];
+        if(!sdef) continue;
+        for(const m of (sdef.measures||[])) {
+          if(!m.t || !matchesAutoRoom(m.label)) continue;
+          const [mh,mmin] = m.t.split(':').map(Number);
+          if(mh*60+mmin === slotMin) {
+            // Skip if this IS the current slot (same termin, day, slot, measure)
+            const sameAsSelf = key && key.indexOf(t.label.replace('.','_')+'_'+t.day+'_'+t.slot) >= 0;
+            if(sameAsSelf) continue;
+            return t.label + ' ' + (p2.pid||'') + ' ' + m.label;
+          }
+        }
+      }
+    }
+
     return null;
   }
 
