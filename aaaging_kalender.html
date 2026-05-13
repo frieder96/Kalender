@@ -2011,31 +2011,16 @@ function renderWeek() {
         sp.week===cW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) && _tMatch(sp.termin));
       const _slotHoliday = !slotSperr && !daySperr ? isAustrianHoliday(date) : null;
 
-      // Check if Telomer has a slot at the same start time (Telomer slot times: 8:00, 8:00, 8:30, 8:30)
-      // Mo/Di: exact start time match. Mi/Do: 3h overlap window
+      // Check if Telomer has a slot at the EXACT same start time
       const _telSlotMatch = (telSlotNum) => {
         const TEL_TIMES = ['08:00','08:00','08:30','08:30'];
         return TEL_TIMES[telSlotNum-1] === s.blutStart;
       };
-      const _telTimeOverlap = (telTime) => {
-        // Telomer slot occupies ~3h on Mi/Do. AAAging T1.2 slot is 1h.
-        const _t = (t) => { const p=t.split(':').map(Number); return p[0]*60+p[1]; };
-        const telStart = _t(telTime), telEnd = telStart+180;
-        const aaStart = _t(s.blutStart), aaEnd = aaStart+60;
-        return telStart < aaEnd && aaStart < telEnd;
-      };
       const _telBooking = (curTermin==='T1' || curTermin==='T0')
         ? Object.values(window._TELP||{}).find(tp => {
-            const TEL_TIMES = ['08:00','08:00','08:30','08:30'];
             const checkSlot = (week, day, slot) => {
               if(week!==cW || day!==d.label || !slot) return false;
-              const tStart = TEL_TIMES[slot-1]; if(!tStart) return false;
-              // For T0: AAAging T0 slot length ~60min, Telomer ~180min — use overlap
-              // For T1.1 (Mo/Di): exact start time; T1.2 (Mi/Do): time overlap
-              if(curTermin==='T0') return _telTimeOverlap(tStart);
-              if(d.label==='Montag'||d.label==='Dienstag') return tStart===s.blutStart;
-              if(d.label==='Mittwoch'||d.label==='Donnerstag') return _telTimeOverlap(tStart);
-              return false;
+              return _telSlotMatch(slot);
             };
             if(checkSlot(tp.t0week, tp.t0day, tp.t0slot)) return true;
             if(checkSlot(tp.t1week, tp.t1day, tp.t1slot)) return true;
@@ -2057,12 +2042,8 @@ function renderWeek() {
         ? `<div style="font-size:9.5px;color:#5E2A1F;background:#EAD4CB;border:1px solid #C9A999;border-radius:4px;padding:3px 6px;margin-bottom:4px">🧬 Telomer ${_telTermin} parallel: <strong>${_telBooking.tid}</strong></div>`
         : '';
 
-      // Cross-termin AAAging conflict: T0 ↔ T1 in same week
-      const _crossOverlap = (slotStart1, len1, slotStart2, len2) => {
-        const _t = (t) => { const p=t.split(':').map(Number); return p[0]*60+p[1]; };
-        const a = _t(slotStart1), b = a+len1, c = _t(slotStart2), e = c+len2;
-        return a < e && c < b;
-      };
+      // Cross-termin AAAging conflict: T0 ↔ T1 in same week at exact same time
+      const _crossSameTime = (slotStart1, slotStart2) => slotStart1 === slotStart2;
       let _aaCrossInfo = '';
       if(curTermin==='T1' && (d.label==='Montag'||d.label==='Dienstag')) {
         // Looking at T1.1, check for T0 conflicts
@@ -2070,7 +2051,7 @@ function renderWeek() {
           if(p2.t0week!==cW || p2.t0day!==d.label || !p2.t0slot) return false;
           const t0Slots = window._getT0ForWeek ? window._getT0ForWeek(p2.t0week) : T0;
           const t0Slot = t0Slots.find(ss => ss.slot===p2.t0slot);
-          return t0Slot && _crossOverlap(t0Slot.blutStart, 60, s.blutStart, 60);
+          return t0Slot && _crossSameTime(t0Slot.blutStart, s.blutStart);
         });
         if(_t0Conflicts.length) {
           _aaCrossInfo = `<div style="font-size:9.5px;color:#1A4A8A;background:#E3F0FF;border:1px solid #7BAEE0;border-radius:4px;padding:3px 6px;margin-bottom:4px">📘 T0 parallel: <strong>${_t0Conflicts.map(p=>p.pid).join(', ')}</strong></div>`;
@@ -2081,13 +2062,13 @@ function renderWeek() {
           // T1.1
           if((p2.t1week11||p2.t1week)===cW && p2.t1day11===d.label && p2.t1slot11) {
             const t11Slot = T11.find(ss => ss.slot===p2.t1slot11);
-            if(t11Slot && _crossOverlap(t11Slot.blutStart, 60, s.blutStart, 60)) return true;
+            if(t11Slot && _crossSameTime(t11Slot.blutStart, s.blutStart)) return true;
           }
           // T1.2
           if((p2.t1week12||p2.t1week)===cW && p2.t1day12===d.label && p2.t1slot12) {
             const t12Slots = window._isKW27 && window._isKW27(cW) ? getT12ForWeek(cW) : T12;
             const t12Slot = t12Slots.find(ss => ss.slot===p2.t1slot12);
-            if(t12Slot && _crossOverlap(t12Slot.blutStart, 60, s.blutStart, 60)) return true;
+            if(t12Slot && _crossSameTime(t12Slot.blutStart, s.blutStart)) return true;
           }
           return false;
         });
@@ -6857,38 +6838,28 @@ window.renderTelKalender = function() {
   // Helper: parse HH:MM to minutes
   function _toMin(t) { var p = t.split(':').map(Number); return p[0]*60+p[1]; }
 
-  // Helper: for a given Telomer slot on a day, check AAAging T1.2 overlap (Mi/Do only)
-  // Telomer slots on Mi/Do occupy approx 3h. AAAging T1.2 slots are 1h.
+  // Helper: for a given Telomer slot on a day, check AAAging T1.2 at exact same start time
   function _telAaT12Conflict(day, telStartTime) {
     if(day!=='Mittwoch' && day!=='Donnerstag') return null;
-    var telStart = _toMin(telStartTime);
-    var telEnd = telStart + 180; // ~3 hours
     var conflicts = [];
     Object.keys(aaOccupiedByTime).forEach(function(k) {
       if(!k.startsWith(day + '_T12_')) return;
       var aaTime = k.substring((day + '_T12_').length);
-      var aaStart = _toMin(aaTime);
-      var aaEnd = aaStart + 60;
-      if(telStart < aaEnd && aaStart < telEnd) {
+      if(aaTime === telStartTime) {
         conflicts.push.apply(conflicts, aaOccupiedByTime[k]);
       }
     });
     return conflicts.length ? conflicts.join(', ') : null;
   }
 
-  // Helper: check AAAging T0 overlap with Telomer slot (Mo-Do)
-  // AAAging T0 ~60min, Telomer ~180min
+  // Helper: check AAAging T0 at exact same start time (Mo-Do)
   function _telAaT0Conflict(day, telStartTime) {
     if(day==='Freitag') return null;
-    var telStart = _toMin(telStartTime);
-    var telEnd = telStart + 180;
     var conflicts = [];
     Object.keys(aaOccupiedByTime).forEach(function(k) {
       if(!k.startsWith(day + '_T0_')) return;
       var aaTime = k.substring((day + '_T0_').length);
-      var aaStart = _toMin(aaTime);
-      var aaEnd = aaStart + 60;
-      if(telStart < aaEnd && aaStart < telEnd) {
+      if(aaTime === telStartTime) {
         conflicts.push.apply(conflicts, aaOccupiedByTime[k]);
       }
     });
