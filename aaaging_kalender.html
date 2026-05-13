@@ -2038,44 +2038,9 @@ function renderWeek() {
       // KW 20: warning only. KW 21+: block (treat as sperred when telomer has booking)
       const _wkNum = kw(wMon(cW));
       const _telBlocks = _telBooking && _wkNum !== 20 && !p;
-      const _telWarn = _telBooking && !isSperred && !_telBlocks
-        ? `<div style="font-size:9.5px;color:#5E2A1F;background:#EAD4CB;border:1px solid #C9A999;border-radius:4px;padding:3px 6px;margin-bottom:4px">🧬 Telomer ${_telTermin} parallel: <strong>${_telBooking.tid}</strong></div>`
-        : '';
-
-      // Cross-termin AAAging conflict: T0 ↔ T1 in same week at exact same time
-      const _crossSameTime = (slotStart1, slotStart2) => slotStart1 === slotStart2;
-      let _aaCrossInfo = '';
-      if(curTermin==='T1' && (d.label==='Montag'||d.label==='Dienstag')) {
-        // Looking at T1.1, check for T0 conflicts
-        const _t0Conflicts = Object.values(P).filter(p2 => {
-          if(p2.t0week!==cW || p2.t0day!==d.label || !p2.t0slot) return false;
-          const t0Slots = window._getT0ForWeek ? window._getT0ForWeek(p2.t0week) : T0;
-          const t0Slot = t0Slots.find(ss => ss.slot===p2.t0slot);
-          return t0Slot && _crossSameTime(t0Slot.blutStart, s.blutStart);
-        });
-        if(_t0Conflicts.length) {
-          _aaCrossInfo = `<div style="font-size:9.5px;color:#1A4A8A;background:#E3F0FF;border:1px solid #7BAEE0;border-radius:4px;padding:3px 6px;margin-bottom:4px">📘 T0 parallel: <strong>${_t0Conflicts.map(p=>p.pid).join(', ')}</strong></div>`;
-        }
-      } else if(curTermin==='T0' && d.off<=3) {
-        // Looking at T0, check for T1.1 (Mo/Di) and T1.2 (Mi/Do) conflicts
-        const _t1Conflicts = Object.values(P).filter(p2 => {
-          // T1.1
-          if((p2.t1week11||p2.t1week)===cW && p2.t1day11===d.label && p2.t1slot11) {
-            const t11Slot = T11.find(ss => ss.slot===p2.t1slot11);
-            if(t11Slot && _crossSameTime(t11Slot.blutStart, s.blutStart)) return true;
-          }
-          // T1.2
-          if((p2.t1week12||p2.t1week)===cW && p2.t1day12===d.label && p2.t1slot12) {
-            const t12Slots = window._isKW27 && window._isKW27(cW) ? getT12ForWeek(cW) : T12;
-            const t12Slot = t12Slots.find(ss => ss.slot===p2.t1slot12);
-            if(t12Slot && _crossSameTime(t12Slot.blutStart, s.blutStart)) return true;
-          }
-          return false;
-        });
-        if(_t1Conflicts.length) {
-          _aaCrossInfo = `<div style="font-size:9.5px;color:#1B5E20;background:#E8F5E9;border:1px solid #81C784;border-radius:4px;padding:3px 6px;margin-bottom:4px">📘 T1 parallel: <strong>${_t1Conflicts.map(p=>p.pid).join(', ')}</strong></div>`;
-        }
-      }
+      // Cross-conflicts auf Slot-Ebene wurden entfernt — Konflikte werden nur noch raum-spezifisch im Assign-Modal angezeigt
+      const _telWarn = '';
+      const _aaCrossInfo = '';
 
       const proHtml = isSperred
         ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSperred.grund?` · ${isSperred.grund}`:''} ${isSperred.termin!=='ALL'?`(${isSperred.termin})`:''}</div>`
@@ -6946,10 +6911,10 @@ window.renderTelKalender = function() {
         var aaT0 = _telAaT0Conflict(d.label, s.blutStart);
         var aaP = (aaConflict && aaConflict.length ? aaConflict.join(', ') : null) || aaT0 || aaT12;
         var isBooked = !!telP;
-        var weekNum = kwFn ? kwFn(mo) : 0;
-        var hasAaWarn = !!aaP && weekNum === 20 && !isBooked;
-        var aaBlocks = !!aaP && weekNum !== 20 && !isBooked;
-        var isBlocked = !!slotSperre || aaBlocks;
+        // Slot-card Cross-Konflikte entfernt — Konflikte werden nur noch raum-spezifisch im Assign-Modal angezeigt
+        var hasAaWarn = false;
+        var aaBlocks = false;
+        var isBlocked = !!slotSperre;
 
         var bgColor = isBooked ? '#EAD4CB' : isBlocked ? '#FFE0E0' : '#fff';
         var border = isBooked ? '#C9A999' : isBlocked ? '#E57373' : '#E0DDD8';
