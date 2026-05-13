@@ -3488,8 +3488,8 @@ window.openAssignModal = (key, measure, label, slotDate, slotTime) => {
       if(!mTime) continue;
       const [mh,mm] = mTime.split(':').map(Number);
       const mMin = mh*60+mm;
-      // 30-min collision window
-      if(Math.abs(mMin - slotMin) < 30) {
+      // Only block if exact same time
+      if(mMin === slotMin) {
         return (isTel?'🧬 Tel ':'') + kTermin + ' ' + kDay + ' ' + mTime;
       }
     }
