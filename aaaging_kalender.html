@@ -3438,21 +3438,73 @@ window.openAssignModal = (key, measure, label, slotDate, slotTime) => {
   // Auto-match room based on measure name (if no existing assignment)
   const AUTO_ROOMS = {
     'Isokinetik': 'Isokinet',
+    'Beinpresse': 'Isokinet',
     'Einschlussuntersuchung': 'BIA-Raum',
     'BIA': 'BIA-Raum',
     'RBANS': 'RBANS-Raum',
+    'Vorbesprechung': 'RBANS-Raum',
+    'Blutabnahme': 'Labor',
+    'Kognitive Testbatterie': 'Spiro-Raum',
+    'Fragebogen': 'Spiro-Raum',
   };
   const autoRoom = !existing?.room
     ? Object.entries(AUTO_ROOMS).find(([k])=>measure&&measure.toLowerCase().includes(k.toLowerCase()))?.[1] || ''
     : '';
   const selectedRoom = existing?.room || autoRoom;
 
+  // Detect which rooms are in use by other assignments at this same date/time
+  function isRoomInUse(roomName) {
+    if(!slotDate || !slotTime || !roomName) return null;
+    const [sh, sm] = slotTime.split(':').map(Number);
+    const slotMin = sh*60 + sm;
+    for(const [k, a] of Object.entries(ASSIGN)) {
+      if(k === key) continue;
+      if(a.room !== roomName) continue;
+      // Parse key date/time
+      const isTel = k.startsWith('TEL_');
+      const parts = isTel ? k.substring(4).split('_') : k.split('_');
+      if(parts.length < 5) continue;
+      const kw = parseInt(parts[0]);
+      const kTermin = parts[1];
+      const kDay = parts[2];
+      const kSlot = parseInt(parts[3]);
+      const DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
+      const dOff = DAYOFF[kDay];
+      if(dOff===undefined || isNaN(kw)) continue;
+      const kDate = _localDate(wDay(kw, dOff));
+      if(kDate !== slotDate) continue;
+      let kSlotDef = null;
+      if(kTermin==='T0' && T0[kSlot-1]) kSlotDef = T0[kSlot-1];
+      else if((kTermin==='T1.1'||kTermin==='T1') && T11[kSlot-1]) kSlotDef = T11[kSlot-1];
+      else if((kTermin==='T1.2') && T12[kSlot-1]) kSlotDef = T12[kSlot-1];
+      else if((kTermin==='T2.1'||kTermin==='T2') && T21[kSlot-1]) kSlotDef = T21[kSlot-1];
+      else if((kTermin==='T2.2') && T22[kSlot-1]) kSlotDef = T22[kSlot-1];
+      else if((kTermin==='T3.1'||kTermin==='T3') && T31[kSlot-1]) kSlotDef = T31[kSlot-1];
+      else if((kTermin==='T3.2') && T32[kSlot-1]) kSlotDef = T32[kSlot-1];
+      else if(isTel && window._TEL_T0 && window._TEL_T0[kSlot-1]) kSlotDef = window._TEL_T0[kSlot-1];
+      if(!kSlotDef) continue;
+      const kMeasure = (kSlotDef.measures||[]).find(mm => mm.label.replace(/[^a-zA-Z0-9_]/g,'_')===parts.slice(4).join('_'));
+      const mTime = kMeasure ? kMeasure.t : kSlotDef.blutStart;
+      if(!mTime) continue;
+      const [mh,mm] = mTime.split(':').map(Number);
+      const mMin = mh*60+mm;
+      // 30-min collision window
+      if(Math.abs(mMin - slotMin) < 30) {
+        return (isTel?'🧬 Tel ':'') + kTermin + ' ' + kDay + ' ' + mTime;
+      }
+    }
+    return null;
+  }
+
   // Filter out rooms blocked on this slot date
   roomSel.innerHTML = '<option value="">— kein Raum —</option>' +
     savedRooms.map(r=>{
       const blocked = slotDate && isRoomBlocked(r.name, slotDate);
-      return `<option value="${r.name}" ${r.name===selectedRoom?'selected':''} ${blocked?'disabled':''} style="${blocked?'color:#CCC':''}">
-        ${r.name}${blocked?' (belegt)':''}
+      const inUse = !blocked && isRoomInUse(r.name);
+      const disable = blocked || inUse;
+      const label = blocked ? ' (gesperrt)' : inUse ? ' (belegt: '+inUse+')' : '';
+      return `<option value="${r.name}" ${r.name===selectedRoom?'selected':''} ${disable?'disabled':''} style="${disable?'color:#CCC':''}">
+        ${r.name}${label}
       </option>`;
     }).join('');
   if(selectedRoom && !savedRooms.find(r=>r.name===selectedRoom)){
