@@ -681,6 +681,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     </div>
     <div class="unav-i" id="nav-telomer" style="display:none">
       <button class="ntab on"  onclick="goTab('tel-kalender',this)">Kalender</button>
+      <button class="ntab"     onclick="goTab('tel-erinnerungen',this)">🔔 Erinnerungen</button>
       <button class="ntab"     onclick="goTab('tel-probanden',this)">Probanden</button>
       <button class="ntab"     onclick="goTab('team',this)">Team &amp; Aufgaben</button>
       <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
@@ -772,10 +773,19 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div id="tab-recalls" class="panel">
       <div class="phdr">
         <div><div class="ptitle">Supplement-Ausgabe &amp; Recalls</div><div class="psub">Flexible Zwischentermine · Supplement-Ausgaben · pro Proband eintragen</div></div>
-        <div><button class="btn btn-sm btn-p" id="add-recall-btn" onclick="openAddRecall()">+ Recall eintragen</button></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <div style="display:flex;background:#fff;border:1px solid var(--g2);border-radius:var(--r);overflow:hidden">
+            <button id="recall-view-list-btn" onclick="setRecallView('list')"
+              style="padding:6px 14px;font-size:12px;font-family:'Source Sans 3',sans-serif;font-weight:600;border:none;background:var(--ub);color:#fff;cursor:pointer">📋 Liste</button>
+            <button id="recall-view-cal-btn" onclick="setRecallView('kalender')"
+              style="padding:6px 14px;font-size:12px;font-family:'Source Sans 3',sans-serif;font-weight:600;border:none;border-left:1px solid var(--g2);background:#fff;color:var(--g5);cursor:pointer">📅 Kalender</button>
+          </div>
+          <button class="btn btn-sm btn-p" id="add-recall-btn" onclick="openAddRecall()">+ Recall eintragen</button>
+        </div>
       </div>
       <div id="recall-holidays" style="margin-bottom:12px"></div>
       <div id="recall-list"></div>
+      <div id="recall-kalender-wrap" style="display:none"></div>
     </div>
 
     <!-- TEAM -->
@@ -1101,6 +1111,17 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <button id="tel-termin-T2" class="ttab"    onclick="setTelTermin('T2',this)" style="padding:8px 16px;border:none;background:none;border-bottom:3px solid transparent;font-weight:600;color:#888;cursor:pointer">T2 (+24 Wochen)</button>
       </div>
       <div id="tel-calendar-content"></div>
+    </div>
+
+    <!-- TELOMER ERINNERUNGSKALENDER -->
+    <div id="tab-tel-erinnerungen" class="panel">
+      <div class="phdr">
+        <div>
+          <div class="ptitle">🔔 Telomer Erinnerungskalender</div>
+          <div class="psub">9 Wochen nach T0 · 3 Wochen vor T1 kontaktieren · Termin vereinbaren</div>
+        </div>
+      </div>
+      <div id="tel-erinnerungen-content"></div>
     </div>
 
     <!-- TELOMER PROBANDEN -->
@@ -1703,7 +1724,7 @@ function kw(d) {
 const DOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
 
 // ── STATE ─────────────────────────
-let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={}, ROOMS={}, ROOM_BLOCKS={}, TELP={};
+let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={}, ROOMS={}, ROOM_BLOCKS={}, TELP={}, TEL_ERINNERUNGEN={};
 window._P = () => P;
 let cW=0, curTermin='T0';
 let _kw27T1Sub = 'T1.1'; // 'T1.1' or 'T1.2' — only relevant in KW 27
@@ -1861,6 +1882,12 @@ function startDB() {
   });
   onSnapshot(collection(db,'recalls'), snap => {
     RECALLS={}; snap.forEach(d=>{RECALLS[d.id]={...d.data(),_id:d.id}}); window._RECALLS=RECALLS; renderRecalls(); renderTable();
+    if(window._recallView==='kalender' && window.renderRecallKalender) window.renderRecallKalender();
+  });
+  onSnapshot(collection(db,'tel_erinnerungen'), snap => {
+    TEL_ERINNERUNGEN={}; snap.forEach(d=>{TEL_ERINNERUNGEN[d.id]={...d.data(),_id:d.id}});
+    window._TEL_ERINNERUNGEN = TEL_ERINNERUNGEN;
+    if(window.renderTelErinnerungen) window.renderTelErinnerungen();
   });
   onSnapshot(collection(db,'team'), snap => {
     TEAM={}; snap.forEach(d=>{TEAM[d.id]={...d.data(),_id:d.id}}); window._teamCache=TEAM; renderMemberList(); renderTaskTab();
@@ -4989,6 +5016,148 @@ function renderRecallHolidays() {
 }
 
 
+// ── RECALL KALENDERANSICHT ────────────────────────────────────────
+var _recallCalMonth = new Date().getMonth();
+var _recallCalYear  = new Date().getFullYear();
+window._recallView  = 'list';
+
+window.setRecallView = function(view) {
+  window._recallView = view;
+  var listEl  = document.getElementById('recall-list');
+  var calEl   = document.getElementById('recall-kalender-wrap');
+  var btnList = document.getElementById('recall-view-list-btn');
+  var btnCal  = document.getElementById('recall-view-cal-btn');
+  if(listEl)  listEl.style.display  = view==='list'     ? '' : 'none';
+  if(calEl)   calEl.style.display   = view==='kalender' ? '' : 'none';
+  if(btnList){ btnList.style.background=view==='list'?'var(--ub)':'#fff'; btnList.style.color=view==='list'?'#fff':'var(--g5)'; }
+  if(btnCal) { btnCal.style.background =view==='kalender'?'var(--ub)':'#fff'; btnCal.style.color=view==='kalender'?'#fff':'var(--g5)'; }
+  if(view==='kalender') renderRecallKalender();
+};
+
+window.recallCalNav = function(dir) {
+  _recallCalMonth += dir;
+  if(_recallCalMonth > 11){ _recallCalMonth=0; _recallCalYear++; }
+  if(_recallCalMonth < 0) { _recallCalMonth=11; _recallCalYear--; }
+  renderRecallKalender();
+};
+window.recallCalToday = function() {
+  _recallCalMonth = new Date().getMonth();
+  _recallCalYear  = new Date().getFullYear();
+  renderRecallKalender();
+};
+
+window.renderRecallKalender = function() {
+  var wrap = document.getElementById('recall-kalender-wrap'); if(!wrap) return;
+  var RECALLS   = window._RECALLS || {};
+  var allP      = window._P ? window._P() : {};
+  var localDate = window._localDate;
+  var isHoliday = window._isAustrianHoliday;
+  var isAdm     = window.isAdmin && window.isAdmin();
+  if(!localDate){ wrap.innerHTML='<div style="padding:20px;color:#888">Wird geladen…</div>'; return; }
+
+  var y = _recallCalYear, m = _recallCalMonth;
+  var p2 = function(x){ return String(x).padStart(2,'0'); };
+
+  // Events aufbauen: recall-termin, sachet-start, sachet-end
+  var events = {};
+  function addEv(ds, ev) { if(!events[ds]) events[ds]=[]; events[ds].push(ev); }
+
+  Object.values(RECALLS).forEach(function(r) {
+    var p   = Object.values(allP).find(function(x){ return x._id===r.pid; });
+    var pid = p ? (p.pid||'—') : '?';
+    var lnr = p ? (p.lnr||'') : '';
+    if(r.date) {
+      addEv(r.date, {type:'recall', pid:pid, lnr:lnr, time:r.time||'', recallId:r._id, sachets:r.sachets||0});
+    }
+    var startDs = r.sachetStart || r.date;
+    if(startDs && r.sachets) {
+      addEv(startDs, {type:'sachet-start', pid:pid, lnr:lnr, sachets:r.sachets, recallId:r._id});
+      var endDate = new Date(startDs+'T12:00');
+      endDate.setDate(endDate.getDate() + parseInt(r.sachets) - 1);
+      var endDs = endDate.getFullYear()+'-'+p2(endDate.getMonth()+1)+'-'+p2(endDate.getDate());
+      addEv(endDs, {type:'sachet-end', pid:pid, lnr:lnr, sachets:r.sachets, recallId:r._id});
+    }
+  });
+
+  var MONATE = ['Jänner','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  var todayStr  = localDate(new Date());
+  var firstDay  = new Date(y,m,1);
+  var totalDays = new Date(y,m+1,0).getDate();
+  var startDow  = (firstDay.getDay()+6)%7;
+  var DOWS = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+
+  var thisMonthRecalls = Object.keys(events).filter(function(ds){
+    return ds.startsWith(y+'-'+p2(m+1)) && events[ds].some(function(e){ return e.type==='recall'; });
+  }).length;
+  var thisMonthEnds = Object.keys(events).filter(function(ds){
+    return ds.startsWith(y+'-'+p2(m+1)) && events[ds].some(function(e){ return e.type==='sachet-end'; });
+  }).length;
+
+  var html = '<div class="month-nav">'
+    + '<div style="display:flex;gap:3px"><button class="arr" onclick="recallCalNav(-1)">&#8592;</button><button class="arr" onclick="recallCalNav(1)">&#8594;</button></div>'
+    + '<span class="month-badge" style="background:var(--ub)">' + MONATE[m] + ' ' + y + '</span>'
+    + '<button class="btn btn-sm" onclick="recallCalToday()" style="margin-left:4px">Aktueller Monat</button>'
+    + '<span style="margin-left:auto;font-size:12px;color:var(--g5)">'
+    + thisMonthRecalls + ' Recall-Termin' + (thisMonthRecalls!==1?'e':'')
+    + (thisMonthEnds ? ' &nbsp;·&nbsp; ' + thisMonthEnds + ' Sachet-Ende' + (thisMonthEnds!==1?'s':'') : '')
+    + '</span></div>';
+
+  html += '<div class="cal-grid" style="margin-bottom:12px">';
+  DOWS.forEach(function(d){ html += '<div class="cal-dow">'+d+'</div>'; });
+  for(var i=0; i<startDow; i++) html += '<div class="cal-day other-month"></div>';
+
+  for(var d=1; d<=totalDays; d++) {
+    var ds = y+'-'+p2(m+1)+'-'+p2(d);
+    var isToday   = ds===todayStr;
+    var date      = new Date(y,m,d);
+    var isWeekend = (date.getDay()+6)%7 >= 5;
+    var holiday   = isHoliday ? isHoliday(date) : null;
+    var dayEvs    = events[ds]||[];
+    var hasRecall = dayEvs.some(function(e){ return e.type==='recall'; });
+    var hasEnd    = dayEvs.some(function(e){ return e.type==='sachet-end'; });
+    var bgColor   = isToday ? '#E3EEFF' : hasEnd ? '#FFF9F0' : hasRecall ? '#FEF9F5' : isWeekend||holiday ? 'var(--g1)' : '#fff';
+
+    var evHtml = dayEvs.map(function(ev) {
+      if(ev.type==='recall') {
+        return '<div onclick="' + (isAdm ? "openEditRecall('"+ev.recallId+"')" : '') + '"'
+          + ' style="background:#FEF3EC;border:1px solid #F4C09A;color:#B85010;border-radius:3px;padding:2px 5px;font-size:9.5px;font-weight:600;margin-bottom:2px;' + (isAdm?'cursor:pointer':'') + '">'
+          + '📋 ' + ev.pid + (ev.time ? ' <span style="font-weight:400;color:#C88040">'+ev.time+'</span>' : '')
+          + (ev.sachets ? ' <span style="color:#2E7D32;font-weight:700">💊'+ev.sachets+'</span>' : '')
+          + '</div>';
+      } else if(ev.type==='sachet-start') {
+        return '<div style="background:#E8F5E9;border:1px solid #A5D6A7;color:#2E7D32;border-radius:3px;padding:2px 5px;font-size:9.5px;font-weight:600;margin-bottom:2px">'
+          + '💊▶ ' + ev.pid + ' <span style="font-weight:400">' + ev.sachets + ' St.</span></div>';
+      } else if(ev.type==='sachet-end') {
+        return '<div style="background:#FFF3E0;border:1px solid #FFB74D;color:#E65100;border-radius:3px;padding:2px 5px;font-size:9.5px;font-weight:600;margin-bottom:2px">'
+          + '💊■ ' + ev.pid + ' <span style="font-weight:400">leer</span></div>';
+      }
+      return '';
+    }).join('');
+
+    html += '<div class="cal-day' + (isToday?' today':'') + '"'
+      + ' style="min-height:80px;background:' + bgColor + ';' + (isToday?'box-shadow:0 0 0 2px var(--ub);':'') + '">'
+      + '<div class="cal-day-num' + (isToday?' today-num':'') + '" style="color:' + (isWeekend||holiday?'#A89070':isToday?'var(--ub)':'#555') + '">'
+      + d + (holiday?' 🎉':'') + '</div>'
+      + evHtml
+      + (isAdm ? '<button class="add-absent-btn" onclick="openAddRecall()" style="background:#F0C898;border-color:#E0A868">+ Recall</button>' : '')
+      + '</div>';
+  }
+
+  var filled = startDow + totalDays;
+  var rem = (7 - filled%7)%7;
+  for(var j=0; j<rem; j++) html += '<div class="cal-day other-month"></div>';
+  html += '</div>';
+
+  html += '<div style="display:flex;gap:14px;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid var(--g2);border-radius:var(--r)">'
+    + '<span style="font-size:11px;font-weight:700;color:var(--g5)">Legende:</span>'
+    + '<span style="display:flex;align-items:center;gap:5px;font-size:11.5px"><span style="width:12px;height:12px;background:#FEF3EC;border:1px solid #F4C09A;border-radius:2px;display:inline-block"></span><span style="color:#B85010;font-weight:600">📋 Recall-Termin</span></span>'
+    + '<span style="display:flex;align-items:center;gap:5px;font-size:11.5px"><span style="width:12px;height:12px;background:#E8F5E9;border:1px solid #A5D6A7;border-radius:2px;display:inline-block"></span><span style="color:#2E7D32;font-weight:600">💊▶ Sachet-Start</span></span>'
+    + '<span style="display:flex;align-items:center;gap:5px;font-size:11.5px"><span style="width:12px;height:12px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:2px;display:inline-block"></span><span style="color:#E65100;font-weight:600">💊■ Sachet-Ende (Vorrat leer)</span></span>'
+    + '</div>';
+
+  wrap.innerHTML = html;
+};
+
 function goTab(name,btn){
   document.querySelectorAll('.ntab').forEach(b=>b.classList.remove('on'));
   if(btn) btn.classList.add('on');
@@ -4997,7 +5166,7 @@ function goTab(name,btn){
   const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export',abwesenheit:'Abwesenheiten',raumplan:'Live Raumplan',studio:'Studio & Training'};
   document.getElementById('bcc').textContent=L[name]||name;
   if(name==='team'){tW=cW;renderTaskTab();}
-  if(name==='recalls'){ renderRecallHolidays(); }
+  if(name==='recalls'){ renderRecallHolidays(); if(window._recallView==='kalender' && window.renderRecallKalender) window.renderRecallKalender(); }
   if(name==='abwesenheit'){renderAbsentCal();}
   if(name==='backup'){renderRoomList();}
   if(name==='studio'){spRenderProbanden();}
@@ -7281,6 +7450,191 @@ window.exportTelProbanden = function() {
   toast('Export erstellt ✓');
 };
 
+// ── TELOMER ERINNERUNGSKALENDER ──────────────────────────────────
+window.renderTelErinnerungen = function() {
+  var el = document.getElementById('tel-erinnerungen-content'); if(!el) return;
+  var wDay = window._wDay;
+  var localDate = window._localDate;
+  if(!wDay || !localDate) { el.innerHTML='<div style="padding:20px;color:#888">Wird geladen…</div>'; return; }
+
+  var DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
+  var today  = new Date(); today.setHours(0,0,0,0);
+  var TEAM   = window._teamCache || {};
+  var ERINNERUNGEN = window._TEL_ERINNERUNGEN || {};
+  var isAdm  = window.isAdmin && window.isAdmin();
+
+  var tps = Object.values(window._TELP || {}).filter(function(tp){
+    return tp.t0week !== undefined && tp.t0week !== null && tp.t0day;
+  });
+
+  if(!tps.length) {
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:#888;font-style:italic">Noch keine Telomer-Probanden mit T0-Termin vorhanden.</div>';
+    return;
+  }
+
+  var entries = tps.map(function(tp) {
+    var t0Date = wDay(tp.t0week, DAYOFF[tp.t0day]||0);
+    t0Date.setHours(0,0,0,0);
+    var reminderDate = new Date(t0Date); reminderDate.setDate(t0Date.getDate() + 63);
+    var t1TargetDate = new Date(t0Date); t1TargetDate.setDate(t0Date.getDate() + 84);
+    var daysUntil    = Math.round((reminderDate - today) / 86400000);
+    var t1Booked     = tp.t1week !== undefined && tp.t1week !== null && tp.t1day;
+    var erin         = ERINNERUNGEN[tp._id] || {};
+    var erledigt     = !!(erin.erledigt || t1Booked);
+    return {tp:tp, t0Date:t0Date, reminderDate:reminderDate, t1TargetDate:t1TargetDate,
+            daysUntil:daysUntil, t1Booked:t1Booked, erin:erin, erledigt:erledigt};
+  }).sort(function(a, b) {
+    if(a.erledigt !== b.erledigt) return a.erledigt ? 1 : -1;
+    return a.daysUntil - b.daysUntil;
+  });
+
+  var offen = entries.filter(function(e){ return !e.erledigt && e.daysUntil <= 0; }).length;
+  var bald  = entries.filter(function(e){ return !e.erledigt && e.daysUntil > 0 && e.daysUntil <= 14; }).length;
+  var erlN  = entries.filter(function(e){ return e.erledigt; }).length;
+
+  var statsHtml = '<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">'
+    + (offen ? '<div style="background:#FDF2F4;border:1px solid #E8BFBF;border-left:4px solid #C8102E;border-radius:var(--r);padding:9px 14px;font-size:13px;color:#C8102E;font-weight:700">🔴 ' + offen + ' überfällig</div>' : '')
+    + (bald  ? '<div style="background:#FFF8E0;border:1px solid #FFCC80;border-left:4px solid #E87127;border-radius:var(--r);padding:9px 14px;font-size:13px;color:#C8870A;font-weight:700">🟡 ' + bald + ' in &lt;2 Wochen fällig</div>' : '')
+    + '<div style="background:#F2FAF5;border:1px solid #A5D6A7;border-left:4px solid #2E8B57;border-radius:var(--r);padding:9px 14px;font-size:13px;color:#2E8B57;font-weight:700">✅ ' + erlN + ' / ' + entries.length + ' erledigt</div>'
+    + '</div>';
+
+  var cardsHtml = entries.map(function(entry) {
+    var tp   = entry.tp;
+    var id   = tp._id;
+    var erin = entry.erin;
+    var dU   = entry.daysUntil;
+
+    var t0Str  = entry.t0Date.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+    var remStr = entry.reminderDate.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+    var t1TargetKW  = window.kw ? window.kw(entry.t1TargetDate) : '?';
+    var t1TargetStr = entry.t1TargetDate.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'});
+
+    var leftBorder, bg, statusLabel, statusColor;
+    if(entry.t1Booked) {
+      leftBorder='#2E8B57'; bg='#F2FAF5'; statusLabel='T1 gebucht ✅'; statusColor='#2E8B57';
+    } else if(erin.erledigt) {
+      leftBorder='#4A90D9'; bg='#EEF5FC'; statusLabel='Kontakt erfolgt'; statusColor='#4A90D9';
+    } else if(dU < 0) {
+      leftBorder='#C8102E'; bg='#FDF5F5'; statusLabel='Überfällig · '+Math.abs(dU)+' Tage'; statusColor='#C8102E';
+    } else if(dU === 0) {
+      leftBorder='#E65100'; bg='#FFF5EF'; statusLabel='Heute fällig!'; statusColor='#E65100';
+    } else if(dU <= 7) {
+      leftBorder='#E87127'; bg='#FFF9F0'; statusLabel='Fällig in '+dU+' Tagen'; statusColor='#E87127';
+    } else if(dU <= 14) {
+      leftBorder='#C8870A'; bg='#FFFDE7'; statusLabel='Fällig in '+dU+' Tagen'; statusColor='#C8870A';
+    } else {
+      leftBorder='#B0BEC5'; bg='#fff'; statusLabel='Fällig in '+dU+' Tagen'; statusColor='#90A4AE';
+    }
+
+    var t1InfoHtml = '';
+    if(entry.t1Booked) {
+      var t1Date = wDay(tp.t1week, DAYOFF[tp.t1day]||0);
+      var t1Str  = t1Date.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+      t1InfoHtml = '<div style="margin-top:10px;padding:9px 12px;background:#E8F5E9;border-radius:6px;font-size:12px;color:#2E7D32;font-weight:600">✅ T1-Termin bereits gebucht: '+t1Str+'</div>';
+    }
+
+    var savedInfoHtml = '';
+    if(!entry.t1Booked && !isAdm && (erin.erledigt || erin.kontakt || erin.anmerkung)) {
+      var parts = [];
+      if(erin.kontakt) parts.push(erin.kontakt==='mail'?'📧 Mail':'📞 Telefon');
+      if(erin.kuerzel) parts.push('von '+erin.kuerzel);
+      savedInfoHtml = '<div style="margin-top:10px;padding:9px 12px;background:#EEF5FC;border-radius:6px;font-size:12px;color:#4A90D9">'
+        + (parts.length ? parts.join(' · ') : 'Kontakt erfolgt')
+        + (erin.anmerkung ? '<div style="margin-top:4px;color:#555;font-weight:400">📝 '+erin.anmerkung+'</div>' : '')
+        + '</div>';
+    }
+
+    var formHtml = '';
+    if(!entry.t1Booked && isAdm) {
+      var kontakt = erin.kontakt || '';
+      var kuerzel = erin.kuerzel || '';
+      var anmerkung = erin.anmerkung || '';
+      var erledigtChecked = erin.erledigt ? 'checked' : '';
+      var teamOptHtml = Object.values(TEAM).map(function(m2) {
+        var kz = m2.kuerzel || m2.name.slice(0,2).toUpperCase();
+        return '<option value="'+kz+'">'+m2.name+(m2.kuerzel?' ('+m2.kuerzel+')':'')+'</option>';
+      }).join('');
+
+      formHtml = '<div style="border-top:1px solid #E8E4DE;margin-top:12px;padding-top:12px">'
+        + '<input type="hidden" id="erin-kontakt-'+id+'" value="'+kontakt+'">'
+        + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
+        + '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;font-weight:700;color:#4A2A1F">'
+        + '<input type="checkbox" id="erin-done-'+id+'" '+erledigtChecked+' style="width:17px;height:17px;accent-color:#8B5A4A;cursor:pointer"> Kontakt erfolgt</label>'
+        + '<button id="erin-mail-'+id+'" type="button" onclick="telErinToggleKontakt(\''+id+'\',\'mail\')"'
+        + ' style="padding:5px 13px;border-radius:99px;border:1px solid '+(kontakt==='mail'?'#4A90D9':'#DDD')+';background:'+(kontakt==='mail'?'#EEF5FC':'#fff')+';color:'+(kontakt==='mail'?'#4A90D9':'#888')+';font-size:11px;font-weight:700;cursor:pointer">📧 Mail</button>'
+        + '<button id="erin-tel-'+id+'" type="button" onclick="telErinToggleKontakt(\''+id+'\',\'telefon\')"'
+        + ' style="padding:5px 13px;border-radius:99px;border:1px solid '+(kontakt==='telefon'?'#4A90D9':'#DDD')+';background:'+(kontakt==='telefon'?'#EEF5FC':'#fff')+';color:'+(kontakt==='telefon'?'#4A90D9':'#888')+';font-size:11px;font-weight:700;cursor:pointer">📞 Telefon</button>'
+        + '<div style="display:flex;align-items:center;gap:6px;margin-left:4px">'
+        + '<label style="font-size:11px;color:#999;white-space:nowrap">Wer:</label>'
+        + '<input id="erin-kuerzel-'+id+'" list="erin-kuerzel-list-'+id+'" value="'+kuerzel+'" placeholder="Kürzel" maxlength="10"'
+        + ' style="width:80px;padding:5px 8px;border:1px solid #DDD;border-radius:6px;font-size:12px;font-family:monospace;outline:none">'
+        + '<datalist id="erin-kuerzel-list-'+id+'">'+teamOptHtml+'</datalist>'
+        + '</div></div>'
+        + '<textarea id="erin-anmerkung-'+id+'" rows="2" placeholder="Offene Fragen, Anmerkungen …"'
+        + ' style="width:100%;padding:7px 10px;border:1px solid #DDD;border-radius:8px;font-size:12px;resize:vertical;outline:none;font-family:\'Source Sans 3\',sans-serif;color:#414141">'
+        + anmerkung.replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        + '</textarea>'
+        + '<div style="text-align:right;margin-top:8px">'
+        + '<button type="button" onclick="saveTelErinnerung(\''+id+'\')"'
+        + ' style="padding:7px 18px;background:#8B5A4A;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">💾 Speichern</button>'
+        + '</div></div>';
+    }
+
+    return '<div style="background:'+bg+';border:1px solid #E0DDD8;border-left:4px solid '+leftBorder+';border-radius:var(--rl);padding:16px 18px;margin-bottom:12px;box-shadow:var(--sh)">'
+      + '<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">'
+      + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+      + '<span style="font-family:monospace;font-size:14px;font-weight:800;color:#4A2A1F;background:#EAD4CB;padding:3px 12px;border-radius:99px;border:1px solid #C9A999">'+tp.tid+(tp.aufpassen?' ⚠️':'')+'</span>'
+      + (tp.lnr ? '<span style="font-size:12px;color:var(--g5)">Laufnr. <strong style="color:var(--bk)">'+tp.lnr+'</strong></span>' : '')
+      + '</div>'
+      + '<span style="font-size:11px;font-weight:700;color:'+statusColor+';border:1px solid '+leftBorder+';padding:3px 10px;border-radius:99px;white-space:nowrap">'+statusLabel+'</span>'
+      + '</div>'
+      + '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--g5)">'
+      + '<span>📅 T0: <strong style="color:#4A2A1F">'+t0Str+'</strong></span>'
+      + '<span>🔔 Erinnerung: <strong style="color:'+statusColor+'">'+remStr+'</strong></span>'
+      + '<span style="color:#999;font-size:11px">→ T1 Zieltermin: <strong>KW '+t1TargetKW+' (≈ '+t1TargetStr+')</strong></span>'
+      + '</div>'
+      + t1InfoHtml + savedInfoHtml + formHtml
+      + '</div>';
+  }).join('');
+
+  el.innerHTML = statsHtml + cardsHtml;
+};
+
+window.telErinToggleKontakt = function(id, type) {
+  var hidden = document.getElementById('erin-kontakt-'+id); if(!hidden) return;
+  var newVal = hidden.value === type ? '' : type;
+  hidden.value = newVal;
+  ['mail','telefon'].forEach(function(t) {
+    var btn = document.getElementById('erin-'+(t==='mail'?'mail':'tel')+'-'+id); if(!btn) return;
+    var active = newVal === t;
+    btn.style.borderColor = active?'#4A90D9':'#DDD';
+    btn.style.background  = active?'#EEF5FC':'#fff';
+    btn.style.color       = active?'#4A90D9':'#888';
+  });
+};
+
+window.saveTelErinnerung = async function(telpId) {
+  var tp = window._TELP ? window._TELP[telpId] : null; if(!tp) return;
+  var doneEl    = document.getElementById('erin-done-'+telpId);
+  var kontaktEl = document.getElementById('erin-kontakt-'+telpId);
+  var kuerzelEl = document.getElementById('erin-kuerzel-'+telpId);
+  var anmEl     = document.getElementById('erin-anmerkung-'+telpId);
+  var data = {
+    telpId:    telpId,
+    tid:       tp.tid || '',
+    erledigt:  doneEl    ? doneEl.checked        : false,
+    kontakt:   kontaktEl ? kontaktEl.value        : '',
+    kuerzel:   kuerzelEl ? kuerzelEl.value.trim() : '',
+    anmerkung: anmEl     ? anmEl.value.trim()     : '',
+    updated:   Date.now()
+  };
+  try {
+    var fns = window._fbFns;
+    await fns.setDoc(fns.doc(window.db, 'tel_erinnerungen', telpId), data);
+    toast('Erinnerung gespeichert ✓');
+  } catch(e) { toast('Fehler: '+e.message, true); }
+};
+
 // Hook into goTab for Telomer tabs
 (function(){
   var origGoTab = window.goTab;
@@ -7288,7 +7642,6 @@ window.exportTelProbanden = function() {
   window.goTab = function(name, btn){
     origGoTab(name, btn);
     if(name==='tel-kalender'){
-      // Set to current week if not yet manually navigated
       if(!window._telManualNav && window.START) {
         var now = new Date(); now.setHours(12,0,0,0);
         var day = now.getDay()||7;
@@ -7297,6 +7650,7 @@ window.exportTelProbanden = function() {
       }
       renderTelKalender();
     }
+    if(name==='tel-erinnerungen'){ renderTelErinnerungen(); }
     if(name==='tel-probanden'){ renderTelProbanden(); }
     if(name==='tel-fortschritt'){ renderTelFortschritt(); }
   };
