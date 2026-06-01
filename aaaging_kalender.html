@@ -4538,13 +4538,25 @@ window.saveMrtSlotTime = async () => {
   } catch(e){toast('Fehler: '+e.message,true);}
 };
 window.delMrtSlotTime = async (w, day, idx) => {
-  if(!confirm('Slot wirklich entfernen?')) return;
   const existing = Object.values(MRT_SLOTS).find(s=>s.week===w&&s.day===day);
   if(!existing) return;
-  const times = existing.times.filter((_,i)=>i!==idx);
+  // Prüfen ob dieser Slot belegt ist
+  const booking = byMRT(w, day, idx);
+  const msg = booking
+    ? `Dieser Slot ist belegt mit ${booking.pid} (${booking.lnr})!\n\nSlot-Zeit UND Proband-Buchung wirklich entfernen?`
+    : 'Slot wirklich entfernen?';
+  if(!confirm(msg)) return;
   try {
-    const {setDoc,doc:fdoc}=window._fbFns;
-    await setDoc(fdoc(db,'mrt_slots',existing._id),{week:w,day,times});
+    // Gebuchten Proband entfernen falls vorhanden
+    if(booking) await deleteDoc(doc(db,'mrt_bookings',booking._id));
+    // Alle nachfolgenden slotIdx um 1 nach vorne korrigieren
+    const toShift = Object.values(MRT_BOOKINGS).filter(b=>b.week===w&&b.day===day&&b.slotIdx>idx);
+    for(const b of toShift) {
+      await updateDoc(doc(db,'mrt_bookings',b._id),{slotIdx:b.slotIdx-1});
+    }
+    // Slot-Zeit entfernen
+    const times = existing.times.filter((_,i)=>i!==idx);
+    await setDoc(doc(db,'mrt_slots',existing._id),{week:w,day,times});
     toast('Slot entfernt ✓');
   } catch(e){toast('Fehler: '+e.message,true);}
 };
@@ -4609,13 +4621,25 @@ window.saveFamSlotTime = async () => {
   } catch(e){toast('Fehler: '+e.message,true);}
 };
 window.delFamSlotTime = async (w, day, idx) => {
-  if(!confirm('Slot wirklich entfernen?')) return;
   const existing = Object.values(FAM_SLOTS).find(s=>s.week===w&&s.day===day);
   if(!existing) return;
-  const times = existing.times.filter((_,i)=>i!==idx);
+  // Prüfen ob dieser Slot belegt ist
+  const booking = byFAM(w, day, idx);
+  const msg = booking
+    ? `Dieser Slot ist belegt mit ${booking.pid} (${booking.lnr})!\n\nSlot-Zeit UND Proband-Buchung wirklich entfernen?`
+    : 'Slot wirklich entfernen?';
+  if(!confirm(msg)) return;
   try {
-    const {setDoc,doc:fdoc}=window._fbFns;
-    await setDoc(fdoc(db,'fam_slots',existing._id),{week:w,day,times});
+    // Gebuchten Proband entfernen falls vorhanden
+    if(booking) await deleteDoc(doc(db,'fam_bookings',booking._id));
+    // Alle nachfolgenden slotIdx um 1 nach vorne korrigieren
+    const toShift = Object.values(FAM_BOOKINGS).filter(b=>b.week===w&&b.day===day&&b.slotIdx>idx);
+    for(const b of toShift) {
+      await updateDoc(doc(db,'fam_bookings',b._id),{slotIdx:b.slotIdx-1});
+    }
+    // Slot-Zeit entfernen
+    const times = existing.times.filter((_,i)=>i!==idx);
+    await setDoc(doc(db,'fam_slots',existing._id),{week:w,day,times});
     toast('Slot entfernt ✓');
   } catch(e){toast('Fehler: '+e.message,true);}
 };
