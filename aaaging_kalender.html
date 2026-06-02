@@ -2014,7 +2014,6 @@ function renderWeek() {
     const _isKw27 = isKW27(cW);
     if(_isKw27) {
       // KW 27: alle 4 Tage zeigen entweder T1.1 (Vormittag) ODER T1.2 (Nachmittag)
-      // Eigenes Buchungssystem (kw27_bookings) — UNABHÄNGIG von regulären T1-Feldern
       if(_kw27T1Sub === 'T1.1') {
         slotSets = days.map(()=>T11);
         getters = days.map(()=>byT11);
@@ -3050,7 +3049,10 @@ window.saveProband = async () => {
   const _t1s11=document.getElementById('ip-t1s11').value;
   const _t1s12=document.getElementById('ip-t1s12').value;
   const hasT0 = _t0w!=='' && _t0s!=='';
-  const hasT1 = _t1w!=='' && _t1s11!=='' && _t1s12!=='';
+  // T1.1 und T1.2 unabhängig: jeweils nur speichern wenn ausgefüllt
+  const hasT1_1 = _t1w!=='' && _t1s11!=='';
+  const hasT1_2 = _t1w!=='' && _t1s12!=='';
+  const hasT1   = hasT1_1 || hasT1_2;
 
   const data={
     pid,lnr,
@@ -3059,10 +3061,12 @@ window.saveProband = async () => {
       t0day:document.getElementById('ip-t0day').value,
       t0slot:parseInt(_t0s)
     } : {}),
-    ...(hasT1 ? {
-      t1week:parseInt(_t1w),
+    ...(hasT1 ? { t1week:parseInt(_t1w) } : {}),
+    ...(hasT1_1 ? {
       t1day11:document.getElementById('ip-t1day11').value,
-      t1slot11:parseInt(_t1s11),
+      t1slot11:parseInt(_t1s11)
+    } : {}),
+    ...(hasT1_2 ? {
       t1day12:document.getElementById('ip-t1day12').value,
       t1slot12:parseInt(_t1s12)
     } : {}),
