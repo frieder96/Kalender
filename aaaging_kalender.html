@@ -1838,14 +1838,37 @@ const byT32 = (w,day,slot) => Object.values(P).find(p=>p.t3week===w&&p.t3day12==
 
 // EEG/MRT booking lookups
 const byEEG = (w,day,slot) => Object.values(EEG_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.slot===slot)||null;
-const byMRT = (w,day,slotIdx) => Object.values(MRT_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.slotIdx===slotIdx)||null;
+// MRT: Lookup by time string (new), fällt zurück auf slotIdx (alte Daten)
+const byMRT = (w, day, time) => {
+  let bk = Object.values(MRT_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.time===time);
+  if(bk) return bk;
+  // Legacy-Fallback: alte Buchungen mit slotIdx → Position in aktueller times-Liste
+  const times = getMrtSlotsForDay(w, day);
+  const idx = times.indexOf(time);
+  if(idx >= 0) {
+    bk = Object.values(MRT_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.slotIdx===idx);
+    if(bk) return bk;
+  }
+  return null;
+};
 
 // Get MRT slot times for a given week+day — always manual
 function getMrtSlotsForDay(w, day) {
   const stored = Object.values(MRT_SLOTS).find(s=>s.week===w&&s.day===day);
   return stored?.times || [];
 }
-const byFAM = (w,day,slotIdx) => Object.values(FAM_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.slotIdx===slotIdx)||null;
+// FAM: Lookup by time string (new), fällt zurück auf slotIdx (alte Daten)
+const byFAM = (w, day, time) => {
+  let bk = Object.values(FAM_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.time===time);
+  if(bk) return bk;
+  const times = getFamSlotsForDay(w, day);
+  const idx = times.indexOf(time);
+  if(idx >= 0) {
+    bk = Object.values(FAM_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.slotIdx===idx);
+    if(bk) return bk;
+  }
+  return null;
+};
 function getFamSlotsForDay(w, day) {
   const stored = Object.values(FAM_SLOTS).find(s=>s.week===w&&s.day===day);
   return stored?.times || [];
@@ -2330,14 +2353,14 @@ function renderMRTWeek() {
   MRT_DAYS.forEach(d => {
     const times = getMrtSlotsForDay(cW, d.label);
     total += times.length;
-    times.forEach((_,i) => { if(byMRT(cW,d.label,i)) filled++; });
+    times.forEach(t => { if(byMRT(cW,d.label,t)) filled++; });
   });
   document.getElementById('wfill').textContent = `${filled} / ${total} Slots belegt`;
 
   content.innerHTML = `<div class="dgrid" style="grid-template-columns:repeat(5,1fr)">${MRT_DAYS.map(d => {
     const date = wDay(cW, d.off);
     const times = getMrtSlotsForDay(cW, d.label);
-    const dayFilled = times.filter((_,i)=>byMRT(cW,d.label,i)).length;
+    const dayFilled = times.filter(t=>byMRT(cW,d.label,t)).length;
     const pct = times.length ? Math.round(dayFilled/times.length*100) : 0;
 
     const daySperre = Object.values(SPERREN).find(sp =>
@@ -2360,7 +2383,7 @@ function renderMRTWeek() {
     const slotCards = times.length === 0
       ? `<div style="padding:1rem;text-align:center;font-size:11px;color:var(--g4);font-style:italic">Keine Slots eingetragen</div>`
       : times.map((t,i) => {
-          const bk = byMRT(cW, d.label, i);
+          const bk = byMRT(cW, d.label, t);
           const slotSperr = Object.values(SPERREN).find(sp =>
             sp.week===cW && sp.day===d.label && Number(sp.slot)===Number(i) && (sp.termin==='MRT'||sp.termin==='ALL'));
           const isSp = slotSperr || daySperre;
@@ -2373,12 +2396,12 @@ function renderMRTWeek() {
             ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong></div>`
             : bk
               ? `<div class="prow"><span class="pbadge">${bk.pid}</span><span class="lbadge">${bk.lnr}</span>${isAdmin()?`<button class="btn btn-xs btn-d" onclick="delMRTBooking('${bk._id}')">✕</button>`:''}</div>${bk.note?`<div style="font-size:10.5px;color:var(--g5);font-style:italic;margin-top:3px;padding:3px 6px;background:var(--g1);border-radius:3px">📝 ${bk.note}</div>`:''}`
-              : `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()&&!daySperre?`<button class="btn btn-xs btn-p" onclick="openMRTBookModal(${cW},'${d.label}',${i})">+ Zuweisen</button>`:''}</div>`;
+              : `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()&&!daySperre?`<button class="btn btn-xs btn-p" onclick="openMRTBookModal(${cW},'${d.label}','${t}')">+ Zuweisen</button>`:''}</div>`;
 
           const lockIcon = isAdmin()
             ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'MRT','${d.label}',${i})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>` : '';
           const delSlotBtn = isAdmin()
-            ? `<button class="slot-lock-btn" onclick="delMrtSlotTime(${cW},'${d.label}',${i})" title="Slot entfernen" style="color:#C8102E">✕</button>` : '';
+            ? `<button class="slot-lock-btn" onclick="delMrtSlotTime(${cW},'${d.label}','${t}')" title="Slot entfernen" style="color:#C8102E">✕</button>` : '';
 
           return `<div class="sc ${bk&&!isSp?'booked':''} ${isSp?'slot-blocked':''}">
             <div class="sc-top">
@@ -2420,14 +2443,14 @@ function renderFAMWeek() {
   FAM_DAYS.forEach(d => {
     const times = getFamSlotsForDay(cW, d.label);
     total += times.length;
-    times.forEach((_,i) => { if(byFAM(cW,d.label,i)) filled++; });
+    times.forEach(t => { if(byFAM(cW,d.label,t)) filled++; });
   });
   document.getElementById('wfill').textContent = `${filled} / ${total} Slots belegt`;
 
   content.innerHTML = `<div class="dgrid" style="grid-template-columns:repeat(5,1fr)">${FAM_DAYS.map(d => {
     const date = wDay(cW, d.off);
     const times = getFamSlotsForDay(cW, d.label);
-    const dayFilled = times.filter((_,i)=>byFAM(cW,d.label,i)).length;
+    const dayFilled = times.filter(t=>byFAM(cW,d.label,t)).length;
     const pct = times.length ? Math.round(dayFilled/times.length*100) : 0;
 
     const daySperre = Object.values(SPERREN).find(sp =>
@@ -2450,7 +2473,7 @@ function renderFAMWeek() {
     const slotCards = times.length === 0
       ? `<div style="padding:1rem;text-align:center;font-size:11px;color:var(--g4);font-style:italic">Keine Slots eingetragen</div>`
       : times.map((t,i) => {
-          const bk = byFAM(cW, d.label, i);
+          const bk = byFAM(cW, d.label, t);
           const slotSperr = Object.values(SPERREN).find(sp =>
             sp.week===cW && sp.day===d.label && Number(sp.slot)===Number(i) && (sp.termin==='FAM'||sp.termin==='ALL'));
           const isSp = slotSperr || daySperre;
@@ -2469,7 +2492,7 @@ function renderFAMWeek() {
             ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong></div>`
             : bk
               ? `<div class="prow"><span class="pbadge">${bk.pid}</span><span class="lbadge">${bk.lnr}</span>${isAdmin()?`<button class="btn btn-xs btn-d" onclick="delFAMBooking('${bk._id}')">✕</button>`:''}</div>${bk.note?`<div style="font-size:10.5px;color:var(--g5);font-style:italic;margin-top:3px;padding:3px 6px;background:var(--g1);border-radius:3px">📝 ${bk.note}</div>`:''}`
-              : `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()&&!daySperre?`<button class="btn btn-xs btn-p" onclick="openFAMBookModal(${cW},'${d.label}',${i})">+ Zuweisen</button>`:''}</div>`;
+              : `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()&&!daySperre?`<button class="btn btn-xs btn-p" onclick="openFAMBookModal(${cW},'${d.label}','${t}')">+ Zuweisen</button>`:''}</div>`;
 
           const personRow = !isSp ? `<div class="meas-row" style="margin-top:4px">
             <span class="chip ciso" style="min-width:0;flex-shrink:0;font-size:9px">Durchführung · 📍 ${aRoom}</span>
@@ -2480,7 +2503,7 @@ function renderFAMWeek() {
           const lockIcon = isAdmin()
             ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'FAM','${d.label}',${i})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>` : '';
           const delSlotBtn = isAdmin()
-            ? `<button class="slot-lock-btn" onclick="delFamSlotTime(${cW},'${d.label}',${i})" title="Slot entfernen" style="color:#C8102E">✕</button>` : '';
+            ? `<button class="slot-lock-btn" onclick="delFamSlotTime(${cW},'${d.label}','${t}')" title="Slot entfernen" style="color:#C8102E">✕</button>` : '';
 
           return `<div class="sc ${bk&&!isSp?'booked':''} ${isSp?'slot-blocked':''}">
             <div class="sc-top">
@@ -4476,30 +4499,28 @@ window.delEEGBooking = async (id) => {
 
 // ── MRT BOOKING ───────────────────
 let _mrtBookCtx = null;
-window.openMRTBookModal = (w, day, slotIdx) => {
-  _mrtBookCtx = {w, day, slotIdx};
-  const times = getMrtSlotsForDay(w, day);
-  const t = times[slotIdx] || '?';
-  const [hh,mm] = t.split(':').map(Number);
+window.openMRTBookModal = (w, day, time) => {
+  _mrtBookCtx = {w, day, time};
+  const [hh,mm] = time.split(':').map(Number);
   const endMin = hh*60+mm+90;
   const endStr = `${String(Math.floor(endMin/60)).padStart(2,'0')}:${String(endMin%60).padStart(2,'0')}`;
   const sel = document.getElementById('mrt-book-pid');
   sel.innerHTML = Object.values(P).sort((a,b)=>(parseInt((a.pid||'').replace(/\D/g,''))||0)-(parseInt((b.pid||'').replace(/\D/g,''))||0)).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
-  document.getElementById('mrt-book-info').textContent = `${day} · KW ${kw(wMon(w))} · Slot ${slotIdx+1} (${t}–${endStr})`;
+  document.getElementById('mrt-book-info').textContent = `${day} · KW ${kw(wMon(w))} · ${time}–${endStr}`;
   document.getElementById('mrt-book-note').value='';
   document.getElementById('mrt-book-modal').style.display='flex';
 };
 window.closeMRTBookModal = () => { document.getElementById('mrt-book-modal').style.display='none'; };
 window.saveMRTBooking = async () => {
   if(!_mrtBookCtx) return;
-  const {w,day,slotIdx} = _mrtBookCtx;
+  const {w,day,time} = _mrtBookCtx;
   const pid_sel = document.getElementById('mrt-book-pid').value;
   const p = Object.values(P).find(x=>x._id===pid_sel);
   if(!p){toast('Proband nicht gefunden',true);return;}
   try {
     const {addDoc,collection:col} = window._fbFns;
     const note=document.getElementById('mrt-book-note').value.trim();
-    await addDoc(col(db,'mrt_bookings'),{week:w,day,slotIdx,pid:p.pid,lnr:p.lnr,probandId:p._id,note,created:Date.now()});
+    await addDoc(col(db,'mrt_bookings'),{week:w,day,time,pid:p.pid,lnr:p.lnr,probandId:p._id,note,created:Date.now()});
     toast('MRT-Slot gebucht ✓'); closeMRTBookModal();
   } catch(e){toast('Fehler: '+e.message,true);}
 };
@@ -4537,25 +4558,17 @@ window.saveMrtSlotTime = async () => {
     toast('Slot hinzugefügt ✓'); closeMrtSlotModal();
   } catch(e){toast('Fehler: '+e.message,true);}
 };
-window.delMrtSlotTime = async (w, day, idx) => {
+window.delMrtSlotTime = async (w, day, time) => {
   const existing = Object.values(MRT_SLOTS).find(s=>s.week===w&&s.day===day);
   if(!existing) return;
-  // Prüfen ob dieser Slot belegt ist
-  const booking = byMRT(w, day, idx);
+  const booking = byMRT(w, day, time);
   const msg = booking
-    ? `Dieser Slot ist belegt mit ${booking.pid} (${booking.lnr})!\n\nSlot-Zeit UND Proband-Buchung wirklich entfernen?`
-    : 'Slot wirklich entfernen?';
+    ? `Slot ${time} Uhr ist belegt mit ${booking.pid} (${booking.lnr})!\n\nSlot UND Proband-Buchung wirklich entfernen?`
+    : `Slot ${time} Uhr wirklich entfernen?`;
   if(!confirm(msg)) return;
   try {
-    // Gebuchten Proband entfernen falls vorhanden
     if(booking) await deleteDoc(doc(db,'mrt_bookings',booking._id));
-    // Alle nachfolgenden slotIdx um 1 nach vorne korrigieren
-    const toShift = Object.values(MRT_BOOKINGS).filter(b=>b.week===w&&b.day===day&&b.slotIdx>idx);
-    for(const b of toShift) {
-      await updateDoc(doc(db,'mrt_bookings',b._id),{slotIdx:b.slotIdx-1});
-    }
-    // Slot-Zeit entfernen
-    const times = existing.times.filter((_,i)=>i!==idx);
+    const times = existing.times.filter(t=>t!==time);
     await setDoc(doc(db,'mrt_slots',existing._id),{week:w,day,times});
     toast('Slot entfernt ✓');
   } catch(e){toast('Fehler: '+e.message,true);}
@@ -4563,30 +4576,28 @@ window.delMrtSlotTime = async (w, day, idx) => {
 
 // ── FAMILIARISIERUNG ──────────────
 let _famBookCtx = null, _famSlotCtx = null;
-window.openFAMBookModal = (w, day, slotIdx) => {
-  _famBookCtx = {w, day, slotIdx};
-  const times = getFamSlotsForDay(w, day);
-  const t = times[slotIdx] || '?';
-  const [hh,mm] = t.split(':').map(Number);
+window.openFAMBookModal = (w, day, time) => {
+  _famBookCtx = {w, day, time};
+  const [hh,mm] = time.split(':').map(Number);
   const endMin = hh*60+mm+60;
   const endStr = `${String(Math.floor(endMin/60)).padStart(2,'0')}:${String(endMin%60).padStart(2,'0')}`;
   const sel = document.getElementById('fam-book-pid');
   sel.innerHTML = Object.values(P).sort((a,b)=>(parseInt((a.pid||'').replace(/\D/g,''))||0)-(parseInt((b.pid||'').replace(/\D/g,''))||0)).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
-  document.getElementById('fam-book-info').textContent = `${day} · KW ${kw(wMon(w))} · Slot ${slotIdx+1} (${t}–${endStr}) · 📍 Isokinet`;
+  document.getElementById('fam-book-info').textContent = `${day} · KW ${kw(wMon(w))} · ${time}–${endStr} · 📍 Isokinet`;
   document.getElementById('fam-book-note').value='';
   document.getElementById('fam-book-modal').style.display='flex';
 };
 window.closeFAMBookModal = () => { document.getElementById('fam-book-modal').style.display='none'; };
 window.saveFAMBooking = async () => {
   if(!_famBookCtx) return;
-  const {w,day,slotIdx} = _famBookCtx;
+  const {w,day,time} = _famBookCtx;
   const pid_sel = document.getElementById('fam-book-pid').value;
   const p = Object.values(P).find(x=>x._id===pid_sel);
   if(!p){toast('Proband nicht gefunden',true);return;}
   try {
     const {addDoc,collection:col} = window._fbFns;
     const note=document.getElementById('fam-book-note').value.trim();
-    await addDoc(col(db,'fam_bookings'),{week:w,day,slotIdx,pid:p.pid,lnr:p.lnr,probandId:p._id,note,created:Date.now()});
+    await addDoc(col(db,'fam_bookings'),{week:w,day,time,pid:p.pid,lnr:p.lnr,probandId:p._id,note,created:Date.now()});
     toast('Familiarisierung gebucht ✓'); closeFAMBookModal();
   } catch(e){toast('Fehler: '+e.message,true);}
 };
@@ -4620,25 +4631,17 @@ window.saveFamSlotTime = async () => {
     toast('Slot hinzugefügt ✓'); closeFamSlotModal();
   } catch(e){toast('Fehler: '+e.message,true);}
 };
-window.delFamSlotTime = async (w, day, idx) => {
+window.delFamSlotTime = async (w, day, time) => {
   const existing = Object.values(FAM_SLOTS).find(s=>s.week===w&&s.day===day);
   if(!existing) return;
-  // Prüfen ob dieser Slot belegt ist
-  const booking = byFAM(w, day, idx);
+  const booking = byFAM(w, day, time);
   const msg = booking
-    ? `Dieser Slot ist belegt mit ${booking.pid} (${booking.lnr})!\n\nSlot-Zeit UND Proband-Buchung wirklich entfernen?`
-    : 'Slot wirklich entfernen?';
+    ? `Slot ${time} Uhr ist belegt mit ${booking.pid} (${booking.lnr})!\n\nSlot UND Proband-Buchung wirklich entfernen?`
+    : `Slot ${time} Uhr wirklich entfernen?`;
   if(!confirm(msg)) return;
   try {
-    // Gebuchten Proband entfernen falls vorhanden
     if(booking) await deleteDoc(doc(db,'fam_bookings',booking._id));
-    // Alle nachfolgenden slotIdx um 1 nach vorne korrigieren
-    const toShift = Object.values(FAM_BOOKINGS).filter(b=>b.week===w&&b.day===day&&b.slotIdx>idx);
-    for(const b of toShift) {
-      await updateDoc(doc(db,'fam_bookings',b._id),{slotIdx:b.slotIdx-1});
-    }
-    // Slot-Zeit entfernen
-    const times = existing.times.filter((_,i)=>i!==idx);
+    const times = existing.times.filter(t=>t!==time);
     await setDoc(doc(db,'fam_slots',existing._id),{week:w,day,times});
     toast('Slot entfernt ✓');
   } catch(e){toast('Fehler: '+e.message,true);}
