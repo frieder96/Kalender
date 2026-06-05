@@ -1612,7 +1612,9 @@ const T12 = Array.from({length:8},(_,i) => {
   ]};
 });
 
-// KW 27 (29.06.-02.07.2026): Sonderwoche — T1.2 stündlich 10:00-17:00 an allen 4 Tagen
+// Sonderwochen: T1.2 stündlich 10:00-17:00 an allen 4 Tagen
+//   KW 27 (29.06.-02.07.2026), KW 32 (03.08.-07.08.2026)
+const SONDERWOCHEN = [27, 32];
 const T12_KW27 = Array.from({length:8},(_,i) => {
   const sn=i+1, sH=10+i, sMm=0;
   const iso=`${String(sH).padStart(2,'0')}:${String(sMm).padStart(2,'0')}`;
@@ -1623,10 +1625,23 @@ const T12_KW27 = Array.from({length:8},(_,i) => {
   ]};
 });
 function getT12ForWeek(w) {
-  return kw(wMon(w))===27 ? T12_KW27 : T12;
+  // T12_KW27 wenn der MITTWOCH dieser Woche Sondertag ist (T1.2 läuft normalerweise Mi/Do)
+  // Vereinfachung: wenn ANY Tag der Woche Sondertag ist, nutze KW27-Slot-Set für die T1.2-Anzeige
+  return isKW27(w) ? T12_KW27 : T12;
 }
-function isKW27(w) { return kw(wMon(w))===27; }
+// Per-Tag-Check: Tag ist Sondertag (T1.1/T1.2 frei wählbar, T1.2 stündlich 10–17)
+function isSondertag(w, day) {
+  // KW 27 (29.06.2026): alle 4 Tage automatisch (Legacy-Kompatibilität)
+  if(kw(wMon(w)) === 27) return true;
+  // Manueller Eintrag in SONDERTAGE
+  return Object.values(SONDERTAGE).some(s => s.week===w && s.day===day);
+}
+// isKW27: gibt true zurück wenn IRGENDEIN Tag der Woche Sondertag ist (für Banner)
+function isKW27(w) {
+  return ['Montag','Dienstag','Mittwoch','Donnerstag'].some(d => isSondertag(w, d));
+}
 window._isKW27 = isKW27;
+window._isSondertag = isSondertag;
 
 // T2 & T3: same structure as T1 but T2.1/T3.1 (Mo/Di) have no 24h Recall
 const T21 = T11.map(s => ({...s, measures: s.measures.filter(m=>m.label!=='24h Recall')}));
@@ -1726,7 +1741,7 @@ function kw(d) {
 const DOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
 
 // ── STATE ─────────────────────────
-let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={}, ROOMS={}, ROOM_BLOCKS={}, TELP={}, TEL_ERINNERUNGEN={}, KW27_BOOKINGS={};
+let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={}, ROOMS={}, ROOM_BLOCKS={}, TELP={}, TEL_ERINNERUNGEN={}, KW27_BOOKINGS={}, SONDERTAGE={};
 window._P = () => P;
 let cW=0, curTermin='T0';
 let _kw27T1Sub = 'T1.1'; // 'T1.1' or 'T1.2' — only relevant in KW 27
@@ -1968,6 +1983,11 @@ function startDB() {
     window._KW27_BOOKINGS = KW27_BOOKINGS;
     renderWeek();
   });
+  onSnapshot(collection(db,'sondertage'), snap => {
+    SONDERTAGE={}; snap.forEach(d=>{SONDERTAGE[d.id]={...d.data(),_id:d.id}});
+    window._SONDERTAGE = SONDERTAGE;
+    renderWeek();
+  });
 }
 
 // ── AUTH ──────────────────────────
@@ -2014,16 +2034,21 @@ function renderWeek() {
   } else if (curTermin==='T1') {
     days=[{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
     const _isKw27 = isKW27(cW);
-    if(_isKw27) {
-      // KW 27: alle 4 Tage zeigen entweder T1.1 (Vormittag) ODER T1.2 (Nachmittag)
-      if(_kw27T1Sub === 'T1.1') {
-        slotSets = days.map(()=>T11);
-        getters = days.map(()=>byT11);
-      } else {
-        const _t12kw = getT12ForWeek(cW);
-        slotSets = days.map(()=>_t12kw);
-        getters = days.map(()=>byT12);
-      }
+    if(curTermin==='T1') {
+      // Per-Tag-Entscheidung: Sondertag → T1.1/T1.2 nach Toggle, sonst natürlich (Mo/Di=T1.1, Mi/Do=T1.2)
+      const _t12kw = getT12ForWeek(cW);
+      slotSets = days.map(d => {
+        if(isSondertag(cW, d.label)) {
+          return _kw27T1Sub === 'T1.1' ? T11 : _t12kw;
+        }
+        return (d.label==='Montag'||d.label==='Dienstag') ? T11 : T12;
+      });
+      getters = days.map(d => {
+        if(isSondertag(cW, d.label)) {
+          return _kw27T1Sub === 'T1.1' ? byT11 : byT12;
+        }
+        return (d.label==='Montag'||d.label==='Dienstag') ? byT11 : byT12;
+      });
     } else {
       const _slotsByDay={'Montag':T11,'Dienstag':T11,'Mittwoch':T12,'Donnerstag':T12};
       slotSets=days.map(d=>_slotsByDay[d.label]);
@@ -2057,8 +2082,18 @@ function renderWeek() {
   // KW 27 sub-tabs for T1 (Mo/Di + Mi/Do both run T1.1 morning + T1.2 afternoon)
   let _kw27Banner = '';
   if(curTermin==='T1' && isKW27(cW)) {
+    const _swKW   = kw(wMon(cW));
+    const _swMon  = wMon(cW);
+    const _swFri  = new Date(_swMon); _swFri.setDate(_swMon.getDate()+4);
+    const _fmt    = d => String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.';
+    const _swRange = _fmt(_swMon)+'–'+_fmt(_swFri);
+    const _isAutoKw27 = _swKW===27;
+    const _markedDays = ['Montag','Dienstag','Mittwoch','Donnerstag'].filter(d=>isSondertag(cW,d));
+    const _hdrText = _isAutoKw27
+      ? `⚡ Sonderwoche KW ${_swKW} (${_swRange}) — alle 4 Tage Sondertage`
+      : `⚡ Manuelle Sondertage in KW ${_swKW}: ${_markedDays.join(', ')}`;
     _kw27Banner = `<div style="margin-bottom:14px;padding:10px 14px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:var(--r)">
-      <div style="font-size:11px;font-weight:700;color:#E65100;margin-bottom:6px">⚡ Sonderwoche KW 27 (29.06.–02.07.) — T1.1 und T1.2 an allen 4 Tagen</div>
+      <div style="font-size:11px;font-weight:700;color:#E65100;margin-bottom:6px">${_hdrText}</div>
       <div style="display:flex;gap:6px">
         <button onclick="setKW27T1Sub('T1.1')" style="padding:6px 14px;border:1px solid #E65100;border-radius:4px;background:${_kw27T1Sub==='T1.1'?'#E65100':'#fff'};color:${_kw27T1Sub==='T1.1'?'#fff':'#E65100'};font-size:11px;font-weight:700;cursor:pointer">T1.1 (Vormittag · Blut)</button>
         <button onclick="setKW27T1Sub('T1.2')" style="padding:6px 14px;border:1px solid #E65100;border-radius:4px;background:${_kw27T1Sub==='T1.2'?'#E65100':'#fff'};color:${_kw27T1Sub==='T1.2'?'#fff':'#E65100'};font-size:11px;font-weight:700;cursor:pointer">T1.2 (Nachmittag · 10–17 Uhr)</button>
@@ -2124,9 +2159,9 @@ function renderWeek() {
           : _aaCrossInfo + _telWarn + `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddProbandSlot(${cW},'${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
 
       const measRows=s.measures.map(m=>{
-        // In KW 27: ASSIGN-Keys nach Sub-Termin trennen, damit T1.1 und T1.2
-        // nicht automatisch dieselbe Person bei RBANS / 24h Recall teilen
-        const _assignTermin = (isKW27(cW) && curTermin==='T1')
+        // Sondertag (KW 27 auto + manuell): ASSIGN-Keys nach Sub-Termin trennen,
+        // damit T1.1 und T1.2 nicht dieselbe Person bei RBANS / 24h Recall teilen
+        const _assignTermin = (isSondertag(cW, d.label) && curTermin==='T1')
           ? `T1_KW27_${_kw27T1Sub==='T1.1'?'11':'12'}`
           : curTermin;
         const aKey=`${cW}_${_assignTermin}_${d.label}_${s.slot}_${m.label}`.replace(/[^a-zA-Z0-9_]/g,'_');
@@ -2218,6 +2253,13 @@ function renderWeek() {
       ? `<button class="lock-btn ${daySperre?'locked':''}" onclick="openSperrenDay(${cW},'${getSubTermin(curTermin,d.label)}','${d.label}')" title="${daySperre?'Sperre aufheben':'Tag sperren'}">🔒</button>`
       : '';
 
+    // Sondertag-Toggle: nur im T1-View, nicht in KW 27 (dort automatisch alle Tage Sondertag)
+    const _isSondertagDay = isSondertag(cW, d.label);
+    const _isAutoKW27 = kw(wMon(cW)) === 27;
+    const sondertagBtn = (isAdmin() && curTermin==='T1' && !_isAutoKW27)
+      ? `<button class="lock-btn" onclick="toggleSondertag(${cW},'${d.label}')" title="${_isSondertagDay?'Sondertag aufheben':'Als Sondertag markieren (T1.1 ODER T1.2 frei wählbar)'}" style="color:${_isSondertagDay?'#E65100':'#fff'};opacity:${_isSondertagDay?'1':'0.55'}">⚡</button>`
+      : (curTermin==='T1' && _isAutoKW27 ? `<span title="KW 27 Sonderwoche — automatisch alle 4 Tage" style="font-size:12px;opacity:.85;padding:2px 4px">⚡</span>` : '');
+
     const _holiday = isAustrianHoliday(date);
     const hdrColor = daySperre ? '#8B1A1A' : _holiday ? '#5A3A00' : headerColor;
     const dayBlockedNote = daySperre
@@ -2241,7 +2283,7 @@ function renderWeek() {
       <div class="dayhdr-top" style="background:${hdrColor};border-radius:var(--r) var(--r) 0 0">
         <div style="display:flex;align-items:center;justify-content:space-between">
           <div class="dname">${d.label}</div>
-          ${dayLockBtn}
+          <div style="display:flex;gap:3px">${sondertagBtn}${dayLockBtn}</div>
         </div>
         <div class="drow"><span class="ddate">${fD(date)} · ${dayFilled}/${slots.length}</span><span class="dphase">${phaseLabel}</span></div>
         ${t12note}${dayBlockedNote}${absentNote}
@@ -2836,6 +2878,25 @@ window.openAddProband = () => {
   document.getElementById('proband-modal').classList.add('open');
 };
 
+// ── SONDERTAG TOGGLE ──────────────────────────────────────────────
+window.toggleSondertag = async (w, day) => {
+  if(!isAdmin()){toast('Keine Berechtigung',true);return;}
+  // KW 27 Tage sind automatisch — nicht togglebar
+  if(kw(wMon(w)) === 27){toast('KW 27 ist automatisch Sonderwoche',true);return;}
+  // Prüfen ob schon Sondertag
+  const existing = Object.values(SONDERTAGE).find(s=>s.week===w && s.day===day);
+  try {
+    if(existing) {
+      if(!confirm(`Sondertag-Status für ${day} wirklich aufheben?\n(Buchungen bleiben erhalten, werden aber nicht mehr in der Sonderwoche-Ansicht angezeigt)`)) return;
+      await deleteDoc(doc(db,'sondertage',existing._id));
+      toast(`${day}: Sondertag aufgehoben ✓`);
+    } else {
+      await addDoc(collection(db,'sondertage'),{week:w,day,created:Date.now()});
+      toast(`${day}: als Sondertag markiert ⚡`);
+    }
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+
 // ── KW 27 MANUELLES BUCHUNGSSYSTEM ────────────────────────────────
 // Slots in KW 27 sind komplett unabhängig von regulären T1-Feldern
 let _kw27AssignCtx = null;
@@ -2852,7 +2913,7 @@ window.openKW27Assign = (w, sub, day, slot) => {
     : T12_KW27.find(s=>s.slot===slot);
   const timeStr = slotDef ? ` · ${slotDef.blutStart}` : '';
 
-  document.getElementById('slot-assign-title').textContent = `⚡ KW 27 Sonderwoche · ${sub} — Slot belegen`;
+  document.getElementById('slot-assign-title').textContent = `⚡ Sonderwoche KW ${kw(wMon(w))} · ${sub} — Slot belegen`;
   document.getElementById('slot-assign-info').textContent  = `${day} · Slot ${slot}${timeStr} · Manuelle KW-27-Buchung`;
 
   // Alle Probanden anzeigen — wer schon in diesem KW27/sub-Termin gebucht ist, wird disabled
