@@ -1118,7 +1118,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <div class="phdr">
         <div>
           <div class="ptitle">🔔 Telomer Erinnerungskalender</div>
-          <div class="psub">9 Wochen nach T0 · 3 Wochen vor T1 kontaktieren · Termin vereinbaren</div>
+          <div class="psub">Supplement-Start: Mo nach T0 · Erinnerung: 9 Wochen danach · T1: 12 Wochen nach Supplement-Start</div>
         </div>
       </div>
       <div id="tel-erinnerungen-content"></div>
@@ -7663,13 +7663,19 @@ window.renderTelErinnerungen = function() {
   var entries = tps.map(function(tp) {
     var t0Date = wDay(tp.t0week, DAYOFF[tp.t0day]||0);
     t0Date.setHours(0,0,0,0);
-    var reminderDate = new Date(t0Date); reminderDate.setDate(t0Date.getDate() + 63);
-    var t1TargetDate = new Date(t0Date); t1TargetDate.setDate(t0Date.getDate() + 84);
+    // Supplement-Start: erster Montag NACH T0 (Probanden nehmen ab da die Supplemente)
+    var dayOfWeek = t0Date.getDay(); // 0=So, 1=Mo, …, 6=Sa
+    var daysToNextMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);
+    var supplementStart = new Date(t0Date); supplementStart.setDate(t0Date.getDate() + daysToNextMonday);
+    // Erinnerung: 9 Wochen nach Supplement-Start (= 3 Wochen vor T1)
+    var reminderDate = new Date(supplementStart); reminderDate.setDate(supplementStart.getDate() + 63);
+    // T1-Zieltermin: 12 Wochen nach Supplement-Start
+    var t1TargetDate = new Date(supplementStart); t1TargetDate.setDate(supplementStart.getDate() + 84);
     var daysUntil    = Math.round((reminderDate - today) / 86400000);
     var t1Booked     = tp.t1week !== undefined && tp.t1week !== null && tp.t1day;
     var erin         = ERINNERUNGEN[tp._id] || {};
     var erledigt     = !!(erin.erledigt || t1Booked);
-    return {tp:tp, t0Date:t0Date, reminderDate:reminderDate, t1TargetDate:t1TargetDate,
+    return {tp:tp, t0Date:t0Date, supplementStart:supplementStart, reminderDate:reminderDate, t1TargetDate:t1TargetDate,
             daysUntil:daysUntil, t1Booked:t1Booked, erin:erin, erledigt:erledigt};
   }).sort(function(a, b) {
     if(a.erledigt !== b.erledigt) return a.erledigt ? 1 : -1;
@@ -7693,6 +7699,7 @@ window.renderTelErinnerungen = function() {
     var dU   = entry.daysUntil;
 
     var t0Str  = entry.t0Date.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+    var suppStr= entry.supplementStart.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
     var remStr = entry.reminderDate.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
     var t1TargetKW  = window.kw ? window.kw(entry.t1TargetDate) : '?';
     var t1TargetStr = entry.t1TargetDate.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'});
@@ -7778,6 +7785,7 @@ window.renderTelErinnerungen = function() {
       + '</div>'
       + '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--g5)">'
       + '<span>📅 T0: <strong style="color:#4A2A1F">'+t0Str+'</strong></span>'
+      + '<span>💊 Supplement-Start: <strong style="color:#2E7D32">'+suppStr+'</strong></span>'
       + '<span>🔔 Erinnerung: <strong style="color:'+statusColor+'">'+remStr+'</strong></span>'
       + '<span style="color:#999;font-size:11px">→ T1 Zieltermin: <strong>KW '+t1TargetKW+' (≈ '+t1TargetStr+')</strong></span>'
       + '</div>'
