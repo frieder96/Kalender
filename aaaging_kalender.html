@@ -1808,7 +1808,12 @@ const DOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
 // ── STATE ─────────────────────────
 let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={}, ROOMS={}, ROOM_BLOCKS={}, TELP={}, TEL_ERINNERUNGEN={}, KW27_BOOKINGS={}, SONDERTAGE={}, T_BOOKINGS={}, TEL_BOOKINGS={}, DAY_LAYOUTS={};
 window._P = () => P;
-let cW=0, curTermin='T0';
+// Initial-Woche: aktuelle KW (relativ zum Studien-Start), nicht KW 0
+let cW = (() => {
+  const d = Math.floor((new Date() - START) / (7*86400000));
+  return Math.max(0, Math.min(N_WEEKS - 1, d));
+})();
+let curTermin='T0';
 let _kw27T1Sub = 'T1.1'; // 'T1.1' or 'T1.2' — only relevant in KW 27
 let eId=null, recallEditId=null, assignKey=null, tW=0;
 let sperrenEditId=null, sperrenDay=null, sperrenSlot=null, sperrenTermin=null;
