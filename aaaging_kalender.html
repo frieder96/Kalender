@@ -1912,6 +1912,15 @@ const byT11 = (w,day,slot) => {
     return {...proband, pid:b.pid||proband.pid||'?', lnr:b.lnr||proband.lnr||'',
             _id:b.probandId||proband._id, _tBookingId:b._id, _termin:b.termin||'T1', _noBlood:!!b.noBlood};
   }
+  // Legacy KW27-Buchungen aus alter kw27_bookings collection
+  const kb = Object.values(KW27_BOOKINGS).find(bk =>
+    bk.sub==='T1.1' && bk.week===w && bk.day===day && Number(bk.slot)===Number(slot)
+  );
+  if(kb) {
+    const proband = Object.values(P).find(p=>p._id===kb.probandId) || {};
+    return {...proband, pid:kb.pid||proband.pid||'?', lnr:kb.lnr||proband.lnr||'',
+            _id:kb.probandId||proband._id, _kw27BookingId:kb._id, _termin:'T1'};
+  }
   // Legacy-Fallback: alte T1-Einträge in Probanden-Feldern
   const p = Object.values(P).find(p=>(p.t1week11||p.t1week)===w&&p.t1day11===day&&p.t1slot11===slot);
   if(p) return {...p, _termin:'T1'};
@@ -1925,6 +1934,15 @@ const byT12 = (w,day,slot) => {
     const proband = Object.values(P).find(p=>p._id===b.probandId) || {};
     return {...proband, pid:b.pid||proband.pid||'?', lnr:b.lnr||proband.lnr||'',
             _id:b.probandId||proband._id, _tBookingId:b._id, _termin:b.termin||'T1', _noBlood:!!b.noBlood};
+  }
+  // Legacy KW27-Buchungen aus alter kw27_bookings collection
+  const kb = Object.values(KW27_BOOKINGS).find(bk =>
+    bk.sub==='T1.2' && bk.week===w && bk.day===day && Number(bk.slot)===Number(slot)
+  );
+  if(kb) {
+    const proband = Object.values(P).find(p=>p._id===kb.probandId) || {};
+    return {...proband, pid:kb.pid||proband.pid||'?', lnr:kb.lnr||proband.lnr||'',
+            _id:kb.probandId||proband._id, _kw27BookingId:kb._id, _termin:'T1'};
   }
   const p = Object.values(P).find(p=>(p.t1week12||p.t1week)===w&&p.t1day12===day&&p.t1slot12===slot);
   if(p) return {...p, _termin:'T1'};
@@ -2149,12 +2167,9 @@ function renderWeek() {
     // Termin-Typ wird pro Buchung gespeichert (t_bookings.termin)
     curTermin = 'T1'; // Slot-Struktur immer nach T1
     days=[{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
-    const _t12kw = getT12ForWeek(cW);
+    // .2 Layout (Nachmittag, Isokinetik) verwendet stündliche Slots 10:00–17:00 — Mo-Do verfügbar
     slotSets = days.map(d => {
-      // Sondertag: stündliche T1.2 Slots wenn aktuell T1.2 gewählt
-      if(isSondertag(cW, d.label) && (window._kw27T1Sub||'T1.1')==='T1.2') return _t12kw;
-      // Sonst: nach effektivem Layout pro Tag
-      return getDayLayout(cW, d.label) === 'T1.1' ? T11 : T12;
+      return getDayLayout(cW, d.label) === 'T1.1' ? T11 : T12_KW27;
     });
     getters = days.map(d => {
       return getDayLayout(cW, d.label) === 'T1.1' ? byT11 : byT12;
@@ -2398,12 +2413,17 @@ function renderWeek() {
       ? `<button class="lock-btn" onclick="toggleSondertag(${cW},'${d.label}')" title="${_isSondertagDay?'Sondertag aufheben':'Als Sondertag markieren (T1.1 ODER T1.2 frei wählbar)'}" style="color:${_isSondertagDay?'#E65100':'#fff'};opacity:${_isSondertagDay?'1':'0.55'}">⚡</button>`
       : (curTermin==='T1' && _isAutoKW27 ? `<span title="KW 27 Sonderwoche — automatisch alle 4 Tage" style="font-size:12px;opacity:.85;padding:2px 4px">⚡</span>` : '');
 
-    // Layout-Toggle (Vormittag/Nachmittag): pro Tag wählbar, nur im T1-View und außerhalb von Sondertagen
+    // Layout-Toggle (Vormittag/Nachmittag): zwei Buttons als Segment-Control, aktiver ist hervorgehoben
     const _curLayout = curTermin==='T1' ? getDayLayout(cW, d.label) : null;
     const _defaultLayout = (d.label==='Montag'||d.label==='Dienstag') ? 'T1.1' : 'T1.2';
     const _isOverridden = _curLayout && _curLayout !== _defaultLayout;
+    const _vActive = _curLayout==='T1.1';
+    const _nActive = _curLayout==='T1.2';
     const layoutBtn = (isAdmin() && curTermin==='T1' && !_isSondertagDay)
-      ? `<button class="lock-btn" onclick="toggleDayLayout(${cW},'${d.label}')" title="${_curLayout==='T1.1'?'Vormittag (T1.1) — klicken für Nachmittag (T1.2)':'Nachmittag (T1.2) — klicken für Vormittag (T1.1)'}${_isOverridden?' · MANUELL geändert':''}" style="font-size:10px;font-weight:700;padding:1px 6px;color:${_isOverridden?'#E65100':'rgba(255,255,255,.85)'};${_isOverridden?'background:#FFF3E0;border:1px solid #FFB74D':''}">${_curLayout==='T1.1'?'V':'N'}</button>`
+      ? `<div style="display:flex;gap:0;border:1px solid rgba(255,255,255,.3);border-radius:4px;overflow:hidden">
+           <button onclick="setDayLayout(${cW},'${d.label}','T1.1')" title="Auf Vormittag (T1.1) setzen" style="padding:1px 5px;border:none;font-size:9.5px;font-weight:700;cursor:pointer;background:${_vActive?(_isOverridden?'#E65100':'rgba(255,255,255,.85)'):'transparent'};color:${_vActive?(_isOverridden?'#fff':'#3F3D3A'):'rgba(255,255,255,.7)'}">V</button>
+           <button onclick="setDayLayout(${cW},'${d.label}','T1.2')" title="Auf Nachmittag (T1.2) setzen" style="padding:1px 5px;border:none;border-left:1px solid rgba(255,255,255,.3);font-size:9.5px;font-weight:700;cursor:pointer;background:${_nActive?(_isOverridden?'#E65100':'rgba(255,255,255,.85)'):'transparent'};color:${_nActive?(_isOverridden?'#fff':'#3F3D3A'):'rgba(255,255,255,.7)'}">N</button>
+         </div>`
       : '';
 
     const _holiday = isAustrianHoliday(date);
@@ -3043,11 +3063,10 @@ window.toggleSondertag = async (w, day) => {
   } catch(e){toast('Fehler: '+e.message,true);}
 };
 
-// ── DAY LAYOUT TOGGLE (T1.1 Vormittag ↔ T1.2 Nachmittag) ──────────
-window.toggleDayLayout = async (w, day) => {
+// ── DAY LAYOUT SETTER (V = T1.1 Vormittag, N = T1.2 Nachmittag) ────
+window.setDayLayout = async (w, day, newLayout) => {
   if(!isAdmin()){toast('Keine Berechtigung',true);return;}
-  const currentLayout = getDayLayout(w, day);
-  const newLayout = currentLayout === 'T1.1' ? 'T1.2' : 'T1.1';
+  if(newLayout !== 'T1.1' && newLayout !== 'T1.2') return;
   const existing = Object.values(DAY_LAYOUTS).find(dl=>dl.week===w && dl.day===day);
   const defaultLayout = (day==='Montag'||day==='Dienstag') ? 'T1.1' : 'T1.2';
   try {
@@ -3065,6 +3084,12 @@ window.toggleDayLayout = async (w, day) => {
       toast(`${day}: auf ${newLayout==='T1.1'?'Vormittag (T1.1)':'Nachmittag (T1.2)'} gesetzt ✓`);
     }
   } catch(e){toast('Fehler: '+e.message,true);}
+};
+// Alte toggle-Funktion bleibt als Alias erhalten
+window.toggleDayLayout = async (w, day) => {
+  const currentLayout = getDayLayout(w, day);
+  const newLayout = currentLayout === 'T1.1' ? 'T1.2' : 'T1.1';
+  return window.setDayLayout(w, day, newLayout);
 };
 
 // ── KW 27 MANUELLES BUCHUNGSSYSTEM ────────────────────────────────
@@ -4022,7 +4047,7 @@ function buildWJList() {
 window.openWJ=()=>{buildWJList();document.getElementById('wjov').classList.add('open');};
 window.closeWJ=()=>document.getElementById('wjov').classList.remove('open');
 window.selW=w=>{cW=w;renderWeek();closeWJ();if(window.curTermin==='T1')loadSportStatus();};
-window.setKW27T1Sub = sub => { _kw27T1Sub = sub; renderWeek(); };
+window.setKW27T1Sub = sub => { _kw27T1Sub = sub; window._kw27T1Sub = sub; renderWeek(); };
 window.chW=n=>{cW=Math.max(0,Math.min(N_WEEKS-1,cW+n));renderWeek();if(window.curTermin==='T1')loadSportStatus();};
 window.goToday=()=>{const d=Math.floor((new Date()-START)/(7*86400000));cW=Math.max(0,Math.min(N_WEEKS-1,d));renderWeek();if(window.curTermin==='T1')loadSportStatus();};
 
