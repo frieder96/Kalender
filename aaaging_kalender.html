@@ -1569,6 +1569,25 @@ function applyNoBlood(slot) {
   return {...slot, blutStart: newStart, measures: newMeasures, _noBlood: true};
 }
 
+// Entfernt den 24h Recall aus einem Slot und schiebt ggf. nachfolgende Zeiten nach vorne
+function applyNoRecall(slot) {
+  if(!slot || !slot.measures) return slot;
+  const recallIdx = slot.measures.findIndex(m => m.label === '24h Recall');
+  if(recallIdx === -1) return slot;
+  const recall = slot.measures[recallIdx];
+  const next = slot.measures[recallIdx + 1];
+  let shiftMin = 0;
+  if(next) {
+    const [rh, rm] = recall.t.split(':').map(Number);
+    const [nh, nm] = next.t.split(':').map(Number);
+    shiftMin = (nh*60+nm) - (rh*60+rm);
+  }
+  const newMeasures = slot.measures
+    .filter((_, i) => i !== recallIdx)
+    .map((m, i) => i >= recallIdx && shiftMin ? {...m, t: shiftTime(m.t, -shiftMin)} : m);
+  return {...slot, measures: newMeasures, _noRecall: true};
+}
+
 // T0: 4 slots per day (all 4 days identical)
 // Slot 1 (07:30) & Slot 3 (09:00): Einschluss→Frühstück→Isokinetik/Sportmotorik→MMS
 // Slot 2 (08:00) & Slot 4 (09:30): Einschluss→Frühstück→MMS→Isokinetik
@@ -2180,7 +2199,11 @@ function renderWeek() {
     const cards=slots.map(sOrig=>{
       const p=getter(cW,d.label,sOrig.slot);
       // Wenn die Buchung "noBlood" markiert ist, Slot transformieren (Blutabnahme raus, Zeiten -15 min)
-      const s = (p && p._noBlood) ? applyNoBlood(sOrig) : sOrig;
+      const s1 = (p && p._noBlood) ? applyNoBlood(sOrig) : sOrig;
+      // T2.1 und T3.1 (Termin T2/T3 mit Vormittag-Layout): automatisch ohne 24h Recall
+      // → Recall findet nur 1x pro Woche statt, in T2.2/T3.2
+      const _autoNoRecall = p && (p._termin==='T2'||p._termin==='T3') && curTermin==='T1' && getDayLayout(cW,d.label)==='T1.1';
+      const s = _autoNoRecall ? applyNoRecall(s1) : s1;
 
       // Check slot-level and day-level sperre
       // T1/T2/T3 sind im selben Kalender — sperre 'T123' deckt alle drei ab
@@ -2254,7 +2277,7 @@ function renderWeek() {
         : _telBlocks
           ? _aaCrossInfo + `<div class="prow" style="background:#EAD4CB;border-radius:4px;padding:6px 8px"><span style="font-size:10px;color:#4A2A1F;font-weight:700;margin-right:6px">🧬 TELOMER ${_telTermin}</span><span style="background:#EAD4CB;color:#4A2A1F;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700;border:1px solid #C9A999">${_telBooking.tid}${_telBooking.aufpassen?' ⚠️':''}</span></div>`
         : p
-          ? _aaCrossInfo + _telWarn + `<div class="prow"><span class="pbadge">${p.pid}${p.aufpassen?` <span style="color:#E65100">⚠️</span>`:''}</span><span class="lbadge">${p.lnr}</span>${_tBadge}${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button>${_bloodBtn}${p._tBookingId?`<button class="btn btn-xs btn-d" onclick="removeTBooking('${p._tBookingId}')" title="Buchung entfernen">✕</button>`:`<button class="btn btn-xs btn-d" onclick="removeSlotAssignment('${p._id}','${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="Termin entfernen">✕</button>`}`:''}${p._noBlood?'<div style="font-size:9.5px;color:#C8102E;font-style:italic;margin-top:2px">🩸̶ ohne Blutabnahme · Zeiten −15 Min</div>':''}</div>`
+          ? _aaCrossInfo + _telWarn + `<div class="prow"><span class="pbadge">${p.pid}${p.aufpassen?` <span style="color:#E65100">⚠️</span>`:''}</span><span class="lbadge">${p.lnr}</span>${_tBadge}${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button>${_bloodBtn}${p._tBookingId?`<button class="btn btn-xs btn-d" onclick="removeTBooking('${p._tBookingId}')" title="Buchung entfernen">✕</button>`:`<button class="btn btn-xs btn-d" onclick="removeSlotAssignment('${p._id}','${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="Termin entfernen">✕</button>`}`:''}${p._noBlood?'<div style="font-size:9.5px;color:#C8102E;font-style:italic;margin-top:2px">🩸̶ ohne Blutabnahme · Zeiten −15 Min</div>':''}${_autoNoRecall?'<div style="font-size:9.5px;color:#7B1FA2;font-style:italic;margin-top:2px">📋 ohne 24h Recall (nur in T2.2/T3.2)</div>':''}</div>`
           : _aaCrossInfo + _telWarn + `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddProbandSlot(${cW},'${curTermin==='T1' ? getDayLayout(cW,d.label) : getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
 
       const measRows=s.measures.map(m=>{
