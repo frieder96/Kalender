@@ -7870,12 +7870,26 @@ window.renderTelProbanden = function() {
     + '</tr></thead><tbody>';
 
   tps.forEach(function(tp, i) {
+    // Helper: ermittelt {day, week} für T0/T1/T2 — entweder aus tel_bookings oder Legacy-Feldern
+    function getTermin(termin) {
+      var TB = window._TEL_BOOKINGS || {};
+      var bk = Object.values(TB).find(function(b){ return b.probandId===tp._id && b.termin===termin; });
+      if(bk) return {day:bk.day, week:bk.week};
+      var wField = termin==='T0' ? tp.t0week : termin==='T1' ? tp.t1week : tp.t2week;
+      var dField = termin==='T0' ? tp.t0day  : termin==='T1' ? tp.t1day  : tp.t2day;
+      if(wField !== undefined && wField !== null && dField) return {day:dField, week:wField};
+      return null;
+    }
+    var t0info = getTermin('T0');
+    var t1info = getTermin('T1');
+    var t2info = getTermin('T2');
+
     html += '<tr style="border-bottom:1px solid var(--g2);background:' + (i%2?'var(--g1)':'#fff') + '">'
       + '<td style="padding:8px;font-weight:700;color:#5E35B1">' + (tp.tid||'—') + (tp.aufpassen?' <span style="color:#E65100">⚠️</span>':'') + '</td>'
       + '<td style="padding:8px;font-size:12px">' + (tp.lnr||'—') + '</td>'
-      + '<td style="padding:8px;font-size:11px">' + (tp.t0day?tp.t0day.slice(0,2)+' '+fmtD(tp.t0week,tp.t0day):'—') + '</td>'
-      + '<td style="padding:8px;font-size:11px">' + (tp.t1day?tp.t1day.slice(0,2)+' '+fmtD(tp.t1week,tp.t1day):'—') + '</td>'
-      + '<td style="padding:8px;font-size:11px">' + (tp.t2day?tp.t2day.slice(0,2)+' '+fmtD(tp.t2week,tp.t2day):'—') + '</td>'
+      + '<td style="padding:8px;font-size:11px">' + (t0info?t0info.day.slice(0,2)+' '+fmtD(t0info.week,t0info.day):'—') + '</td>'
+      + '<td style="padding:8px;font-size:11px">' + (t1info?t1info.day.slice(0,2)+' '+fmtD(t1info.week,t1info.day):'—') + '</td>'
+      + '<td style="padding:8px;font-size:11px">' + (t2info?t2info.day.slice(0,2)+' '+fmtD(t2info.week,t2info.day):'—') + '</td>'
       + '<td style="padding:8px;font-size:11px;color:#666">' + (tp.notiz||'') + '</td>'
       + '<td style="padding:8px">'
       + (window.isAdmin && window.isAdmin() ? '<button class="btn btn-xs" onclick="openEditTelProband(\'' + tp._id + '\')">Bearbeiten</button> <button class="btn btn-xs btn-d" onclick="delTelProband(\'' + tp._id + '\')">Löschen</button>' : '')
@@ -8180,9 +8194,19 @@ window.renderTelFortschritt = function() {
   if(!el) return;
 
   var tps = Object.values(window._TELP || {});
-  var t0done = tps.filter(function(tp){ return tp.t0week !== undefined && tp.t0day; }).length;
-  var t1done = tps.filter(function(tp){ return tp.t1week !== undefined && tp.t1day; }).length;
-  var t2done = tps.filter(function(tp){ return tp.t2week !== undefined && tp.t2day; }).length;
+  var TB  = window._TEL_BOOKINGS || {};
+  // Hilfsfunktion: hat dieser Proband einen T0/T1/T2 Termin (entweder über tel_bookings oder Legacy-Feld)?
+  function hasTermin(tp, termin) {
+    // tel_bookings prüfen
+    if(Object.values(TB).some(function(bk){ return bk.probandId===tp._id && bk.termin===termin; })) return true;
+    // Legacy-Felder prüfen
+    var wField = termin==='T0' ? tp.t0week : termin==='T1' ? tp.t1week : tp.t2week;
+    var dField = termin==='T0' ? tp.t0day  : termin==='T1' ? tp.t1day  : tp.t2day;
+    return (wField !== undefined && wField !== null && dField);
+  }
+  var t0done = tps.filter(function(tp){ return hasTermin(tp,'T0'); }).length;
+  var t1done = tps.filter(function(tp){ return hasTermin(tp,'T1'); }).length;
+  var t2done = tps.filter(function(tp){ return hasTermin(tp,'T2'); }).length;
 
   var dayIdx = Math.floor(Date.now() / 86400000) % TEL_FUNFACTS.length;
   var funfact = TEL_FUNFACTS[dayIdx];
