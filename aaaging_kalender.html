@@ -4065,15 +4065,19 @@ function renderAbsentCal() {
   const monthEnd   = new Date(y,m+1,0);
 
   // Helper: does absence overlap a given date?
+  // Wichtig: Date-Objekte werden mit setHours(0,0,0,0) gebaut, also from/to ebenfalls auf 00:00 setzen,
+  // sonst wird der Start-Tag versäumt (date < from wenn from auf 12:00 steht)
   const overlaps = (ab, date) => {
-    const from = new Date(ab.from+'T12:00'); const to = new Date((ab.to||ab.from)+'T12:00');
+    const from = new Date(ab.from+'T00:00');
+    const to   = new Date((ab.to||ab.from)+'T00:00');
     return date >= from && date <= to;
   };
 
-  // Count this month
+  // Count this month — auch hier 00:00 verwenden + monthEnd auf Tagesende setzen
+  const monthEndIncl = new Date(monthEnd); monthEndIncl.setHours(23,59,59,999);
   const monthAbsences = Object.values(ABSENT).filter(ab => {
-    const from=new Date(ab.from+'T12:00'), to=new Date((ab.to||ab.from)+'T12:00');
-    return from<=monthEnd && to>=monthStart;
+    const from = new Date(ab.from+'T00:00'), to = new Date((ab.to||ab.from)+'T00:00');
+    return from<=monthEndIncl && to>=monthStart;
   });
   document.getElementById('month-absent-count').textContent = `${monthAbsences.length} Abwesenheit${monthAbsences.length!==1?'en':''} dieses Monat`;
 
