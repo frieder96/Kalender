@@ -5298,19 +5298,35 @@ function renderMonatsübersicht() {
     events[ds].push({pid, lnr, type, time, aufpassen});
   }
 
+  // T_BOOKINGS (neue T1/T2/T3 Buchungen aus AAAging) — Vorrang vor Legacy
+  var TB_AAA = window._T_BOOKINGS || {};
+  var aaaCovered = {}; // {probandId_termin: true} um Doppelzählung zu vermeiden
+  Object.values(TB_AAA).forEach(function(bk) {
+    if(bk.week === undefined || !bk.day || !bk.slot || !bk.sub) return;
+    var p = Object.values(window._P()).find(function(x){ return x._id === bk.probandId; }) || {};
+    var label = (bk.termin || 'T1') + (bk.sub==='T1.1' ? '.1' : '.2');
+    var slotPool = bk.sub==='T1.1' ? T11 : (typeof T12_KW27 !== 'undefined' && T12_KW27 ? T12_KW27 : T12);
+    var slotDef = slotPool.find(function(s){ return s.slot===Number(bk.slot); });
+    addEv(wDay(bk.week, DAYOFF[bk.day]||0), bk.pid||p.pid, bk.lnr||p.lnr, label, slotDef?slotDef.blutStart:'', p.aufpassen);
+    aaaCovered[bk.probandId + '_T1'] = true; // markiere T1 als abgedeckt (egal welcher Termin-Typ, da überlappende Slots nicht möglich)
+  });
+
   ps.forEach(function(p) {
     if(p.t0week !== undefined && p.t0day) {
       var t0Slots = window._getT0ForWeek ? window._getT0ForWeek(p.t0week) : T0;
       var slot = t0Slots.find(function(s){ return s.slot===p.t0slot; });
       addEv(wDay(p.t0week, DAYOFF[p.t0day]||0), p.pid, p.lnr, 'T0', slot?slot.blutStart:'', p.aufpassen);
     }
-    if(p.t1week !== undefined && p.t1day11) {
-      var slot11 = T11.find(function(s){ return s.slot===p.t1slot11; });
-      addEv(wDay(p.t1week11||p.t1week, DAYOFF[p.t1day11]||0), p.pid, p.lnr, 'T1.1', slot11?slot11.blutStart:'', p.aufpassen);
-    }
-    if(p.t1week !== undefined && p.t1day12) {
-      var slot12 = T12.find(function(s){ return s.slot===p.t1slot12; });
-      addEv(wDay(p.t1week12||p.t1week, DAYOFF[p.t1day12]||2), p.pid, p.lnr, 'T1.2', slot12?slot12.blutStart:'', p.aufpassen);
+    // Legacy T1: nur einbinden falls noch nicht aus T_BOOKINGS gezogen
+    if(!aaaCovered[p._id + '_T1']) {
+      if(p.t1week !== undefined && p.t1day11) {
+        var slot11 = T11.find(function(s){ return s.slot===p.t1slot11; });
+        addEv(wDay(p.t1week11||p.t1week, DAYOFF[p.t1day11]||0), p.pid, p.lnr, 'T1.1', slot11?slot11.blutStart:'', p.aufpassen);
+      }
+      if(p.t1week !== undefined && p.t1day12) {
+        var slot12 = T12.find(function(s){ return s.slot===p.t1slot12; });
+        addEv(wDay(p.t1week12||p.t1week, DAYOFF[p.t1day12]||2), p.pid, p.lnr, 'T1.2', slot12?slot12.blutStart:'', p.aufpassen);
+      }
     }
     if(p.t2date) addEv(new Date(p.t2date+'T12:00'), p.pid, p.lnr, 'T2', p.t2time||'', p.aufpassen);
     if(p.t3date) addEv(new Date(p.t3date+'T12:00'), p.pid, p.lnr, 'T3', p.t3time||'', p.aufpassen);
@@ -5319,27 +5335,42 @@ function renderMonatsübersicht() {
   // Telomer events
   var TELP = window._TELP || {};
   var TEL_TIMES = ['08:00','08:00','08:30','08:30'];
+  // Neue Telomer-Buchungen aus tel_bookings — Vorrang vor Legacy
+  var TB_TEL = window._TEL_BOOKINGS || {};
+  var telCovered = {}; // {probandId_termin: true}
+  Object.values(TB_TEL).forEach(function(bk) {
+    if(bk.week === undefined || !bk.day || !bk.slot) return;
+    var tp = TELP[bk.probandId] || {};
+    var termin = bk.termin || 'T0';
+    addEv(wDay(bk.week, DAYOFF[bk.day]||0), bk.tid||tp.tid, bk.lnr||tp.lnr, 'TEL '+termin, TEL_TIMES[bk.slot-1]||'', tp.aufpassen);
+    telCovered[bk.probandId + '_' + termin] = true;
+  });
+  // Legacy TELP-Felder: nur einbinden wenn nicht schon aus tel_bookings vorhanden
   Object.values(TELP).forEach(function(tp) {
-    if(tp.t0week !== undefined && tp.t0day && tp.t0slot) {
+    if(tp.t0week !== undefined && tp.t0day && tp.t0slot && !telCovered[tp._id+'_T0']) {
       addEv(wDay(tp.t0week, DAYOFF[tp.t0day]||0), tp.tid, tp.lnr, 'TEL T0', TEL_TIMES[tp.t0slot-1]||'', tp.aufpassen);
     }
-    if(tp.t1week !== undefined && tp.t1day && tp.t1slot) {
+    if(tp.t1week !== undefined && tp.t1day && tp.t1slot && !telCovered[tp._id+'_T1']) {
       addEv(wDay(tp.t1week, DAYOFF[tp.t1day]||0), tp.tid, tp.lnr, 'TEL T1', TEL_TIMES[tp.t1slot-1]||'', tp.aufpassen);
     }
-    if(tp.t2week !== undefined && tp.t2day && tp.t2slot) {
+    if(tp.t2week !== undefined && tp.t2day && tp.t2slot && !telCovered[tp._id+'_T2']) {
       addEv(wDay(tp.t2week, DAYOFF[tp.t2day]||0), tp.tid, tp.lnr, 'TEL T2', TEL_TIMES[tp.t2slot-1]||'', tp.aufpassen);
     }
   });
 
   var TYPE_COLOR = {
     'T0':     {bg:'#E3F0FF', border:'#7BAEE0', color:'#1A4A8A', label:'T0'},
-    'T1.1':   {bg:'#E8F5E9', border:'#81C784', color:'#1B5E20', label:'T1.1'},
-    'T1.2':   {bg:'#E8F5E9', border:'#81C784', color:'#1B5E20', label:'T1.2'},
+    'T1.1':   {bg:'#E0EBFF', border:'#A7BFEC', color:'#1E3F9C', label:'T1.1'},
+    'T1.2':   {bg:'#E0EBFF', border:'#A7BFEC', color:'#1E3F9C', label:'T1.2'},
+    'T2.1':   {bg:'#F2E3F8', border:'#D2A8E2', color:'#5B167A', label:'T2.1'},
+    'T2.2':   {bg:'#F2E3F8', border:'#D2A8E2', color:'#5B167A', label:'T2.2'},
+    'T3.1':   {bg:'#CDEFD9', border:'#6DBC8C', color:'#155532', label:'T3.1'},
+    'T3.2':   {bg:'#CDEFD9', border:'#6DBC8C', color:'#155532', label:'T3.2'},
     'T2':     {bg:'#FFF3E0', border:'#FFB74D', color:'#E65100', label:'T2'},
     'T3':     {bg:'#FCE4EC', border:'#F48FB1', color:'#880E4F', label:'T3'},
-    'TEL T0': {bg:'#EAD4CB', border:'#C9A999', color:'#4A2A1F', label:'🧬 T0'},
-    'TEL T1': {bg:'#EAD4CB', border:'#C9A999', color:'#4A2A1F', label:'🧬 T1'},
-    'TEL T2': {bg:'#EAD4CB', border:'#C9A999', color:'#4A2A1F', label:'🧬 T2'},
+    'TEL T0': {bg:'#E0EBFF', border:'#A7BFEC', color:'#1E3F9C', label:'🧬 T0'},
+    'TEL T1': {bg:'#F2E3F8', border:'#D2A8E2', color:'#5B167A', label:'🧬 T1'},
+    'TEL T2': {bg:'#CDEFD9', border:'#6DBC8C', color:'#155532', label:'🧬 T2'},
   };
 
   // Build calendar grid
