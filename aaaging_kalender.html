@@ -7521,7 +7521,6 @@ window.setTelTermin = function(t, btn) {
 
 window.telWNav = function(dir) {
   var newCW = _telCW + dir;
-  // Bounds: 0 .. N_WEEKS-1
   if(window.N_WEEKS) newCW = Math.max(0, Math.min(window.N_WEEKS - 1, newCW));
   else newCW = Math.max(0, newCW);
   if(newCW === _telCW) {
@@ -7530,10 +7529,14 @@ window.telWNav = function(dir) {
   }
   _telCW = newCW;
   window._telManualNav = true;
-  // Force-Refresh: Inhalt leeren bevor neu gerendert wird, damit man bei identischen Slots trotzdem sieht dass was passiert
-  var el = document.getElementById('tel-calendar-content');
-  if(el) el.innerHTML = '<div style="padding:10px;color:#888;font-size:11px">Lade…</div>';
-  setTimeout(function(){ renderTelKalender(); }, 0);
+  try {
+    renderTelKalender();
+  } catch(err) {
+    console.error('renderTelKalender Fehler:', err);
+    if(window.toast) window.toast('Render-Fehler: '+(err.message||err),true);
+    var el = document.getElementById('tel-calendar-content');
+    if(el) el.innerHTML = '<div style="padding:20px;color:#C8102E;font-family:monospace;font-size:11px;background:#FFF3F3;border:1px solid #FFCDD2;border-radius:6px">⚠️ Render-Fehler in KW '+_telCW+':<br>'+(err.message||err)+'<br><br>'+(err.stack||'').replace(/</g,'&lt;').slice(0,500)+'</div>';
+  }
 };
 window.telWToday = function() {
   // Compute current week from START
