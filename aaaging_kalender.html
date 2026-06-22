@@ -1617,6 +1617,13 @@ function applyTelT1(slot) {
   return {...slot, measures: newMeasures, inviteTime: slot.blutStart, _telT1: true};
 }
 
+// Globaler Export für renderTelKalender (anderer Script-Block)
+window.applyTelT1 = applyTelT1;
+window.applyCustomStart = applyCustomStart;
+window.applyNoBlood = applyNoBlood;
+window.applyNoRecall = applyNoRecall;
+window.shiftTime = shiftTime;
+
 // T0: 4 slots per day (all 4 days identical)
 // Slot 1 (07:30) & Slot 3 (09:00): Einschluss→Frühstück→Isokinetik/Sportmotorik→MMS
 // Slot 2 (08:00) & Slot 4 (09:30): Einschluss→Frühstück→MMS→Isokinetik
@@ -7722,9 +7729,9 @@ window.renderTelKalender = function() {
         var key = d.label + '_' + sOrig.slot;
         var telP = telAssigned[key];
         // Bei T1-Buchungen Slot-Layout transformieren (ohne Vorbesprechung/Blut/Mikrokern, spätere Startzeit)
-        var sStep1 = (telP && telP._telTermin === 'T1') ? applyTelT1(sOrig) : sOrig;
+        var sStep1 = (telP && telP._telTermin === 'T1' && window.applyTelT1) ? window.applyTelT1(sOrig) : sOrig;
         // Manuelle Startzeit (vom Nutzer überschrieben): den gesamten Slot verschieben
-        var s = (telP && telP._customStart) ? applyCustomStart(sStep1, telP._customStart) : sStep1;
+        var s = (telP && telP._customStart && window.applyCustomStart) ? window.applyCustomStart(sStep1, telP._customStart) : sStep1;
         // Slot-level sperre
         var slotSperre = Object.values(SPERREN).find(function(sp) {
           return sp.week===_telCW && sp.day===d.label && Number(sp.slot)===Number(sOrig.slot) &&
