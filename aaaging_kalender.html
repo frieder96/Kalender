@@ -7519,7 +7519,22 @@ window.setTelTermin = function(t, btn) {
   renderTelKalender();
 };
 
-window.telWNav = function(dir) { _telCW += dir; window._telManualNav = true; renderTelKalender(); };
+window.telWNav = function(dir) {
+  var newCW = _telCW + dir;
+  // Bounds: 0 .. N_WEEKS-1
+  if(window.N_WEEKS) newCW = Math.max(0, Math.min(window.N_WEEKS - 1, newCW));
+  else newCW = Math.max(0, newCW);
+  if(newCW === _telCW) {
+    if(window.toast) window.toast('Erreichte Grenze ('+(_telCW===0?'Studienanfang':'Studienende')+')',true);
+    return;
+  }
+  _telCW = newCW;
+  window._telManualNav = true;
+  // Force-Refresh: Inhalt leeren bevor neu gerendert wird, damit man bei identischen Slots trotzdem sieht dass was passiert
+  var el = document.getElementById('tel-calendar-content');
+  if(el) el.innerHTML = '<div style="padding:10px;color:#888;font-size:11px">Lade…</div>';
+  setTimeout(function(){ renderTelKalender(); }, 0);
+};
 window.telWToday = function() {
   // Compute current week from START
   const start = window.START;
