@@ -2263,19 +2263,20 @@ function renderWeek() {
       const s = (p && p._customStart) ? applyCustomStart(s2, p._customStart) : s2;
 
       // Check slot-level and day-level sperre
-      // T1/T2/T3 sind im selben Kalender — sperre 'T123' deckt alle drei ab
-      // Legacy: 'T1.1', 'T1.2' etc. werden weiterhin akzeptiert
+      // T1/T2/T3 sind im selben Kalender — sperre 'T123' deckt alle drei + beide Layouts ab.
+      // Sub-Termin-Sperre 'T1.1' deckt nur das Vormittag-Layout, 'T1.2' nur das Nachmittag-Layout.
       const _tMatch = t => {
         if(!t) return false;
         if(t==='ALL') return true;
-        if(t===curTermin) return true;
-        // T1/2/3 kombinierte Sperre matcht T1-View (curTermin='T1')
+        if(t==='T0' && curTermin==='T0') return true;
         if(t==='T123' && (curTermin==='T1'||curTermin==='T2'||curTermin==='T3')) return true;
-        // Legacy Sub-Terminus
-        if(t===curTermin.replace(/\.[12]$/,'')) return true;
-        if(curTermin===t.replace(/\.[12]$/,'')) return true;
-        // Legacy T1.1/T1.2/T2.1/T2.2/T3.1/T3.2 → matcht T1-View
-        if((curTermin==='T1') && /^T[123]\.[12]$/.test(t)) return true;
+        if(t===curTermin) return true;
+        // Sub-Termin (T1.1/T1.2/T2.1/T2.2/T3.1/T3.2): nur wenn aktives Layout passt
+        if(/^T[123]\.[12]$/.test(t) && (curTermin==='T1'||curTermin==='T2'||curTermin==='T3')) {
+          const dayLayout = getDayLayout(cW, d.label);
+          const sperreLayout = t.endsWith('.1') ? 'T1.1' : 'T1.2';
+          return dayLayout === sperreLayout;
+        }
         return false;
       };
       const slotSperr = Object.values(SPERREN).find(sp =>
@@ -2412,7 +2413,7 @@ function renderWeek() {
       }).join('');
 
       const lockIcon = isAdmin()
-        ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'${curTermin==='T0'?'T0':'T123'}','${d.label}',${s.slot})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>`
+        ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'${curTermin==='T0'?'T0':getDayLayout(cW,d.label)}','${d.label}',${s.slot})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>`
         : '';
 
       const _scTClass = (p && p._termin && curTermin==='T1') ? ` sc-${p._termin.toLowerCase()}` : '';
@@ -2434,11 +2435,14 @@ function renderWeek() {
     const _tMatch2 = t => {
       if(!t) return false;
       if(t==='ALL') return true;
-      if(t===curTermin) return true;
+      if(t==='T0' && curTermin==='T0') return true;
       if(t==='T123' && (curTermin==='T1'||curTermin==='T2'||curTermin==='T3')) return true;
-      if(t===curTermin.replace(/\.[12]$/,'')) return true;
-      if(curTermin===t.replace(/\.[12]$/,'')) return true;
-      if((curTermin==='T1') && /^T[123]\.[12]$/.test(t)) return true;
+      if(t===curTermin) return true;
+      if(/^T[123]\.[12]$/.test(t) && (curTermin==='T1'||curTermin==='T2'||curTermin==='T3')) {
+        const dayLayout = getDayLayout(cW, d.label);
+        const sperreLayout = t.endsWith('.1') ? 'T1.1' : 'T1.2';
+        return dayLayout === sperreLayout;
+      }
       return false;
     };
     const daySperre = Object.values(SPERREN).find(sp =>
@@ -8108,35 +8112,78 @@ window.renderTelErinnerungen = function() {
   var today  = new Date(); today.setHours(0,0,0,0);
   var TEAM   = window._teamCache || {};
   var ERINNERUNGEN = window._TEL_ERINNERUNGEN || {};
+  var TEL_BK = window._TEL_BOOKINGS || {};
   var isAdm  = window.isAdmin && window.isAdmin();
 
-  var tps = Object.values(window._TELP || {}).filter(function(tp){
-    return tp.t0week !== undefined && tp.t0week !== null && tp.t0day;
-  });
+  // Helper: liefert {week, day} für einen Termin (tel_bookings hat Vorrang, sonst Legacy-Felder)
+  function getTerminInfo(tp, termin) {
+    var bk = Object.values(TEL_BK).find(function(b){ return b.probandId===tp._id && b.termin===termin; });
+    if(bk && bk.week !== undefined && bk.day) return {week:bk.week, day:bk.day};
+    var w = termin==='T0' ? tp.t0week : termin==='T1' ? tp.t1week : tp.t2week;
+    var d = termin==='T0' ? tp.t0day  : termin==='T1' ? tp.t1day  : tp.t2day;
+    if(w !== undefined && w !== null && d) return {week:w, day:d};
+    return null;
+  }
 
+  var tps = Object.values(window._TELP || {});
   if(!tps.length) {
-    el.innerHTML = '<div style="padding:40px;text-align:center;color:#888;font-style:italic">Noch keine Telomer-Probanden mit T0-Termin vorhanden.</div>';
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:#888;font-style:italic">Noch keine Telomer-Probanden vorhanden.</div>';
     return;
   }
 
-  var entries = tps.map(function(tp) {
-    var t0Date = wDay(tp.t0week, DAYOFF[tp.t0day]||0);
-    t0Date.setHours(0,0,0,0);
-    // Supplement-Start: erster Montag NACH T0 (Probanden nehmen ab da die Supplemente)
-    var dayOfWeek = t0Date.getDay(); // 0=So, 1=Mo, …, 6=Sa
-    var daysToNextMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);
-    var supplementStart = new Date(t0Date); supplementStart.setDate(t0Date.getDate() + daysToNextMonday);
-    // Erinnerung: 9 Wochen nach Supplement-Start (= 3 Wochen vor T1)
-    var reminderDate = new Date(supplementStart); reminderDate.setDate(supplementStart.getDate() + 63);
-    // T1-Zieltermin: 12 Wochen nach Supplement-Start
-    var t1TargetDate = new Date(supplementStart); t1TargetDate.setDate(supplementStart.getDate() + 84);
-    var daysUntil    = Math.round((reminderDate - today) / 86400000);
-    var t1Booked     = tp.t1week !== undefined && tp.t1week !== null && tp.t1day;
-    var erin         = ERINNERUNGEN[tp._id] || {};
-    var erledigt     = !!(erin.erledigt || t1Booked);
-    return {tp:tp, t0Date:t0Date, supplementStart:supplementStart, reminderDate:reminderDate, t1TargetDate:t1TargetDate,
-            daysUntil:daysUntil, t1Booked:t1Booked, erin:erin, erledigt:erledigt};
-  }).sort(function(a, b) {
+  var entries = [];
+  tps.forEach(function(tp) {
+    var t0 = getTerminInfo(tp,'T0');
+    var t1 = getTerminInfo(tp,'T1');
+    var t2 = getTerminInfo(tp,'T2');
+
+    // ── Phase T0 → T1 ───────────────────────────────────
+    if(t0) {
+      var t0Date = wDay(t0.week, DAYOFF[t0.day]||0); t0Date.setHours(0,0,0,0);
+      // Supplement-Start: erster Montag NACH T0
+      var dayOfWeek = t0Date.getDay();
+      var daysToNextMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);
+      var supplementStart = new Date(t0Date); supplementStart.setDate(t0Date.getDate() + daysToNextMonday);
+      // Erinnerung: 9 Wochen nach Supplement-Start
+      var reminderDate = new Date(supplementStart); reminderDate.setDate(supplementStart.getDate() + 63);
+      // T1-Ziel: 12 Wochen nach Supplement-Start
+      var targetDate = new Date(supplementStart); targetDate.setDate(supplementStart.getDate() + 84);
+      var nextBooked = !!t1;
+      // Erinnerung gespeichert unter _id+'_T0' — Legacy: _id (ohne Suffix) wird als T0-Phase übernommen
+      var erin = ERINNERUNGEN[tp._id+'_T0'] || ERINNERUNGEN[tp._id] || {};
+      entries.push({
+        tp:tp, phase:'T0', erinId:tp._id+'_T0', erin:erin,
+        anchorLabel:'T0', anchorDate:t0Date, anchorExtra:'Supplement-Start: '+supplementStart.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}),
+        reminderDate:reminderDate, targetDate:targetDate, targetLabel:'T1',
+        nextBookedDate: nextBooked ? wDay(t1.week, DAYOFF[t1.day]||0) : null,
+        nextBooked:nextBooked,
+        daysUntil:Math.round((reminderDate - today) / 86400000),
+        erledigt: !!(erin.erledigt || nextBooked)
+      });
+    }
+
+    // ── Phase T1 → T2 ───────────────────────────────────
+    if(t1) {
+      var t1Date = wDay(t1.week, DAYOFF[t1.day]||0); t1Date.setHours(0,0,0,0);
+      // Anker direkt T1 (Supplement läuft durch, kein neuer "Start")
+      var reminderDate2 = new Date(t1Date); reminderDate2.setDate(t1Date.getDate() + 63);
+      var targetDate2   = new Date(t1Date); targetDate2.setDate(t1Date.getDate() + 84);
+      var nextBooked2 = !!t2;
+      var erin2 = ERINNERUNGEN[tp._id+'_T1'] || {};
+      entries.push({
+        tp:tp, phase:'T1', erinId:tp._id+'_T1', erin:erin2,
+        anchorLabel:'T1', anchorDate:t1Date, anchorExtra:null,
+        reminderDate:reminderDate2, targetDate:targetDate2, targetLabel:'T2',
+        nextBookedDate: nextBooked2 ? wDay(t2.week, DAYOFF[t2.day]||0) : null,
+        nextBooked:nextBooked2,
+        daysUntil:Math.round((reminderDate2 - today) / 86400000),
+        erledigt: !!(erin2.erledigt || nextBooked2)
+      });
+    }
+  });
+
+  // Sortierung: offene zuerst, dann nach daysUntil
+  entries.sort(function(a, b) {
     if(a.erledigt !== b.erledigt) return a.erledigt ? 1 : -1;
     return a.daysUntil - b.daysUntil;
   });
@@ -8153,19 +8200,18 @@ window.renderTelErinnerungen = function() {
 
   var cardsHtml = entries.map(function(entry) {
     var tp   = entry.tp;
-    var id   = tp._id;
+    var id   = entry.erinId;
     var erin = entry.erin;
     var dU   = entry.daysUntil;
 
-    var t0Str  = entry.t0Date.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
-    var suppStr= entry.supplementStart.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
-    var remStr = entry.reminderDate.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
-    var t1TargetKW  = window.kw ? window.kw(entry.t1TargetDate) : '?';
-    var t1TargetStr = entry.t1TargetDate.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'});
+    var anchorStr = entry.anchorDate.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+    var remStr    = entry.reminderDate.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+    var tgtKW     = window.kw ? window.kw(entry.targetDate) : '?';
+    var tgtStr    = entry.targetDate.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'});
 
     var leftBorder, bg, statusLabel, statusColor;
-    if(entry.t1Booked) {
-      leftBorder='#2E8B57'; bg='#F2FAF5'; statusLabel='T1 gebucht ✅'; statusColor='#2E8B57';
+    if(entry.nextBooked) {
+      leftBorder='#2E8B57'; bg='#F2FAF5'; statusLabel=entry.targetLabel+' gebucht ✅'; statusColor='#2E8B57';
     } else if(erin.erledigt) {
       leftBorder='#4A90D9'; bg='#EEF5FC'; statusLabel='Kontakt erfolgt'; statusColor='#4A90D9';
     } else if(dU < 0) {
@@ -8180,15 +8226,14 @@ window.renderTelErinnerungen = function() {
       leftBorder='#B0BEC5'; bg='#fff'; statusLabel='Fällig in '+dU+' Tagen'; statusColor='#90A4AE';
     }
 
-    var t1InfoHtml = '';
-    if(entry.t1Booked) {
-      var t1Date = wDay(tp.t1week, DAYOFF[tp.t1day]||0);
-      var t1Str  = t1Date.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
-      t1InfoHtml = '<div style="margin-top:10px;padding:9px 12px;background:#E8F5E9;border-radius:6px;font-size:12px;color:#2E7D32;font-weight:600">✅ T1-Termin bereits gebucht: '+t1Str+'</div>';
+    var nextInfoHtml = '';
+    if(entry.nextBooked && entry.nextBookedDate) {
+      var nbStr = entry.nextBookedDate.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+      nextInfoHtml = '<div style="margin-top:10px;padding:9px 12px;background:#E8F5E9;border-radius:6px;font-size:12px;color:#2E7D32;font-weight:600">✅ '+entry.targetLabel+'-Termin bereits gebucht: '+nbStr+'</div>';
     }
 
     var savedInfoHtml = '';
-    if(!entry.t1Booked && !isAdm && (erin.erledigt || erin.kontakt || erin.anmerkung)) {
+    if(!entry.nextBooked && !isAdm && (erin.erledigt || erin.kontakt || erin.anmerkung)) {
       var parts = [];
       if(erin.kontakt) parts.push(erin.kontakt==='mail'?'📧 Mail':'📞 Telefon');
       if(erin.kuerzel) parts.push('von '+erin.kuerzel);
@@ -8199,7 +8244,7 @@ window.renderTelErinnerungen = function() {
     }
 
     var formHtml = '';
-    if(!entry.t1Booked && isAdm) {
+    if(!entry.nextBooked && isAdm) {
       var kontakt = erin.kontakt || '';
       var kuerzel = erin.kuerzel || '';
       var anmerkung = erin.anmerkung || '';
@@ -8234,25 +8279,29 @@ window.renderTelErinnerungen = function() {
         + '</div></div>';
     }
 
+    // Phasen-Badge: zeigt klar welche Phase (T0→T1 oder T1→T2)
+    var phaseBadge = '<span style="font-size:10.5px;font-weight:700;background:'+(entry.phase==='T0'?'#EAD4CB':'#D7B8A8')+';color:#4A2A1F;padding:2px 9px;border-radius:99px;border:1px solid #C9A999">' + entry.anchorLabel+' → '+entry.targetLabel + '</span>';
+
     return '<div style="background:'+bg+';border:1px solid #E0DDD8;border-left:4px solid '+leftBorder+';border-radius:var(--rl);padding:16px 18px;margin-bottom:12px;box-shadow:var(--sh)">'
       + '<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">'
       + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
       + '<span style="font-family:monospace;font-size:14px;font-weight:800;color:#4A2A1F;background:#EAD4CB;padding:3px 12px;border-radius:99px;border:1px solid #C9A999">'+tp.tid+(tp.aufpassen?' ⚠️':'')+'</span>'
       + (tp.lnr ? '<span style="font-size:12px;color:var(--g5)">Laufnr. <strong style="color:var(--bk)">'+tp.lnr+'</strong></span>' : '')
+      + phaseBadge
       + '</div>'
       + '<span style="font-size:11px;font-weight:700;color:'+statusColor+';border:1px solid '+leftBorder+';padding:3px 10px;border-radius:99px;white-space:nowrap">'+statusLabel+'</span>'
       + '</div>'
       + '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--g5)">'
-      + '<span>📅 T0: <strong style="color:#4A2A1F">'+t0Str+'</strong></span>'
-      + '<span>💊 Supplement-Start: <strong style="color:#2E7D32">'+suppStr+'</strong></span>'
+      + '<span>📅 '+entry.anchorLabel+': <strong style="color:#4A2A1F">'+anchorStr+'</strong></span>'
+      + (entry.anchorExtra ? '<span>💊 '+entry.anchorExtra+'</span>' : '')
       + '<span>🔔 Erinnerung: <strong style="color:'+statusColor+'">'+remStr+'</strong></span>'
-      + '<span style="color:#999;font-size:11px">→ T1 Zieltermin: <strong>KW '+t1TargetKW+' (≈ '+t1TargetStr+')</strong></span>'
+      + '<span style="color:#999;font-size:11px">→ '+entry.targetLabel+' Zieltermin: <strong>KW '+tgtKW+' (≈ '+tgtStr+')</strong></span>'
       + '</div>'
-      + t1InfoHtml + savedInfoHtml + formHtml
+      + nextInfoHtml + savedInfoHtml + formHtml
       + '</div>';
   }).join('');
 
-  el.innerHTML = statsHtml + cardsHtml;
+  el.innerHTML = statsHtml + (cardsHtml || '<div style="padding:40px;text-align:center;color:#888;font-style:italic">Noch keine T0-Termine — Erinnerungen erscheinen sobald T0 gebucht ist.</div>');
 };
 
 window.telErinToggleKontakt = function(id, type) {
@@ -8268,15 +8317,21 @@ window.telErinToggleKontakt = function(id, type) {
   });
 };
 
-window.saveTelErinnerung = async function(telpId) {
-  var tp = window._TELP ? window._TELP[telpId] : null; if(!tp) return;
-  var doneEl    = document.getElementById('erin-done-'+telpId);
-  var kontaktEl = document.getElementById('erin-kontakt-'+telpId);
-  var kuerzelEl = document.getElementById('erin-kuerzel-'+telpId);
-  var anmEl     = document.getElementById('erin-anmerkung-'+telpId);
+window.saveTelErinnerung = async function(erinId) {
+  // erinId hat das Format "<probandId>_T0" oder "<probandId>_T1"; falls Legacy (ohne Suffix) → als T0 behandeln
+  var match = erinId.match(/^(.+)_(T[01])$/);
+  var probandId = match ? match[1] : erinId;
+  var phase     = match ? match[2] : 'T0';
+  var firebaseDocId = match ? erinId : (probandId + '_T0'); // immer mit Suffix speichern
+  var tp = window._TELP ? window._TELP[probandId] : null; if(!tp) { if(window.toast) window.toast('Proband nicht gefunden',true); return; }
+  var doneEl    = document.getElementById('erin-done-'+erinId);
+  var kontaktEl = document.getElementById('erin-kontakt-'+erinId);
+  var kuerzelEl = document.getElementById('erin-kuerzel-'+erinId);
+  var anmEl     = document.getElementById('erin-anmerkung-'+erinId);
   var data = {
-    telpId:    telpId,
+    telpId:    probandId,
     tid:       tp.tid || '',
+    phase:     phase,
     erledigt:  doneEl    ? doneEl.checked        : false,
     kontakt:   kontaktEl ? kontaktEl.value        : '',
     kuerzel:   kuerzelEl ? kuerzelEl.value.trim() : '',
@@ -8285,7 +8340,7 @@ window.saveTelErinnerung = async function(telpId) {
   };
   try {
     var fns = window._fbFns;
-    await fns.setDoc(fns.doc(window.db, 'tel_erinnerungen', telpId), data);
+    await fns.setDoc(fns.doc(window.db, 'tel_erinnerungen', firebaseDocId), data);
     toast('Erinnerung gespeichert ✓');
   } catch(e) { toast('Fehler: '+e.message, true); }
 };
