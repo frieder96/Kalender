@@ -2087,6 +2087,8 @@ function startDB() {
     TELP={}; snap.forEach(d=>{TELP[d.id]={...d.data(),_id:d.id}}); window._TELP=TELP;
     if(window.renderTelProbanden) window.renderTelProbanden();
     if(window.renderTelKalender) window.renderTelKalender();
+    if(window.renderTelErinnerungen) window.renderTelErinnerungen();
+    if(window.renderTelFortschritt) window.renderTelFortschritt();
   });
   onSnapshot(collection(db,'recalls'), snap => {
     RECALLS={}; snap.forEach(d=>{RECALLS[d.id]={...d.data(),_id:d.id}}); window._RECALLS=RECALLS; renderRecalls(); renderTable();
@@ -2149,6 +2151,9 @@ function startDB() {
     TEL_BOOKINGS={}; snap.forEach(d=>{TEL_BOOKINGS[d.id]={...d.data(),_id:d.id}});
     window._TEL_BOOKINGS = TEL_BOOKINGS;
     if(window.renderTelKalender) window.renderTelKalender();
+    if(window.renderTelErinnerungen) window.renderTelErinnerungen();
+    if(window.renderTelFortschritt) window.renderTelFortschritt();
+    if(window.renderTelProbanden) window.renderTelProbanden();
   });
   onSnapshot(collection(db,'day_layouts'), snap => {
     DAY_LAYOUTS={}; snap.forEach(d=>{DAY_LAYOUTS[d.id]={...d.data(),_id:d.id}});
