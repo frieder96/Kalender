@@ -4415,6 +4415,20 @@ window.saveSportStatus = async (val) => {
 };
 
 // ── SPERREN ───────────────────────
+// Helper: prüft ob eine gespeicherte Sperre mit termin=spermin den vom Klick übergebenen termin abdeckt
+const _sperreMatchesClicked = (spermin, clickedTermin) => {
+  if(!spermin) return false;
+  if(spermin === 'ALL') return true;
+  if(spermin === clickedTermin) return true;
+  // T123 deckt jedes T1/T2/T3 (auch .1/.2)
+  if(spermin === 'T123' && /^T[123](\.[12])?$/.test(clickedTermin)) return true;
+  // T1/T2/T3 (ohne .1/.2) deckt auch .1/.2
+  if(/^T[123]$/.test(spermin) && (clickedTermin === spermin+'.1' || clickedTermin === spermin+'.2')) return true;
+  // Klick auf T123 (Day-Lock): findet auch spezifischere bestehende Sperren
+  if(clickedTermin === 'T123' && /^T[123](\.[12])?$/.test(spermin)) return true;
+  return false;
+};
+
 window.openSperrenDay = (week, termin, day) => {
   if(!isAdmin()){toast('Keine Berechtigung',true);return;}
   sperrenDay=day; sperrenSlot=null; sperrenTermin=termin; sperrenEditId=null;
@@ -4424,7 +4438,7 @@ window.openSperrenDay = (week, termin, day) => {
   document.getElementById('i-sperren-grund').value='';
 
   // Check if already blocked → show delete button
-  const existing = Object.values(SPERREN).find(s=>s.week===week&&s.day===day&&(s.slot===null||s.slot===undefined)&&(s.termin===termin||s.termin==='ALL'||s.termin===termin.replace(/\.[12]$/,'')));
+  const existing = Object.values(SPERREN).find(s=>s.week===week&&s.day===day&&(s.slot===null||s.slot===undefined)&&_sperreMatchesClicked(s.termin, termin));
   const delBtn = document.getElementById('sperren-del-btn');
   if(existing){ sperrenEditId=existing._id; document.getElementById('i-sperren-grund').value=existing.grund||''; document.getElementById('i-sperren-termin').value=existing.termin||termin; delBtn.style.display=''; }
   else { delBtn.style.display='none'; }
@@ -4442,9 +4456,8 @@ window.openSperrenSlot = (week, termin, day, slot) => {
   document.getElementById('i-sperren-termin').value=termin;
   document.getElementById('i-sperren-grund').value='';
 
-  // Use loose equality for slot (Firestore may return number or int type)
-  const _stMatch = t => t===termin||t==='ALL'||t===termin.replace(/\.[12]$/,'');
-  const existing = Object.values(SPERREN).find(s=>s.week===week&&s.day===day&&Number(s.slot)==Number(slot)&&_stMatch(s.termin));
+  // Use loose equality for slot (Firestore may return number or int type) + erweiterte Match-Logik
+  const existing = Object.values(SPERREN).find(s=>s.week===week&&s.day===day&&Number(s.slot)==Number(slot)&&_sperreMatchesClicked(s.termin, termin));
   const delBtn = document.getElementById('sperren-del-btn');
   if(existing){ sperrenEditId=existing._id; document.getElementById('i-sperren-grund').value=existing.grund||''; document.getElementById('i-sperren-termin').value=existing.termin||termin; delBtn.style.display=''; }
   else { delBtn.style.display='none'; }
