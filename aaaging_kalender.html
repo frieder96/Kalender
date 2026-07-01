@@ -7989,6 +7989,28 @@ window.saveTelProband = async function() {
   var notiz = document.getElementById('telp-notiz').value.trim();
   var aufpassen = document.getElementById('telp-aufpassen').checked;
   if(!tid){ toast('TEL-ID ist Pflicht', true); return; }
+
+  // Duplikat-Check: TID darf pro Studie nur einmal vorkommen (case-insensitive)
+  var tidLower = tid.toLowerCase();
+  var duplicate = Object.values(window._TELP||{}).find(function(tp) {
+    return tp._id !== _telEditId && (tp.tid||'').trim().toLowerCase() === tidLower;
+  });
+  if(duplicate) {
+    toast('❌ TEL-ID "' + tid + '" ist bereits an einen anderen Probanden vergeben!', true);
+    return;
+  }
+
+  // Duplikat-Check LNR (falls gesetzt) — Laufnummer sollte ebenfalls eindeutig sein
+  if(lnr) {
+    var lnrLower = lnr.toLowerCase();
+    var dupLnr = Object.values(window._TELP||{}).find(function(tp) {
+      return tp._id !== _telEditId && (tp.lnr||'').trim().toLowerCase() === lnrLower;
+    });
+    if(dupLnr) {
+      if(!confirm('⚠️ Laufnummer "' + lnr + '" wird bereits von einem anderen Telomer-Probanden verwendet (' + (dupLnr.tid||'?') + '). Trotzdem speichern?')) return;
+    }
+  }
+
   var data = {tid, lnr, notiz, aufpassen, updated:Date.now()};
 
   // If pending slot context, add the assignment to data before saving
@@ -8010,6 +8032,37 @@ window.saveTelProband = async function() {
     window._telPendingSlot = null;
     toast(pending ? 'Proband angelegt & zugewiesen ✓' : 'Gespeichert ✓');
   } catch(e){ toast('Fehler: ' + e.message, true); }
+};
+
+// Diagnose: findet alle Telomer-Probanden mit derselben TID oder Laufnummer
+// Aufruf in Console: findTelDuplicates()
+window.findTelDuplicates = function() {
+  var TELP = window._TELP || {};
+  var byTid = {}, byLnr = {};
+  Object.values(TELP).forEach(function(tp) {
+    var t = (tp.tid||'').trim().toLowerCase();
+    var l = (tp.lnr||'').trim().toLowerCase();
+    if(t) { byTid[t] = byTid[t]||[]; byTid[t].push(tp); }
+    if(l) { byLnr[l] = byLnr[l]||[]; byLnr[l].push(tp); }
+  });
+  var tidDups = Object.entries(byTid).filter(function(x){ return x[1].length > 1; });
+  var lnrDups = Object.entries(byLnr).filter(function(x){ return x[1].length > 1; });
+  console.group('🔍 Telomer-Duplikat-Prüfung');
+  if(tidDups.length) {
+    console.log('❌ Doppelt vergebene TEL-IDs:');
+    tidDups.forEach(function(x) {
+      console.log('  TID "' + x[0] + '" bei ' + x[1].length + ' Probanden:', x[1].map(function(tp){ return {id:tp._id, tid:tp.tid, lnr:tp.lnr, notiz:tp.notiz}; }));
+    });
+  } else console.log('✓ Alle TEL-IDs eindeutig');
+  if(lnrDups.length) {
+    console.log('⚠️ Doppelt vergebene Laufnummern:');
+    lnrDups.forEach(function(x) {
+      console.log('  LNR "' + x[0] + '" bei ' + x[1].length + ' Probanden:', x[1].map(function(tp){ return {id:tp._id, tid:tp.tid, lnr:tp.lnr}; }));
+    });
+  } else console.log('✓ Alle Laufnummern eindeutig');
+  console.groupEnd();
+  if(window.toast) window.toast(tidDups.length ? '❌ ' + tidDups.length + ' TID-Duplikate gefunden — siehe Console' : '✓ Keine TID-Duplikate', tidDups.length > 0);
+  return {tidDups: tidDups, lnrDups: lnrDups};
 };
 
 window.delTelProband = async function(id) {
