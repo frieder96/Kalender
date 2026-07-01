@@ -8139,6 +8139,19 @@ window.exportTelProbanden = function() {
   if(!tps.length){ toast('Keine Telomer-Probanden', true); return; }
   var wDay = window._wDay;
   var DAYOFF={Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
+  var TEL_BK = window._TEL_BOOKINGS || {};
+
+  // Helper: liefert {week, day, slot} für einen Termin (tel_bookings hat Vorrang, sonst Legacy-Felder)
+  function getTerminData(tp, termin) {
+    var bk = Object.values(TEL_BK).find(function(b){ return b.probandId===tp._id && b.termin===termin; });
+    if(bk && bk.week !== undefined && bk.day) return {week:bk.week, day:bk.day, slot:bk.slot};
+    var w = termin==='T0' ? tp.t0week : termin==='T1' ? tp.t1week : tp.t2week;
+    var d = termin==='T0' ? tp.t0day  : termin==='T1' ? tp.t1day  : tp.t2day;
+    var s = termin==='T0' ? tp.t0slot : termin==='T1' ? tp.t1slot : tp.t2slot;
+    if(w !== undefined && w !== null && d) return {week:w, day:d, slot:s};
+    return null;
+  }
+
   var fmtD = function(w,day){
     if(w===undefined||w===null||!day) return '';
     var d = wDay(w, DAYOFF[day]||0);
@@ -8147,11 +8160,14 @@ window.exportTelProbanden = function() {
 
   var rows = [['TEL-ID','Laufnr.','T0 Datum','T0 Tag','T0 Slot','T1 Datum','T1 Tag','T1 Slot','T2 Datum','T2 Tag','T2 Slot','Notiz','Aufpassen']];
   tps.forEach(function(tp) {
+    var t0 = getTerminData(tp,'T0');
+    var t1 = getTerminData(tp,'T1');
+    var t2 = getTerminData(tp,'T2');
     rows.push([
       tp.tid||'', tp.lnr||'',
-      fmtD(tp.t0week,tp.t0day), tp.t0day||'', tp.t0slot||'',
-      fmtD(tp.t1week,tp.t1day), tp.t1day||'', tp.t1slot||'',
-      fmtD(tp.t2week,tp.t2day), tp.t2day||'', tp.t2slot||'',
+      t0 ? fmtD(t0.week, t0.day) : '', t0 ? t0.day : '', t0 && t0.slot ? t0.slot : '',
+      t1 ? fmtD(t1.week, t1.day) : '', t1 ? t1.day : '', t1 && t1.slot ? t1.slot : '',
+      t2 ? fmtD(t2.week, t2.day) : '', t2 ? t2.day : '', t2 && t2.slot ? t2.slot : '',
       tp.notiz||'', tp.aufpassen?'ja':'nein'
     ]);
   });
@@ -8171,7 +8187,7 @@ window.exportTelProbanden = function() {
     a.href=url; a.download='telomer_probanden.csv'; a.click();
     URL.revokeObjectURL(url);
   }
-  toast('Export erstellt ✓');
+  toast('Export erstellt ✓ (' + tps.length + ' Probanden)');
 };
 
 // ── TELOMER ERINNERUNGSKALENDER ──────────────────────────────────
