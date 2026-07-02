@@ -4832,65 +4832,198 @@ window.exportTraining = (range) => {
     filtered = logs.filter(l=>typeof l.wo==='number' && (l.wo-firstWo)>=18 && (l.wo-firstWo)<48);
     label = 'Phase2_Wo19-48';
   }
-
   if(!filtered.length){toast('Keine Daten für diesen Zeitraum',true);return;}
-
-  // Build flat rows: one row per proband × exercise × set
-  const headers = [
-    'Proband','P-ID','Laufnr.',
-    'Studio','Woche','KW','Datum','Tag','Uhrzeit',
-    'Phase','Übung',
-    'Satz 1 Wdhl.','Satz 1 kg',
-    'Satz 2 Wdhl.','Satz 2 kg',
-    'Satz 3 Wdhl.','Satz 3 kg',
-    'Notiz'
-  ];
 
   const SP_DAY_NAMES_MAP = {1:'Montag',2:'Dienstag',3:'Mittwoch',4:'Donnerstag'};
   const SP_HOURS_MAP = h => `${h}:00`;
 
-  const rows = [];
-  filtered.sort((a,b)=>(a.wo??0)-(b.wo??0)||(a.di??0)-(b.di??0)).forEach(log => {
-    const probandName = log.proband || '';
-    const proband = Object.values(P).find(p=>p.pid===probandName||p.lnr===probandName);
-    const studio = SP_STUDIOS.find(s=>s.id===log.sid);
-    const phase = firstWo===Infinity ? 1 : ((log.wo-firstWo)<18?1:2);
-
-    // Get date from week offset
-    let dateStr = '', dayName = SP_DAY_NAMES_MAP[log.di]||'', kwNum = '';
+  // Hilfsfunktion: Datum aus Woche/Tag
+  const getSessionMeta = (log) => {
+    let dateStr='', dayName=SP_DAY_NAMES_MAP[log.di]||'', kwNum='', dateObj=null;
     try {
       const dates = spGetWeekDates(log.wo);
       const d = dates[(log.di||1)-1];
-      if(d){ dateStr = fD(d); kwNum = String(kw(d)); }
+      if(d){ dateStr = fD(d); kwNum = String(kw(d)); dateObj = d; }
     } catch(e){}
+    return {dateStr, dayName, kwNum, dateObj};
+  };
 
+  filtered.sort((a,b)=>(a.wo??0)-(b.wo??0)||(a.di??0)-(b.di??0));
+
+  // ═══════════════════════════════════════════════════════════════
+  // SHEET 1: ÜBERSICHT PRO PROBAND
+  // ═══════════════════════════════════════════════════════════════
+  const probandStats = {};
+  filtered.forEach(log => {
+    const key = log.proband || '(unbekannt)';
+    if(!probandStats[key]) probandStats[key] = {
+      proband: key, sessions:0, exercises:0, sets:0, totalVolume:0,
+      firstDate:null, lastDate:null, studios:new Set(), phases:new Set(), weeks:new Set()
+    };
+    const st = probandStats[key];
+    st.sessions++;
+    const meta = getSessionMeta(log);
+    if(meta.dateObj) {
+      if(!st.firstDate || meta.dateObj < st.firstDate) st.firstDate = meta.dateObj;
+      if(!st.lastDate  || meta.dateObj > st.lastDate)  st.lastDate  = meta.dateObj;
+    }
+    const studio = SP_STUDIOS.find(s=>s.id===log.sid);
+    if(studio) st.studios.add(studio.name); else st.studios.add(`Studio ${log.sid}`);
+    st.phases.add(firstWo===Infinity ? 1 : ((log.wo-firstWo)<18?1:2));
+    st.weeks.add(log.wo);
+    (log.exercises||[]).forEach(ex => {
+      st.exercises++;
+      (ex.sets||[]).forEach(s => {
+        if(s.reps && s.weight){
+          st.sets++;
+          st.totalVolume += Number(s.reps)*Number(s.weight);
+        }
+      });
+    });
+  });
+
+  const overviewHeaders = ['Proband','P-ID','Laufnr.','Trainingseinheiten','Übungen gesamt','Sätze gesamt','Volumen gesamt (kg)','Studios','Phasen','Anzahl Wochen','Erstes Datum','Letztes Datum'];
+  const overviewRows = Object.values(probandStats).sort((a,b)=>a.proband.localeCompare(b.proband)).map(st => {
+    const proband = Object.values(P).find(p=>p.pid===st.proband||p.lnr===st.proband);
+    return [
+      st.proband, proband?.pid||'', proband?.lnr||'',
+      st.sessions, st.exercises, st.sets, Math.round(st.totalVolume),
+      Array.from(st.studios).sort().join(', '),
+      Array.from(st.phases).sort().map(p=>`Phase ${p}`).join(', '),
+      st.weeks.size,
+      st.firstDate ? fD(st.firstDate) : '',
+      st.lastDate  ? fD(st.lastDate)  : ''
+    ];
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // SHEET 2: TRAININGSEINHEITEN — eine Zeile pro Session
+  // ═══════════════════════════════════════════════════════════════
+  const sessionsHeaders = ['Proband','P-ID','Laufnr.','Studio','Phase','Woche','KW','Datum','Tag','Uhrzeit','Anzahl Übungen','Anzahl Sätze','Volumen (kg)','Notizen'];
+  const sessionsRows = filtered.map(log => {
+    const proband = Object.values(P).find(p=>p.pid===log.proband||p.lnr===log.proband);
+    const studio = SP_STUDIOS.find(s=>s.id===log.sid);
+    const phase = firstWo===Infinity ? 1 : ((log.wo-firstWo)<18?1:2);
+    const meta = getSessionMeta(log);
+    let sessSets=0, sessVol=0;
+    const notes = [];
+    (log.exercises||[]).forEach(ex => {
+      (ex.sets||[]).forEach(s => {
+        if(s.reps && s.weight){ sessSets++; sessVol += Number(s.reps)*Number(s.weight); }
+      });
+      if(ex.note) notes.push(`${ex.name}: ${ex.note}`);
+    });
+    return [
+      log.proband||'', proband?.pid||'', proband?.lnr||'',
+      studio?.name||`Studio ${log.sid}`, `Phase ${phase}`,
+      log.wo??'', meta.kwNum, meta.dateStr, meta.dayName, SP_HOURS_MAP(log.h||0),
+      (log.exercises||[]).length, sessSets, Math.round(sessVol),
+      notes.join(' · ')
+    ];
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // SHEET 3: SÄTZE IM DETAIL — eine Zeile pro Übung × Session (mit Volumen berechnet)
+  // ═══════════════════════════════════════════════════════════════
+  const detailHeaders = [
+    'Proband','P-ID','Laufnr.','Studio','Phase','Woche','KW','Datum','Tag','Uhrzeit',
+    'Übung',
+    'Satz 1 Wdhl.','Satz 1 kg','Vol. Satz 1',
+    'Satz 2 Wdhl.','Satz 2 kg','Vol. Satz 2',
+    'Satz 3 Wdhl.','Satz 3 kg','Vol. Satz 3',
+    'Volumen gesamt','Max Gewicht','Notiz'
+  ];
+  const detailRows = [];
+  filtered.forEach(log => {
+    const proband = Object.values(P).find(p=>p.pid===log.proband||p.lnr===log.proband);
+    const studio = SP_STUDIOS.find(s=>s.id===log.sid);
+    const phase = firstWo===Infinity ? 1 : ((log.wo-firstWo)<18?1:2);
+    const meta = getSessionMeta(log);
     (log.exercises||[]).forEach(ex => {
       const s = ex.sets||[];
-      rows.push([
-        probandName,
-        proband?.pid||'',
-        proband?.lnr||'',
-        studio?.name||`Studio ${log.sid}`,
-        log.wo??'',
-        kwNum,
-        dateStr,
-        dayName,
-        SP_HOURS_MAP(log.h||0),
-        `Phase ${phase}`,
+      const vol1 = (s[0]?.reps && s[0]?.weight) ? Number(s[0].reps)*Number(s[0].weight) : '';
+      const vol2 = (s[1]?.reps && s[1]?.weight) ? Number(s[1].reps)*Number(s[1].weight) : '';
+      const vol3 = (s[2]?.reps && s[2]?.weight) ? Number(s[2].reps)*Number(s[2].weight) : '';
+      const volSum = (Number(vol1)||0) + (Number(vol2)||0) + (Number(vol3)||0);
+      const maxKg = Math.max(Number(s[0]?.weight)||0, Number(s[1]?.weight)||0, Number(s[2]?.weight)||0);
+      detailRows.push([
+        log.proband||'', proband?.pid||'', proband?.lnr||'',
+        studio?.name||`Studio ${log.sid}`, `Phase ${phase}`,
+        log.wo??'', meta.kwNum, meta.dateStr, meta.dayName, SP_HOURS_MAP(log.h||0),
         ex.name||'',
-        s[0]?.reps||'', s[0]?.weight||'',
-        s[1]?.reps||'', s[1]?.weight||'',
-        s[2]?.reps||'', s[2]?.weight||'',
-        ex.note||''
+        s[0]?.reps||'', s[0]?.weight||'', vol1||'',
+        s[1]?.reps||'', s[1]?.weight||'', vol2||'',
+        s[2]?.reps||'', s[2]?.weight||'', vol3||'',
+        volSum || '', maxKg || '', ex.note||''
       ]);
     });
   });
 
-  if(!rows.length){toast('Keine Übungsdaten vorhanden',true);return;}
-  dlXLSX(headers, rows, tsFile(`AAAging_Training_${label}`,'xlsx'), 'Training');
+  // ═══════════════════════════════════════════════════════════════
+  // SHEET 4: ÜBUNGSPROGRESSION — pro Proband × Übung: Max-Kg-Entwicklung
+  // ═══════════════════════════════════════════════════════════════
+  const exStats = {}; // key: proband|übung → {maxKg, minKg, sessions, firstDate, lastDate, firstMaxKg, lastMaxKg}
+  filtered.forEach(log => {
+    const meta = getSessionMeta(log);
+    (log.exercises||[]).forEach(ex => {
+      const key = (log.proband||'?') + '||' + (ex.name||'?');
+      if(!exStats[key]) exStats[key] = {
+        proband: log.proband||'', exercise: ex.name||'',
+        sessions: 0, maxKg: 0, firstDate: null, lastDate: null,
+        firstMaxKg: null, lastMaxKg: null
+      };
+      const st = exStats[key];
+      st.sessions++;
+      const sessMax = Math.max(...(ex.sets||[]).map(s=>Number(s.weight)||0), 0);
+      if(sessMax > st.maxKg) st.maxKg = sessMax;
+      if(meta.dateObj) {
+        if(!st.firstDate || meta.dateObj < st.firstDate){ st.firstDate = meta.dateObj; st.firstMaxKg = sessMax; }
+        if(!st.lastDate  || meta.dateObj > st.lastDate) { st.lastDate  = meta.dateObj; st.lastMaxKg  = sessMax; }
+      }
+    });
+  });
+  const progHeaders = ['Proband','Übung','Anzahl Sessions','Max Gewicht (kg)','Erstes Datum','Erster Max (kg)','Letztes Datum','Letzter Max (kg)','Δ Max (kg)','Δ Max (%)'];
+  const progRows = Object.values(exStats).sort((a,b) => a.proband.localeCompare(b.proband) || a.exercise.localeCompare(b.exercise)).map(st => {
+    const delta = (st.firstMaxKg !== null && st.lastMaxKg !== null) ? (st.lastMaxKg - st.firstMaxKg) : '';
+    const deltaPct = (st.firstMaxKg && st.lastMaxKg !== null) ? Math.round(((st.lastMaxKg - st.firstMaxKg) / st.firstMaxKg) * 100) : '';
+    return [
+      st.proband, st.exercise, st.sessions, st.maxKg,
+      st.firstDate ? fD(st.firstDate) : '', st.firstMaxKg ?? '',
+      st.lastDate  ? fD(st.lastDate)  : '', st.lastMaxKg  ?? '',
+      delta, deltaPct === '' ? '' : (deltaPct + '%')
+    ];
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // Alle Sheets zusammen in eine Excel-Datei schreiben (SheetJS)
+  // ═══════════════════════════════════════════════════════════════
+  if(typeof XLSX === 'undefined'){
+    toast('SheetJS nicht geladen',true);
+    return;
+  }
+  const buildSheet = (headers, rows) => {
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    // Spaltenbreite automatisch aus Header-Länge + max Content
+    const colWidths = headers.map((h, i) => {
+      const maxContent = rows.reduce((m, r) => Math.max(m, String(r[i]??'').length), h.length);
+      return { wch: Math.min(Math.max(maxContent + 2, 10), 40) };
+    });
+    ws['!cols'] = colWidths;
+    // Freeze first row
+    ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+    return ws;
+  };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, buildSheet(overviewHeaders, overviewRows), 'Übersicht');
+  XLSX.utils.book_append_sheet(wb, buildSheet(sessionsHeaders, sessionsRows), 'Trainingseinheiten');
+  XLSX.utils.book_append_sheet(wb, buildSheet(detailHeaders, detailRows), 'Sätze im Detail');
+  XLSX.utils.book_append_sheet(wb, buildSheet(progHeaders, progRows), 'Übungsprogression');
+  XLSX.writeFile(wb, tsFile(`AAAging_Training_${label}`, 'xlsx'));
+
   const countEl = document.getElementById('training-export-count');
-  if(countEl) countEl.textContent = `${rows.length} Zeilen exportiert · ${filtered.length} Einheiten`;
-  toast('Trainingsdaten exportiert ✓');
+  if(countEl) countEl.textContent = `${overviewRows.length} Probanden · ${sessionsRows.length} Einheiten · ${detailRows.length} Übungszeilen · ${progRows.length} Übungsprogressionen`;
+  toast('Trainingsdaten in 4 Sheets exportiert ✓');
 };
 
 // ── EEG BOOKING ───────────────────
