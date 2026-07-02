@@ -8138,17 +8138,23 @@ window.exportTelProbanden = function() {
   });
   if(!tps.length){ toast('Keine Telomer-Probanden', true); return; }
   var wDay = window._wDay;
+  var kwFn = window.kw;
+  var wMon = window.wMon;
   var DAYOFF={Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
   var TEL_BK = window._TEL_BOOKINGS || {};
+  var TEL_ERIN = window._TEL_ERINNERUNGEN || {};
 
-  // Helper: liefert {week, day, slot} für einen Termin (tel_bookings hat Vorrang, sonst Legacy-Felder)
+  // TEL-Slot Zeiten Standard (aus _TEL_T0): Slot 1&2 = 08:00, Slot 3&4 = 08:30
+  var TEL_SLOT_TIME = ['08:00','08:00','08:30','08:30'];
+
+  // Helper: liefert {week, day, slot, customStartTime, termin} für einen Termin
   function getTerminData(tp, termin) {
     var bk = Object.values(TEL_BK).find(function(b){ return b.probandId===tp._id && b.termin===termin; });
-    if(bk && bk.week !== undefined && bk.day) return {week:bk.week, day:bk.day, slot:bk.slot};
+    if(bk && bk.week !== undefined && bk.day) return {week:bk.week, day:bk.day, slot:bk.slot, customStart:bk.customStartTime||null, source:'neu'};
     var w = termin==='T0' ? tp.t0week : termin==='T1' ? tp.t1week : tp.t2week;
     var d = termin==='T0' ? tp.t0day  : termin==='T1' ? tp.t1day  : tp.t2day;
     var s = termin==='T0' ? tp.t0slot : termin==='T1' ? tp.t1slot : tp.t2slot;
-    if(w !== undefined && w !== null && d) return {week:w, day:d, slot:s};
+    if(w !== undefined && w !== null && d) return {week:w, day:d, slot:s, customStart:null, source:'legacy'};
     return null;
   }
 
@@ -8157,18 +8163,96 @@ window.exportTelProbanden = function() {
     var d = wDay(w, DAYOFF[day]||0);
     return d.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'});
   };
+  var fmtDate = function(dt){
+    return dt.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'});
+  };
+  var kwOf = function(w){
+    if(w===undefined||w===null) return '';
+    return kwFn ? kwFn(wMon(w)) : '';
+  };
+  var timeOf = function(termin, slot, customStart) {
+    if(customStart) return customStart + ' ⏰';
+    if(!slot) return '';
+    // T1 Sessions haben keine Vorbesprechung → startet bei blutStart, sonst 15 Min früher
+    var base = TEL_SLOT_TIME[Number(slot)-1] || '';
+    if(termin === 'T1') return base; // T1 startet direkt
+    // T0/T2: Einladung 15 Min vor blutStart
+    if(!base) return '';
+    var parts = base.split(':').map(Number);
+    var total = parts[0]*60 + parts[1] - 15;
+    var h = Math.floor(total/60), m = total%60;
+    return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+  };
 
-  var rows = [['TEL-ID','Laufnr.','T0 Datum','T0 Tag','T0 Slot','T1 Datum','T1 Tag','T1 Slot','T2 Datum','T2 Tag','T2 Slot','Notiz','Aufpassen']];
+  var rows = [[
+    'TEL-ID', 'Laufnr.', 'Aufpassen',
+    // T0 Block
+    'T0 KW', 'T0 Datum', 'T0 Tag', 'T0 Slot', 'T0 Startzeit', 'T0 Quelle',
+    'Supplement-Start (Mo nach T0)',
+    // T1 Zielwoche (berechnet) + Erinnerung T0→T1
+    'T1 Zielwoche (berechnet)', 'T1→ Erinnerung: erledigt?', 'T1→ Kontakt-Art', 'T1→ Kürzel', 'T1→ Anmerkung',
+    // T1 Block (gebucht)
+    'T1 KW', 'T1 Datum', 'T1 Tag', 'T1 Slot', 'T1 Startzeit', 'T1 Quelle',
+    // T2 Zielwoche (berechnet) + Erinnerung T1→T2
+    'T2 Zielwoche (berechnet)', 'T2→ Erinnerung: erledigt?', 'T2→ Kontakt-Art', 'T2→ Kürzel', 'T2→ Anmerkung',
+    // T2 Block (gebucht)
+    'T2 KW', 'T2 Datum', 'T2 Tag', 'T2 Slot', 'T2 Startzeit', 'T2 Quelle',
+    // Meta
+    'Notiz', 'Angelegt am', 'Zuletzt geändert'
+  ]];
+
   tps.forEach(function(tp) {
     var t0 = getTerminData(tp,'T0');
     var t1 = getTerminData(tp,'T1');
     var t2 = getTerminData(tp,'T2');
+
+    // Supplement-Start berechnen (Mo nach T0)
+    var supplementStart = '';
+    var t1TargetKW = '';
+    if(t0) {
+      var t0Date = wDay(t0.week, DAYOFF[t0.day]||0); t0Date.setHours(0,0,0,0);
+      var dayOfWeek = t0Date.getDay();
+      var daysToNextMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);
+      var ss = new Date(t0Date); ss.setDate(t0Date.getDate() + daysToNextMonday);
+      supplementStart = fmtDate(ss);
+      // T1 Zielwoche: Supplement-Start + 12 Wochen → KW
+      var tgt = new Date(ss); tgt.setDate(ss.getDate() + 84);
+      t1TargetKW = kwFn ? 'KW ' + kwFn(tgt) + ' / ' + tgt.getFullYear() : '';
+    }
+
+    // T2 Zielwoche (12 Wochen nach T1)
+    var t2TargetKW = '';
+    if(t1) {
+      var t1Date = wDay(t1.week, DAYOFF[t1.day]||0); t1Date.setHours(0,0,0,0);
+      var tgt2 = new Date(t1Date); tgt2.setDate(t1Date.getDate() + 84);
+      t2TargetKW = kwFn ? 'KW ' + kwFn(tgt2) + ' / ' + tgt2.getFullYear() : '';
+    }
+
+    // Erinnerungen (T0→T1 und T1→T2) aus tel_erinnerungen
+    var erin0 = TEL_ERIN[tp._id+'_T0'] || TEL_ERIN[tp._id] || {};
+    var erin1 = TEL_ERIN[tp._id+'_T1'] || {};
+
+    var t1KontaktLabel = erin0.kontakt === 'mail' ? 'E-Mail' : erin0.kontakt === 'telefon' ? 'Telefon' : '';
+    var t2KontaktLabel = erin1.kontakt === 'mail' ? 'E-Mail' : erin1.kontakt === 'telefon' ? 'Telefon' : '';
+
+    var createdStr = tp.created ? fmtDate(new Date(tp.created)) : '';
+    var updatedStr = tp.updated ? fmtDate(new Date(tp.updated)) : '';
+
     rows.push([
-      tp.tid||'', tp.lnr||'',
-      t0 ? fmtD(t0.week, t0.day) : '', t0 ? t0.day : '', t0 && t0.slot ? t0.slot : '',
-      t1 ? fmtD(t1.week, t1.day) : '', t1 ? t1.day : '', t1 && t1.slot ? t1.slot : '',
-      t2 ? fmtD(t2.week, t2.day) : '', t2 ? t2.day : '', t2 && t2.slot ? t2.slot : '',
-      tp.notiz||'', tp.aufpassen?'ja':'nein'
+      tp.tid||'', tp.lnr||'', tp.aufpassen ? 'JA ⚠️' : 'nein',
+      // T0
+      kwOf(t0 && t0.week), t0?fmtD(t0.week,t0.day):'', t0?t0.day:'', t0&&t0.slot?t0.slot:'', t0?timeOf('T0',t0.slot,t0.customStart):'', t0?t0.source:'',
+      supplementStart,
+      // T1 Ziel & Erinnerung
+      t1TargetKW, t1 ? '✅ (T1 gebucht)' : (erin0.erledigt ? 'ja' : 'nein'), t1KontaktLabel, erin0.kuerzel||'', erin0.anmerkung||'',
+      // T1
+      kwOf(t1 && t1.week), t1?fmtD(t1.week,t1.day):'', t1?t1.day:'', t1&&t1.slot?t1.slot:'', t1?timeOf('T1',t1.slot,t1.customStart):'', t1?t1.source:'',
+      // T2 Ziel & Erinnerung
+      t2TargetKW, t2 ? '✅ (T2 gebucht)' : (erin1.erledigt ? 'ja' : 'nein'), t2KontaktLabel, erin1.kuerzel||'', erin1.anmerkung||'',
+      // T2
+      kwOf(t2 && t2.week), t2?fmtD(t2.week,t2.day):'', t2?t2.day:'', t2&&t2.slot?t2.slot:'', t2?timeOf('T2',t2.slot,t2.customStart):'', t2?t2.source:'',
+      // Meta
+      tp.notiz||'', createdStr, updatedStr
     ]);
   });
 
