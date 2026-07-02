@@ -4587,7 +4587,7 @@ window.deleteSperren = async () => {
 };
 
 // ── EXPORT ────────────────────────
-const tsFile = prefix => { const n=new Date(),p=x=>String(x).padStart(2,'0'); return `${prefix}_${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}_${p(n.getHours())}${p(n.getMinutes())}.csv`; };
+const tsFile = (prefix, ext) => { const n=new Date(),p=x=>String(x).padStart(2,'0'); const e = ext || 'csv'; return `${prefix}_${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}_${p(n.getHours())}${p(n.getMinutes())}.${e}`; };
 const dlCSV  = (rows,fn) => { const csv=rows.map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})); a.download=fn; a.click(); };
 
 function dlXLSX(headers, rows, filename, sheetName='Daten') {
