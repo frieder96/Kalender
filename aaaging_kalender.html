@@ -2552,8 +2552,12 @@ function renderEEGWeek() {
         sp.week===cW && sp.day===d.label && Number(sp.slot)===Number(s.slot) && (sp.termin==='EEG'||sp.termin==='ALL'));
       const isSp = slotSperr || daySperre;
 
-      // Proband aus P suchen um dessen Notiz zu bekommen
-      const bkProband = bk ? Object.values(P).find(p => p._id === bk.probandId) : null;
+      // Proband aus P suchen um dessen Notiz zu bekommen — Fallback über probandId, pid, lnr
+      const bkProband = bk ? Object.values(P).find(p =>
+        (bk.probandId && p._id === bk.probandId) ||
+        (bk.pid && p.pid === bk.pid) ||
+        (bk.lnr && p.lnr === bk.lnr)
+      ) : null;
       const bkNotiz = bkProband && bkProband.notiz ? bkProband.notiz : '';
 
       const proHtml = isSp
