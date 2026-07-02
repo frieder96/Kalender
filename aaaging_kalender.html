@@ -2555,7 +2555,7 @@ function renderEEGWeek() {
       const proHtml = isSp
         ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSp.grund?` · ${isSp.grund}`:''}</div>`
         : bk
-          ? `<div class="prow"><span class="pbadge">${bk.pid}</span><span class="lbadge">${bk.lnr}</span>${bk.termin?`<span style="background:#E8F0FF;color:#1E4FCC;border:1px solid #B5C8F5;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700">${bk.termin}</span>`:''}${isAdmin()?`<button class="btn btn-xs btn-d" onclick="delEEGBooking('${bk._id}')">✕</button>`:''}</div>${bk.note?`<div style="font-size:10.5px;color:var(--g5);font-style:italic;margin-top:3px;padding:3px 6px;background:var(--g1);border-radius:3px">📝 ${bk.note}</div>`:''}`
+          ? `<div class="prow"><span class="pbadge">${bk.pid}</span><span class="lbadge">${bk.lnr}</span>${bk.termin?`<span style="background:#E8F0FF;color:#1E4FCC;border:1px solid #B5C8F5;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700">${bk.termin}</span>`:''}${isAdmin()?`<button class="btn btn-xs" onclick="editEEGNote('${bk._id}')" title="${bk.note?'Kommentar bearbeiten':'Kommentar hinzufügen'}" style="${bk.note?'background:#FFF8E1;color:#C8870A;border-color:#FFD54F':''}">📝</button><button class="btn btn-xs btn-d" onclick="delEEGBooking('${bk._id}')">✕</button>`:''}</div>${bk.note?`<div onclick="${isAdmin()?`editEEGNote('${bk._id}')`:''}" style="font-size:11px;color:#5D4037;margin-top:4px;padding:6px 8px;background:#FFF8E1;border:1px solid #FFE082;border-radius:4px;line-height:1.35;${isAdmin()?'cursor:pointer':''}" title="${isAdmin()?'Klicken zum Bearbeiten':''}">📝 ${bk.note.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div>`:''}`
           : `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()&&!daySperre?`<button class="btn btn-xs btn-p" onclick="openEEGBookModal(${cW},'${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
 
       const lockIcon = isAdmin()
@@ -5056,6 +5056,21 @@ window.delEEGBooking = async (id) => {
   if(!confirm('Buchung wirklich löschen?')) return;
   try { const {deleteDoc,doc:fdoc}=window._fbFns; await deleteDoc(fdoc(db,'eeg_bookings',id)); toast('Buchung gelöscht ✓'); }
   catch(e){toast('Fehler: '+e.message,true);}
+};
+
+// EEG-Kommentar einer bestehenden Buchung bearbeiten
+window.editEEGNote = async (id) => {
+  if(!isAdmin()){toast('Keine Berechtigung',true);return;}
+  const bk = EEG_BOOKINGS[id]; if(!bk){toast('Buchung nicht gefunden',true);return;}
+  const current = bk.note || '';
+  const newNote = prompt(`Kommentar zur EEG-Buchung${bk.pid?` von ${bk.pid}`:''}:\n(leer lassen zum Entfernen)`, current);
+  if(newNote === null) return; // Cancel
+  const trimmed = newNote.trim();
+  try {
+    const {updateDoc, doc:fdoc} = window._fbFns;
+    await updateDoc(fdoc(db,'eeg_bookings',id), {note: trimmed, updated: Date.now()});
+    toast(trimmed ? 'Kommentar gespeichert ✓' : 'Kommentar entfernt ✓');
+  } catch(e){toast('Fehler: '+e.message,true);}
 };
 
 // ── MRT BOOKING ───────────────────
