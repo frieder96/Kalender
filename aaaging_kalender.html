@@ -2552,18 +2552,10 @@ function renderEEGWeek() {
         sp.week===cW && sp.day===d.label && Number(sp.slot)===Number(s.slot) && (sp.termin==='EEG'||sp.termin==='ALL'));
       const isSp = slotSperr || daySperre;
 
-      // Proband aus P suchen um dessen Notiz zu bekommen — Fallback über probandId, pid, lnr
-      const bkProband = bk ? Object.values(P).find(p =>
-        (bk.probandId && p._id === bk.probandId) ||
-        (bk.pid && p.pid === bk.pid) ||
-        (bk.lnr && p.lnr === bk.lnr)
-      ) : null;
-      const bkNotiz = bkProband && bkProband.notiz ? bkProband.notiz : '';
-
       const proHtml = isSp
         ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSp.grund?` · ${isSp.grund}`:''}</div>`
         : bk
-          ? `<div class="prow"><span class="pbadge">${bk.pid}</span><span class="lbadge">${bk.lnr}</span>${bk.termin?`<span style="background:#E8F0FF;color:#1E4FCC;border:1px solid #B5C8F5;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700">${bk.termin}</span>`:''}${isAdmin()?`<button class="btn btn-xs btn-d" onclick="delEEGBooking('${bk._id}')">✕</button>`:''}</div>${bkNotiz?`<div style="font-size:10.5px;color:var(--g5);font-style:italic;margin-top:4px;padding:4px 6px;background:var(--g1);border-radius:3px;line-height:1.3">📝 ${bkNotiz.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`:''}`
+          ? `<div class="prow"><span class="pbadge">${bk.pid}</span><span class="lbadge">${bk.lnr}</span>${bk.termin?`<span style="background:#E8F0FF;color:#1E4FCC;border:1px solid #B5C8F5;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700">${bk.termin}</span>`:''}${isAdmin()?`<button class="btn btn-xs btn-d" onclick="delEEGBooking('${bk._id}')">✕</button>`:''}</div>${bk.note?`<div style="font-size:11px;color:#5D4037;margin-top:4px;padding:5px 8px;background:#FFF8E1;border:1px solid #FFE082;border-radius:4px;line-height:1.35">📝 ${bk.note.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div>`:''}`
           : `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()&&!daySperre?`<button class="btn btn-xs btn-p" onclick="openEEGBookModal(${cW},'${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
 
       const lockIcon = isAdmin()
