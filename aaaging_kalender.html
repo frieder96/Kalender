@@ -691,7 +691,6 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     </div>
     <div class="unav-i" id="nav-telomer" style="display:none">
       <button class="ntab on"  onclick="goTab('tel-kalender',this)">Kalender</button>
-      <button class="ntab"     onclick="goTab('tel-jahresuebersicht',this)">📆 Jahresübersicht</button>
       <button class="ntab"     onclick="goTab('tel-erinnerungen',this)">🔔 Erinnerungen</button>
       <button class="ntab"     onclick="goTab('tel-probanden',this)">Probanden</button>
       <button class="ntab"     onclick="goTab('team',this)">Team &amp; Aufgaben</button>
@@ -1121,22 +1120,6 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     </div>
 
     <!-- TELOMER ERINNERUNGSKALENDER -->
-    <div id="tab-tel-jahresuebersicht" class="panel">
-      <h2>📆 Telomer Jahresübersicht — Zeitleiste aller Probanden</h2>
-      <div style="margin-bottom:12px;font-size:12px;color:var(--g5)">
-        Zeigt für jeden Probanden die geplanten und gebuchten Termin-Phasen (T0 · T1 · T2) über den Studienzeitraum.
-        Gebuchte Termine als volle Farbe, geplante Zieltermine als gestrichelter Rahmen.
-      </div>
-      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-size:11px">
-        <span><span style="display:inline-block;width:16px;height:14px;background:#FFEFD8;border:1px solid #FFC380;border-radius:3px;vertical-align:middle;margin-right:5px"></span>🧬 T0 gebucht</span>
-        <span><span style="display:inline-block;width:16px;height:14px;background:#FCE2D6;border:1px solid #F0A88F;border-radius:3px;vertical-align:middle;margin-right:5px"></span>🧬 T1 gebucht</span>
-        <span><span style="display:inline-block;width:16px;height:14px;background:#E8D5C4;border:1px solid #B8916F;border-radius:3px;vertical-align:middle;margin-right:5px"></span>🧬 T2 gebucht</span>
-        <span><span style="display:inline-block;width:16px;height:14px;background:#fff;border:2px dashed #999;border-radius:3px;vertical-align:middle;margin-right:5px"></span>Zielwoche (geplant)</span>
-        <span><span style="display:inline-block;width:16px;height:14px;background:#F0F0F0;border:1px solid #DDD;border-radius:3px;vertical-align:middle;margin-right:5px"></span>Aktuelle Woche</span>
-      </div>
-      <div id="tel-jahresuebersicht-content" style="overflow-x:auto"></div>
-    </div>
-
     <div id="tab-tel-erinnerungen" class="panel">
       <div class="phdr">
         <div>
@@ -2108,7 +2091,6 @@ function startDB() {
     if(window.renderTelKalender) window.renderTelKalender();
     if(window.renderTelErinnerungen) window.renderTelErinnerungen();
     if(window.renderTelFortschritt) window.renderTelFortschritt();
-    if(window.renderTelJahresuebersicht) window.renderTelJahresuebersicht();
   });
   onSnapshot(collection(db,'recalls'), snap => {
     RECALLS={}; snap.forEach(d=>{RECALLS[d.id]={...d.data(),_id:d.id}}); window._RECALLS=RECALLS; renderRecalls(); renderTable();
@@ -2174,7 +2156,6 @@ function startDB() {
     if(window.renderTelErinnerungen) window.renderTelErinnerungen();
     if(window.renderTelFortschritt) window.renderTelFortschritt();
     if(window.renderTelProbanden) window.renderTelProbanden();
-    if(window.renderTelJahresuebersicht) window.renderTelJahresuebersicht();
   });
   onSnapshot(collection(db,'day_layouts'), snap => {
     DAY_LAYOUTS={}; snap.forEach(d=>{DAY_LAYOUTS[d.id]={...d.data(),_id:d.id}});
@@ -8446,149 +8427,6 @@ window.exportTelProbanden = function() {
   toast('Export erstellt ✓ (' + tps.length + ' Probanden)');
 };
 
-// ── TELOMER JAHRESÜBERSICHT — Zeitleiste aller Probanden ───────
-window.renderTelJahresuebersicht = function() {
-  var el = document.getElementById('tel-jahresuebersicht-content'); if(!el) return;
-  var wDay = window._wDay, kwFn = window.kw, wMon = window.wMon;
-  if(!wDay || !kwFn || !wMon) { el.innerHTML = '<div style="padding:20px;color:#888">Lade…</div>'; return; }
-
-  var DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
-  var TEL_BK = window._TEL_BOOKINGS || {};
-  var TELP   = window._TELP || {};
-  var N_WEEKS = window.N_WEEKS || 96;
-  var START   = window.START;
-  if(!START) { el.innerHTML = '<div style="padding:20px;color:#888">Studien-Start nicht gesetzt</div>'; return; }
-
-  function getInfo(tp, termin) {
-    var bk = Object.values(TEL_BK).find(function(b){ return b.probandId===tp._id && b.termin===termin; });
-    if(bk && bk.week !== undefined && bk.day) return {week: bk.week, day: bk.day, booked: true};
-    var w = termin==='T0' ? tp.t0week : termin==='T1' ? tp.t1week : tp.t2week;
-    var d = termin==='T0' ? tp.t0day  : termin==='T1' ? tp.t1day  : tp.t2day;
-    if(w !== undefined && w !== null && d) return {week: w, day: d, booked: true};
-    return null;
-  }
-
-  var today = new Date(); today.setHours(0,0,0,0);
-  var currentCW = Math.floor((today - START) / (7*86400000));
-
-  var tps = Object.values(TELP).sort(function(a,b){
-    return (parseInt((a.tid||'').replace(/\D/g,''))||0) - (parseInt((b.tid||'').replace(/\D/g,''))||0);
-  });
-  if(!tps.length) {
-    el.innerHTML = '<div style="padding:40px;text-align:center;color:#888;font-style:italic">Noch keine Telomer-Probanden vorhanden.</div>';
-    return;
-  }
-
-  // Wochen-Bereich: von frühestem T0 bis (spätestem T2 + 4 Wochen) plus Padding
-  var minWeek = Infinity, maxWeek = -Infinity;
-  tps.forEach(function(tp) {
-    var t0 = getInfo(tp,'T0'), t1 = getInfo(tp,'T1'), t2 = getInfo(tp,'T2');
-    if(t0) { minWeek = Math.min(minWeek, t0.week); maxWeek = Math.max(maxWeek, t0.week + 26); }
-    if(t1) { minWeek = Math.min(minWeek, t1.week); maxWeek = Math.max(maxWeek, t1.week + 14); }
-    if(t2) { minWeek = Math.min(minWeek, t2.week); maxWeek = Math.max(maxWeek, t2.week + 4); }
-  });
-  if(!isFinite(minWeek)) { minWeek = 0; maxWeek = 24; }
-  minWeek = Math.max(0, minWeek - 2);
-  maxWeek = Math.min(N_WEEKS - 1, maxWeek + 2);
-
-  // Header: Monate + KW/Datum
-  var monthHeaders = [];
-  var weekCells = [];
-  var lastMonthKey = '';
-  for(var w = minWeek; w <= maxWeek; w++) {
-    var mo = wMon(w);
-    var monthKey = mo.getFullYear() + '-' + String(mo.getMonth()+1).padStart(2,'0');
-    var monthLabel = mo.toLocaleDateString('de-AT', {month:'short', year:'2-digit'});
-    var kwNum = kwFn(mo);
-    var dateStr = String(mo.getDate()).padStart(2,'0') + '.' + String(mo.getMonth()+1).padStart(2,'0');
-    weekCells.push({cw: w, kw: kwNum, dateStr: dateStr, monthKey: monthKey, isCurrent: (w===currentCW)});
-    if(monthKey !== lastMonthKey) {
-      monthHeaders.push({label: monthLabel, span: 1, monthKey: monthKey});
-      lastMonthKey = monthKey;
-    } else {
-      monthHeaders[monthHeaders.length-1].span++;
-    }
-  }
-
-  var TERMIN_COLOR = {
-    'T0': {bg:'#FFEFD8', border:'#FFC380', color:'#A65300'},
-    'T1': {bg:'#FCE2D6', border:'#F0A88F', color:'#9F3D17'},
-    'T2': {bg:'#E8D5C4', border:'#B8916F', color:'#5C3416'}
-  };
-  var CELL_W = 34, CELL_H = 30;
-
-  var html = '<div style="min-width:' + (200 + weekCells.length * CELL_W) + 'px">';
-  html += '<table style="border-collapse:collapse;font-size:11px">';
-
-  html += '<thead>';
-  html += '<tr><th style="position:sticky;left:0;background:#fff;z-index:2;text-align:left;padding:6px 10px;border-bottom:2px solid #333;min-width:200px">Proband</th>';
-  monthHeaders.forEach(function(m) {
-    html += '<th colspan="' + m.span + '" style="text-align:center;padding:4px;background:#EAD4CB;color:#4A2A1F;border:1px solid #C9A999;font-size:10.5px;font-weight:700">' + m.label + '</th>';
-  });
-  html += '</tr>';
-  html += '<tr><th style="position:sticky;left:0;background:#fff;z-index:2;text-align:left;padding:4px 10px;border-bottom:1px solid #ccc;font-size:9.5px;color:#888;font-weight:500">Zeitraum</th>';
-  weekCells.forEach(function(wc) {
-    var currStyle = wc.isCurrent ? 'background:#F0F0F0;font-weight:700;color:#000' : 'background:#FAFAFA;color:#666';
-    html += '<th style="' + currStyle + ';padding:2px 1px;border:1px solid #DDD;font-size:8.5px;font-weight:500;min-width:' + CELL_W + 'px;width:' + CELL_W + 'px;line-height:1.15">'
-         + 'KW ' + wc.kw + '<br><span style="font-size:8px;opacity:.7">' + wc.dateStr + '</span></th>';
-  });
-  html += '</tr>';
-  html += '</thead>';
-
-  html += '<tbody>';
-  tps.forEach(function(tp, idx) {
-    var t0 = getInfo(tp,'T0'), t1 = getInfo(tp,'T1'), t2 = getInfo(tp,'T2');
-    // Berechnete Zielwochen: 12 Wochen später
-    var t1TargetWeek = t0 ? t0.week + 12 : null;
-    var t2TargetWeek = t1 ? t1.week + 12 : (t0 ? t0.week + 24 : null);
-
-    var rowBg = idx % 2 ? '#FAFAF7' : '#fff';
-    html += '<tr>';
-    html += '<td style="position:sticky;left:0;background:' + rowBg + ';padding:6px 10px;border-bottom:1px solid #EEE;border-right:2px solid #999;font-weight:700">'
-         + '<span style="font-family:monospace;color:#4A2A1F">' + tp.tid + '</span>'
-         + (tp.aufpassen ? ' <span style="color:#E65100">⚠️</span>' : '')
-         + (tp.lnr ? '<div style="font-size:9.5px;color:#888;font-weight:400">L' + tp.lnr + '</div>' : '')
-         + '</td>';
-
-    weekCells.forEach(function(wc) {
-      var content = '';
-      var style = 'padding:2px;border:1px solid #EEE;text-align:center;min-width:' + CELL_W + 'px;width:' + CELL_W + 'px;height:' + CELL_H + 'px;';
-      var terminHere = null, isTarget = false;
-      if(t0 && t0.week === wc.cw) { terminHere = 'T0'; }
-      else if(t1 && t1.week === wc.cw) { terminHere = 'T1'; }
-      else if(t2 && t2.week === wc.cw) { terminHere = 'T2'; }
-      else if(t1TargetWeek === wc.cw && !t1) { terminHere = 'T1'; isTarget = true; }
-      else if(t2TargetWeek === wc.cw && !t2) { terminHere = 'T2'; isTarget = true; }
-
-      if(terminHere) {
-        var col = TERMIN_COLOR[terminHere];
-        if(isTarget) {
-          style += 'background:#fff;border:2px dashed ' + col.border + ';';
-          content = '<span style="color:' + col.color + ';font-weight:700;font-size:10px">' + terminHere + '</span>';
-        } else {
-          style += 'background:' + col.bg + ';border:1px solid ' + col.border + ';';
-          content = '<span style="color:' + col.color + ';font-weight:700;font-size:10.5px">🧬' + terminHere + '</span>';
-        }
-      } else if(wc.isCurrent) {
-        style += 'background:#F0F0F0;';
-      } else {
-        style += 'background:' + rowBg + ';';
-      }
-
-      html += '<td style="' + style + '" title="KW ' + wc.kw + ' · ' + wc.dateStr + (terminHere ? (' · ' + terminHere + (isTarget ? ' (Zielwoche)' : ' gebucht')) : '') + '">' + content + '</td>';
-    });
-    html += '</tr>';
-  });
-  html += '</tbody></table></div>';
-
-  var summary = '<div style="margin-top:16px;padding:12px 14px;background:#FAFAF7;border:1px solid #E0DDD8;border-radius:6px;font-size:12px;color:#555">'
-    + '📊 <strong>' + tps.length + ' Probanden</strong> · Zeitraum KW ' + kwFn(wMon(minWeek)) + ' bis KW ' + kwFn(wMon(maxWeek))
-    + ' (' + wMon(minWeek).toLocaleDateString('de-AT') + ' – ' + wMon(maxWeek).toLocaleDateString('de-AT') + ')'
-    + '</div>';
-
-  el.innerHTML = html + summary;
-};
-
 // ── TELOMER ERINNERUNGSKALENDER ──────────────────────────────────
 window.renderTelErinnerungen = function() {
   var el = document.getElementById('tel-erinnerungen-content'); if(!el) return;
@@ -8849,7 +8687,6 @@ window.saveTelErinnerung = async function(erinId) {
       renderTelKalender();
     }
     if(name==='tel-erinnerungen'){ renderTelErinnerungen(); }
-    if(name==='tel-jahresuebersicht'){ renderTelJahresuebersicht(); }
     if(name==='tel-probanden'){ renderTelProbanden(); }
     if(name==='tel-fortschritt'){ renderTelFortschritt(); }
   };
