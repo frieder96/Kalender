@@ -1736,8 +1736,13 @@ function isKW27(w) {
 //   - Sondertag → folgt dem globalen Banner-Toggle (_kw27T1Sub)
 //   - Manueller Override in DAY_LAYOUTS → das gewählte Layout
 //   - Sonst: Default nach Wochentag (Mo/Di = T1.1, Mi/Do = T1.2)
+window._LOCAL_DAY_LAYOUTS = window._LOCAL_DAY_LAYOUTS || {};
 function getDayLayout(w, day) {
   if(isSondertag(w, day)) return window._kw27T1Sub || 'T1.1';
+  // Lokaler Session-Override (z.B. von Nur-Sicht-Usern ohne Firestore-Schreibrecht) hat Vorrang,
+  // solange er gesetzt ist — gilt nur für diesen Browser/diese Session, ändert keine Daten.
+  const localKey = w+'_'+day;
+  if(window._LOCAL_DAY_LAYOUTS[localKey]) return window._LOCAL_DAY_LAYOUTS[localKey];
   const override = Object.values(DAY_LAYOUTS).find(dl => dl.week===w && dl.day===day);
   if(override && override.layout) return override.layout;
   return (day==='Montag'||day==='Dienstag') ? 'T1.1' : 'T1.2';
@@ -2472,7 +2477,7 @@ function renderWeek() {
     const _isOverridden = _curLayout && _curLayout !== _defaultLayout;
     const _vActive = _curLayout==='T1.1';
     const _nActive = _curLayout==='T1.2';
-    const layoutBtn = (isAdmin() && curTermin==='T1' && !_isSondertagDay)
+    const layoutBtn = (curTermin==='T1' && !_isSondertagDay)
       ? `<div style="display:flex;gap:0;border:1px solid rgba(255,255,255,.3);border-radius:4px;overflow:hidden">
            <button onclick="setDayLayout(${cW},'${d.label}','T1.1')" title="Auf Vormittag (T1.1) setzen" style="padding:1px 5px;border:none;font-size:9.5px;font-weight:700;cursor:pointer;background:${_vActive?(_isOverridden?'#E65100':'rgba(255,255,255,.85)'):'transparent'};color:${_vActive?(_isOverridden?'#fff':'#3F3D3A'):'rgba(255,255,255,.7)'}">V</button>
            <button onclick="setDayLayout(${cW},'${d.label}','T1.2')" title="Auf Nachmittag (T1.2) setzen" style="padding:1px 5px;border:none;border-left:1px solid rgba(255,255,255,.3);font-size:9.5px;font-weight:700;cursor:pointer;background:${_nActive?(_isOverridden?'#E65100':'rgba(255,255,255,.85)'):'transparent'};color:${_nActive?(_isOverridden?'#fff':'#3F3D3A'):'rgba(255,255,255,.7)'}">N</button>
@@ -3123,8 +3128,16 @@ window.toggleSondertag = async (w, day) => {
 
 // ── DAY LAYOUT SETTER (V = T1.1 Vormittag, N = T1.2 Nachmittag) ────
 window.setDayLayout = async (w, day, newLayout) => {
-  if(!isAdmin()){toast('Keine Berechtigung',true);return;}
   if(newLayout !== 'T1.1' && newLayout !== 'T1.2') return;
+  // Nur-Sicht-User (kein Schreibrecht in Firestore): rein lokaler Ansichtswechsel für diese Session,
+  // ändert keine Daten und betrifft keine anderen Nutzer.
+  if(!isTrainer()) {
+    const localKey = w+'_'+day;
+    window._LOCAL_DAY_LAYOUTS[localKey] = newLayout;
+    toast(`${day}: Ansicht auf ${newLayout==='T1.1'?'Vormittag (T1.1)':'Nachmittag (T1.2)'} umgeschaltet (nur lokal)`);
+    renderWeek();
+    return;
+  }
   const existing = Object.values(DAY_LAYOUTS).find(dl=>dl.week===w && dl.day===day);
   const defaultLayout = (day==='Montag'||day==='Dienstag') ? 'T1.1' : 'T1.2';
   try {
