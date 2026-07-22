@@ -2267,7 +2267,8 @@ function renderWeek() {
     </div>`;
   }
 
-  content.innerHTML = _kw27Banner + `<div class="dgrid">${days.map((d,i)=>{
+  const _dgridStyle = (_t0FriWeek && days.length===5) ? ' style="grid-template-columns:repeat(5,1fr)"' : '';
+  content.innerHTML = _kw27Banner + `<div class="dgrid"${_dgridStyle}>${days.map((d,i)=>{
     const date=wDay(cW,d.off);
     const slots=slotSets[i];
     const getter=getters[i];
