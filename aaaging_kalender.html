@@ -1253,7 +1253,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <div style="border-top:1px solid var(--g2);padding-top:12px;margin-top:4px;margin-bottom:12px;font-size:11px;font-weight:700;color:var(--ub);text-transform:uppercase;letter-spacing:.06em">T0 — Voruntersuchung</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
         <div class="fg"><label class="fl">Woche</label><select class="fi" id="ip-t0week" onchange="updT0Slots()"></select></div>
-        <div class="fg"><label class="fl">Tag</label><select class="fi" id="ip-t0day" onchange="updT0Slots()"><option>Montag</option><option>Dienstag</option><option>Mittwoch</option><option>Donnerstag</option></select></div>
+        <div class="fg"><label class="fl">Tag</label><select class="fi" id="ip-t0day" onchange="updT0Slots()"><option>Montag</option><option>Dienstag</option><option>Mittwoch</option><option>Donnerstag</option><option id="ip-t0day-fri" value="Freitag" style="display:none">Freitag</option></select></div>
         <div class="fg"><label class="fl">Slot</label><select class="fi" id="ip-t0slot"></select><div class="fh" id="ip-t0hint"></div></div>
       </div>
       <div style="border-top:1px solid var(--g2);padding-top:12px;margin-top:4px;margin-bottom:12px;font-size:11px;font-weight:700;color:var(--ub);text-transform:uppercase;letter-spacing:.06em">T1 — Hauptuntersuchung</div>
@@ -1848,6 +1848,14 @@ function kw(d) {
 }
 const DOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
 
+// Sonderfall: In der Woche vom 10.08.2026 (Montag) wird für T0 zusätzlich der Freitag
+// mit den gleichen T0-Slots wie an den anderen Tagen freigeschaltet — nur in dieser einen Woche.
+function isT0ExtraFriWeek(w) {
+  const mo = wMon(w);
+  return mo.getFullYear()===2026 && mo.getMonth()===7 && mo.getDate()===10; // Monat 7 = August (0-indiziert)
+}
+window._isT0ExtraFriWeek = isT0ExtraFriWeek;
+
 // ── STATE ─────────────────────────
 let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={}, ROOMS={}, ROOM_BLOCKS={}, TELP={}, TEL_ERINNERUNGEN={}, KW27_BOOKINGS={}, SONDERTAGE={}, T_BOOKINGS={}, TEL_BOOKINGS={}, DAY_LAYOUTS={};
 window._P = () => P;
@@ -2197,7 +2205,8 @@ function renderWeek() {
   curTermin = window.curTermin || 'T0';
   const mo=wMon(cW), thu=wDay(cW,3), k=kw(mo);
   document.getElementById('wbadge').textContent=`KW ${k} · ${mo.getFullYear()}`;
-  document.getElementById('wrange').textContent=`${fD(mo)} – ${fD(thu)}`;
+  const _t0FriWeek = curTermin==='T0' && isT0ExtraFriWeek(cW);
+  document.getElementById('wrange').textContent=`${fD(mo)} – ${fD(_t0FriWeek ? wDay(cW,4) : thu)}`;
 
   const content = document.getElementById('cal-content');
   if (!content) return;
@@ -2208,6 +2217,7 @@ function renderWeek() {
   let days, slotSets, getters, phaseLabel, headerColor;
   if (curTermin==='T0') {
     days=[{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
+    if(_t0FriWeek) days.push({label:'Freitag',off:4});
     const _t0 = getT0ForWeek(cW);
     slotSets=days.map(()=>_t0); getters=days.map(()=>byT0); phaseLabel='T0'; headerColor='var(--t0c)';
   } else if (curTermin==='T1' || curTermin==='T2' || curTermin==='T3') {
@@ -3068,6 +3078,15 @@ function buildWeekSel(id) {
 
 window.updT0Slots = () => {
   const w=parseInt(document.getElementById('ip-t0week').value);
+  const friOpt = document.getElementById('ip-t0day-fri');
+  if(friOpt) {
+    const friAllowed = !isNaN(w) && isT0ExtraFriWeek(w);
+    friOpt.style.display = friAllowed ? '' : 'none';
+    friOpt.disabled = !friAllowed;
+    if(!friAllowed && document.getElementById('ip-t0day').value==='Freitag') {
+      document.getElementById('ip-t0day').value='Montag';
+    }
+  }
   const day=document.getElementById('ip-t0day').value;
   const occ=new Set(Object.values(P).filter(p=>p.t0week===w&&p.t0day===day&&(!eId||(p._id)!==eId)).map(p=>p.t0slot));
   document.getElementById('ip-t0slot').innerHTML=T0.map(s=>{
