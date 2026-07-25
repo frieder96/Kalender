@@ -1816,9 +1816,23 @@ const EEG_STARTS = ['09:00','11:30','15:00'];
 const EEG_ENDS   = ['11:30','14:00','17:30'];
 const EEG_STARTS_LATE = ['09:00','11:30','14:30']; // ab KW 18
 const EEG_ENDS_LATE   = ['11:30','14:00','17:00'];
+// Sonderfall: 31.08.–18.09.2026 (erste 3 Septemberwochen) — 4 Slots statt 3
+const EEG_STARTS_SEPT = ['09:00','11:00','13:30','15:30'];
+const EEG_ENDS_SEPT   = ['11:00','13:00','15:30','17:30'];
+function isEegSeptWeek(w) {
+  const mo = wMon(w);
+  if(mo.getFullYear()!==2026 || mo.getMonth()!==7 && mo.getMonth()!==8) return false; // Aug=7, Sep=8
+  const iso = mo.toISOString().slice(0,10);
+  return iso==='2026-08-31' || iso==='2026-09-07' || iso==='2026-09-14';
+}
+window._isEegSeptWeek = isEegSeptWeek;
 const EEG_DAYS   = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 const EEG_SLOTS  = EEG_STARTS.map((t,i)=>({slot:i+1, blutStart:t, end:EEG_ENDS[i], measures:[{label:'EEG-Messung',cls:'ceinschl',t}]}));
-function getEegSlotsForWeek(w) {
+function getEegSlotsForWeek(w, day) {
+  // Sonderfall: 31.08./07.09./14.09.2026 — nur Mittwoch und Donnerstag bekommen 4 Slots statt 3
+  if(isEegSeptWeek(w) && (day==='Mittwoch' || day==='Donnerstag')) {
+    return EEG_STARTS_SEPT.map((t,i)=>({slot:i+1, blutStart:t, end:EEG_ENDS_SEPT[i], measures:[{label:'EEG-Messung',cls:'ceinschl',t}]}));
+  }
   const weekNum = kw(wMon(w));
   const useLate = weekNum >= 18;
   const starts = useLate ? EEG_STARTS_LATE : EEG_STARTS;
@@ -2534,9 +2548,8 @@ function renderEEGWeek() {
   const fri = wDay(cW,4);
   document.getElementById('wrange').textContent = `${fD(mo)} – ${fD(fri)}`;
 
-  const _eegSlots = getEegSlotsForWeek(cW);
-  let filled=0, total=EEG_DAYS.length * _eegSlots.length;
-  EEG_DAYS.forEach(d => _eegSlots.forEach(s => { if(byEEG(cW,d.label,s.slot)) filled++; }));
+  let filled=0, total=0;
+  EEG_DAYS.forEach(d => { const ds=getEegSlotsForWeek(cW,d.label); total+=ds.length; ds.forEach(s => { if(byEEG(cW,d.label,s.slot)) filled++; }); });
   document.getElementById('wfill').textContent = `${filled} / ${total} Slots belegt`;
 
   const content = document.getElementById('cal-content');
@@ -2544,6 +2557,7 @@ function renderEEGWeek() {
 
   content.innerHTML = `<div class="dgrid" style="grid-template-columns:repeat(5,1fr)">${EEG_DAYS.map(d => {
     const date = wDay(cW, d.off);
+    const _eegSlots = getEegSlotsForWeek(cW, d.label);
     const dayFilled = _eegSlots.filter(s => byEEG(cW,d.label,s.slot)).length;
     const pct = Math.round(dayFilled/_eegSlots.length*100);
 
@@ -5070,7 +5084,7 @@ window.openEEGBookModal = (w, day, slot) => {
   _eegBookCtx = {w, day, slot};
   const sel = document.getElementById('eeg-book-pid');
   sel.innerHTML = Object.values(P).sort((a,b)=>(parseInt((a.pid||'').replace(/\D/g,''))||0)-(parseInt((b.pid||'').replace(/\D/g,''))||0)).map(p=>`<option value="${p._id}">${p.pid} · ${p.lnr}</option>`).join('');
-  const _bSlots = getEegSlotsForWeek(w); document.getElementById('eeg-book-info').textContent = `${day} · KW ${kw(wMon(w))} · Slot ${slot} (${_bSlots[slot-1].blutStart}–${_bSlots[slot-1].end})`;
+  const _bSlots = getEegSlotsForWeek(w, day); document.getElementById('eeg-book-info').textContent = `${day} · KW ${kw(wMon(w))} · Slot ${slot} (${_bSlots[slot-1].blutStart}–${_bSlots[slot-1].end})`;
   document.getElementById('eeg-book-note').value='';
   document.getElementById('eeg-book-termin').value='T1';
   document.getElementById('eeg-book-modal').style.display='flex';
