@@ -1821,9 +1821,9 @@ const EEG_STARTS_SEPT = ['09:00','11:00','13:30','15:30'];
 const EEG_ENDS_SEPT   = ['11:00','13:00','15:30','17:30'];
 function isEegSeptWeek(w) {
   const mo = wMon(w);
-  if(mo.getFullYear()!==2026 || mo.getMonth()!==7 && mo.getMonth()!==8) return false; // Aug=7, Sep=8
-  const iso = mo.toISOString().slice(0,10);
-  return iso==='2026-08-31' || iso==='2026-09-07' || iso==='2026-09-14';
+  if(mo.getFullYear()!==2026) return false;
+  const m = mo.getMonth(), d = mo.getDate(); // lokale Komponenten — toISOString() würde wegen Sommerzeit-Versatz das Datum verschieben
+  return (m===7 && d===31) || (m===8 && (d===7 || d===14)); // Aug=7, Sep=8 (0-indiziert)
 }
 window._isEegSeptWeek = isEegSeptWeek;
 const EEG_DAYS   = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
