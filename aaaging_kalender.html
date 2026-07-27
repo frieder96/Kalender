@@ -7462,11 +7462,31 @@ function sp5rmRenderProgress(){
 }
 window.spExportAllExcel=()=>{
   if(typeof XLSX==='undefined'){toast('XLSX nicht geladen',true);return;}
-  const p=Object.values(SP_PROBANDS);
-  if(!p.length){toast('Keine Probanden',true);return;}
+  const probands=spGetProbands();
+  if(!probands.length){toast('Keine Probanden',true);return;}
   const wb=XLSX.utils.book_new();
-  const ov=[['Name','Alter','Tests','Letzte Messung'],...p.map(c=>{const s=c.sessions||[];return[c.name,c.age||'',s.length,s.length?s[s.length-1].date:'—'];})];
+
+  // Übersicht: P-ID/Laufnummer statt Name/Alter (werden im System nicht erfasst)
+  const ov=[['P-ID','Laufnummer','Tests','Letzte Messung'],...probands.map(p=>{
+    const sp=SP_PROBANDS[p._id]||{};
+    const s=sp.sessions||[];
+    return [p.pid, p.lnr||'', s.length, s.length?s[s.length-1].date:'—'];
+  })];
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ov),'Übersicht');
+
+  // Testdaten Detail: jede Übung jedes Tests jedes Probanden als eigene Zeile
+  const detailRows=[['P-ID','Laufnummer','Datum','Notiz','Übung','Gewicht (kg)','Wdh.','1RM berechnet (kg)']];
+  probands.forEach(p=>{
+    const sp=SP_PROBANDS[p._id]||{};
+    (sp.sessions||[]).forEach(s=>{
+      Object.entries(s.results||{}).forEach(([exId,val])=>{
+        const ex=SP_EXERCISES.find(e=>e.id===exId);
+        detailRows.push([p.pid, p.lnr||'', s.date, s.note||'', ex?ex.name:exId, val.weight, val.reps, sp5rmRound(val.orm)]);
+      });
+    });
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(detailRows),'Testdaten Detail');
+
   XLSX.writeFile(wb,`5RM_Alle_${new Date().toISOString().split('T')[0]}.xlsx`);
 };
 </script>
