@@ -6152,6 +6152,7 @@ window.spRenderProtokolle = () => {
         ${allPids.length ? allPids.map(pid=>`<option value="${pid}" ${pid===selectedPid?'selected':''}>${pid}</option>`).join('') : '<option>Keine Protokolle</option>'}
       </select>
       <span style="font-size:11px;color:var(--g4)">${byProband[selectedPid]?.length||0} Einträge</span>
+      ${isAdmin()?`<button onclick="spProtoNewEntry()" style="margin-left:auto;padding:7px 14px;border-radius:var(--r);border:none;background:#003975;color:#fff;font-size:12px;font-weight:700;cursor:pointer">+ Neues Protokoll</button>`:''}
     </div>
     <div id="sp-proto-entries">${renderContent(selectedPid)}</div>`;
 
@@ -6516,6 +6517,92 @@ function spGetTrainLog(sid, di, h, wo, proband) {
   return Object.values(SP_TRAINING_LOGS).find(l=>l.key===key) || null;
 }
 
+function spProtoDateToWoDi(dateStr){
+  const d = new Date(dateStr+'T12:00:00');
+  const anchor = new Date('2026-03-30T12:00:00');
+  const diffDays = Math.round((d - anchor)/86400000);
+  const wo = Math.floor(diffDays/7);
+  const dow = ((diffDays%7)+7)%7; // 0=Mo … 6=So
+  const di = dow+1; // 1=Mo,2=Di,3=Mi,4=Do,5=Fr,6=Sa,7=So
+  return {wo, di};
+}
+
+window.spProtoNewUpdateStudios = () => {
+  const dateEl = document.getElementById('sp-proto-new-date');
+  const studioEl = document.getElementById('sp-proto-new-studio');
+  const warnEl = document.getElementById('sp-proto-new-daywarn');
+  if(!dateEl || !studioEl) return;
+  const {di} = spProtoDateToWoDi(dateEl.value);
+  if(di<1 || di>4){
+    if(warnEl) warnEl.style.display='block';
+    studioEl.innerHTML = '<option value="">— kein Trainingstag —</option>';
+    return;
+  }
+  if(warnEl) warnEl.style.display='none';
+  const valid = SP_STUDIOS.filter(s=>s.days.includes(di));
+  studioEl.innerHTML = valid.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+};
+
+window.spProtoNewContinue = () => {
+  const pid = document.getElementById('sp-proto-new-pid')?.value;
+  const dateStr = document.getElementById('sp-proto-new-date')?.value;
+  const sid = parseInt(document.getElementById('sp-proto-new-studio')?.value);
+  const h = parseInt(document.getElementById('sp-proto-new-hour')?.value);
+  if(!pid){toast('Bitte Proband wählen',true);return;}
+  if(!dateStr){toast('Bitte Datum wählen',true);return;}
+  const {wo,di} = spProtoDateToWoDi(dateStr);
+  if(di<1 || di>4){toast('Kein Trainingstag (nur Mo–Do)',true);return;}
+  if(!sid){toast('Bitte Studio wählen',true);return;}
+  spOpenTrainingLog(sid, di, h, wo, pid);
+};
+
+window.spProtoNewEntry = () => {
+  if(!isAdmin()){toast('Keine Berechtigung',true);return;}
+  const probands = spGetProbands();
+  if(!probands.length){toast('Keine Probanden vorhanden',true);return;}
+  const today = new Date().toISOString().split('T')[0];
+  const modal = document.getElementById('sp-train-modal');
+  modal.innerHTML = `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:9px;color:#003975;letter-spacing:3px;font-weight:600">NEUES TRAININGSPROTOKOLL</div>
+        <div style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif">Einheit auswählen</div>
+      </div>
+      <button onclick="spCloseTrainModal()" style="background:none;border:none;font-size:22px;color:#BBB;cursor:pointer">×</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:11px;font-weight:600;color:#444;display:block;margin-bottom:4px">Proband</label>
+        <select id="sp-proto-new-pid" style="width:100%;padding:9px 12px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">
+          ${probands.map(p=>`<option value="${p.pid}">${p.pid}${p.lnr?' · '+p.lnr:''}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:#444;display:block;margin-bottom:4px">Datum</label>
+        <input type="date" id="sp-proto-new-date" value="${today}" onchange="spProtoNewUpdateStudios()"
+          style="width:100%;padding:9px 12px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">
+        <div id="sp-proto-new-daywarn" style="font-size:11px;color:#C8102E;margin-top:4px;display:none">Kein Trainingstag (nur Mo–Do).</div>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:#444;display:block;margin-bottom:4px">Studio</label>
+        <select id="sp-proto-new-studio" style="width:100%;padding:9px 12px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none"></select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:#444;display:block;margin-bottom:4px">Uhrzeit</label>
+        <select id="sp-proto-new-hour" style="width:100%;padding:9px 12px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">
+          ${SP_HOURS.map(h=>`<option value="${h}">${h}:00 Uhr</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid #EAE7E2">
+      <button onclick="spCloseTrainModal()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#888;font-size:12px;cursor:pointer">Abbrechen</button>
+      <button onclick="spProtoNewContinue()" style="flex:2;padding:11px;border-radius:8px;border:none;background:#003975;color:#fff;font-size:12px;font-weight:700;cursor:pointer">Weiter →</button>
+    </div>
+  `;
+  document.getElementById('sp-train-overlay').style.display='flex';
+  spProtoNewUpdateStudios();
+};
+
 let _spTrainCtx = null;
 window.spOpenTrainingLog = (sid, di, h, wo, proband, btn) => {
   _spTrainCtx = {sid,di,h,wo,proband};
@@ -6736,6 +6823,8 @@ window.spSaveTrainLog = async () => {
   try {
     if(existing) await window._setDoc(window._doc(window.db,'training_logs',existing._id),data);
     else await window._addDoc(window._col(window.db,'training_logs'),{...data,created:Date.now()});
+    const protoRoot = document.getElementById('sp-proto-root');
+    if(protoRoot && ctx.proband) protoRoot.dataset.selected = ctx.proband;
     spCloseTrainModal(); toast('Protokoll gespeichert ✓');
   } catch(e){toast('Fehler: '+e.message,true);}
 };
@@ -7126,6 +7215,7 @@ window.spToggleAtt=async(memberIndex,currentStatus)=>{
 window.spOnChange(()=>{
   if(document.getElementById('sp-probanden')?.style.display!=='none') spRenderProbanden();
   if(document.getElementById('sp-calendar')?.style.display!=='none') spRenderCalendar();
+  if(document.getElementById('sp-protokolle')?.style.display!=='none') spRenderProtokolle();
   spRenderClientList();
   spSetSync(true);
 });
