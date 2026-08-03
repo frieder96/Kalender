@@ -3041,9 +3041,14 @@ function recallStaffConflict(memberId, date, time) {
     const rawParts = isTel ? k.substring(4).split('_') : k.split('_');
     if(rawParts.length < 4) continue;
     const kw = parseInt(rawParts[0]);
-    // Termin kann zweiteilig sein: "T1_1" (aus "T1.1" mit Punkt→Unterstrich) statt nur "T1"
+    // Termin-Format kann sein: "T1" · "T1_1" (aus "T1.1") · "T1_KW27_11"/"T1_KW27_12" (Sonderwoche)
     let idx = 1, kTermin;
-    if(/^T\d$/.test(rawParts[idx]) && /^\d$/.test(rawParts[idx+1])) {
+    if(rawParts[idx+1] === 'KW27') {
+      const baseT = rawParts[idx];
+      const suffix = rawParts[idx+2];
+      kTermin = suffix==='11' ? baseT+'.1' : suffix==='12' ? baseT+'.2' : baseT;
+      idx += 3;
+    } else if(/^T\d$/.test(rawParts[idx]) && /^\d$/.test(rawParts[idx+1])) {
       kTermin = rawParts[idx] + '.' + rawParts[idx+1]; idx += 2;
     } else {
       kTermin = rawParts[idx]; idx += 1;
