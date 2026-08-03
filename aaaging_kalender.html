@@ -3038,12 +3038,18 @@ function recallStaffConflict(memberId, date, time) {
   for(const [k, a] of Object.entries(ASSIGN)) {
     if(a.person !== memberId) continue;
     const isTel = k.startsWith('TEL_');
-    const parts = isTel ? k.substring(4).split('_') : k.split('_');
-    if(parts.length < 5) continue;
-    const kw = parseInt(parts[0]);
-    const kTermin = parts[1];
-    const kDay = parts[2];
-    const kSlot = parseInt(parts[3]);
+    const rawParts = isTel ? k.substring(4).split('_') : k.split('_');
+    if(rawParts.length < 4) continue;
+    const kw = parseInt(rawParts[0]);
+    // Termin kann zweiteilig sein: "T1_1" (aus "T1.1" mit Punkt→Unterstrich) statt nur "T1"
+    let idx = 1, kTermin;
+    if(/^T\d$/.test(rawParts[idx]) && /^\d$/.test(rawParts[idx+1])) {
+      kTermin = rawParts[idx] + '.' + rawParts[idx+1]; idx += 2;
+    } else {
+      kTermin = rawParts[idx]; idx += 1;
+    }
+    const kDay = rawParts[idx]; idx++;
+    const kSlot = parseInt(rawParts[idx]); idx++;
     const dOff = DAYOFF[kDay];
     if(dOff===undefined || isNaN(kw) || isNaN(kSlot)) continue;
     const kDate = _localDate(wDay(kw, dOff));
@@ -3061,7 +3067,7 @@ function recallStaffConflict(memberId, date, time) {
       if(telPool && telPool[kSlot-1]) kSlotDef = telPool[kSlot-1];
     }
     if(!kSlotDef) continue;
-    const kMeasureKey = parts.slice(4).join('_');
+    const kMeasureKey = rawParts.slice(idx).join('_');
     const kMeasure = (kSlotDef.measures||[]).find(mm => mm.label.replace(/[^a-zA-Z0-9_]/g,'_')===kMeasureKey || mm.label===kMeasureKey);
     const mTime = kMeasure ? kMeasure.t : kSlotDef.blutStart;
     if(!mTime) continue;
