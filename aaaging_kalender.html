@@ -3025,6 +3025,56 @@ function renderTable() {
   }).join('');
 }
 
+// ── Recall ↔ T1/T2/T3 Doppelbuchungs-Check für Mitarbeiterinnen ──────
+// Warnt (blockiert nicht), wenn eine Mitarbeiterin zum Recall-Zeitpunkt
+// bereits einen T0/T1/T2/T3-Termin (AAAging oder Telomer) hat.
+const RECALL_STAFF_BUFFER_MIN = 30; // Zeitpuffer davor/danach in Minuten
+
+function recallStaffConflict(memberId, date, time) {
+  if(!memberId || !date) return null;
+  const [th, tmm] = (time||'00:00').split(':').map(Number);
+  const tMin = (th||0)*60 + (tmm||0);
+  const DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
+  for(const [k, a] of Object.entries(ASSIGN)) {
+    if(a.person !== memberId) continue;
+    const isTel = k.startsWith('TEL_');
+    const parts = isTel ? k.substring(4).split('_') : k.split('_');
+    if(parts.length < 5) continue;
+    const kw = parseInt(parts[0]);
+    const kTermin = parts[1];
+    const kDay = parts[2];
+    const kSlot = parseInt(parts[3]);
+    const dOff = DAYOFF[kDay];
+    if(dOff===undefined || isNaN(kw) || isNaN(kSlot)) continue;
+    const kDate = _localDate(wDay(kw, dOff));
+    if(kDate !== date) continue;
+    let kSlotDef = null;
+    if(kTermin==='T0' && T0[kSlot-1]) kSlotDef = T0[kSlot-1];
+    else if((kTermin==='T1.1'||kTermin==='T1') && T11[kSlot-1]) kSlotDef = T11[kSlot-1];
+    else if((kTermin==='T1.2') && T12[kSlot-1]) kSlotDef = T12[kSlot-1];
+    else if((kTermin==='T2.1'||kTermin==='T2') && T21[kSlot-1]) kSlotDef = T21[kSlot-1];
+    else if((kTermin==='T2.2') && T22[kSlot-1]) kSlotDef = T22[kSlot-1];
+    else if((kTermin==='T3.1'||kTermin==='T3') && T31[kSlot-1]) kSlotDef = T31[kSlot-1];
+    else if((kTermin==='T3.2') && T32[kSlot-1]) kSlotDef = T32[kSlot-1];
+    else if(isTel) {
+      const telPool = kTermin==='T0' ? window._TEL_T0 : kTermin==='T1' ? window._TEL_T1 : kTermin==='T2' ? window._TEL_T2 : null;
+      if(telPool && telPool[kSlot-1]) kSlotDef = telPool[kSlot-1];
+    }
+    if(!kSlotDef) continue;
+    const kMeasureKey = parts.slice(4).join('_');
+    const kMeasure = (kSlotDef.measures||[]).find(mm => mm.label.replace(/[^a-zA-Z0-9_]/g,'_')===kMeasureKey || mm.label===kMeasureKey);
+    const mTime = kMeasure ? kMeasure.t : kSlotDef.blutStart;
+    if(!mTime) continue;
+    const [mh,mmn] = mTime.split(':').map(Number);
+    const mMin = mh*60+mmn;
+    if(Math.abs(mMin - tMin) <= RECALL_STAFF_BUFFER_MIN) {
+      return {label:(isTel?'🧬 Telomer ':'📘 AAAging ')+kTermin, day:kDay, time:mTime};
+    }
+  }
+  return null;
+}
+window.recallStaffConflict = recallStaffConflict;
+
 function renderRecalls() {
   const el=document.getElementById('recall-list'); if(!el) return;
   const rs=Object.values(RECALLS).sort((a,b)=>{const d=(a.date||'').localeCompare(b.date||'');return d!==0?d:(a.time||'').localeCompare(b.time||'');});
@@ -3051,6 +3101,10 @@ function renderRecalls() {
           const ab = absences[0];
           const timeRange = ab.timeFrom ? ` (${ab.timeFrom}–${ab.timeTo})` : ' (ganztägig)';
           absentWarn = `<div style="font-size:11px;color:#C62828;background:#FFEBEE;border:1px solid #EF9A9A;border-radius:4px;padding:4px 8px;margin-top:6px">🏖️ <strong>${m.name}</strong> ist am ${new Date(r.date+'T12:00').toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'})}${timeRange} abwesend!</div>`;
+        }
+        const staffConflict = recallStaffConflict(m._id, r.date, recallTime);
+        if(staffConflict) {
+          absentWarn += `<div style="font-size:11px;color:#C62828;background:#FFF3E0;border:1px solid #FFCC80;border-radius:4px;padding:4px 8px;margin-top:6px">⛔ <strong>${m.name}</strong> hat am ${new Date(r.date+'T12:00').toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'})} bereits einen ${staffConflict.label}-Termin um ${staffConflict.time} Uhr (± ${RECALL_STAFF_BUFFER_MIN} Min)!</div>`;
         }
       }
     }
@@ -3734,6 +3788,7 @@ window.irCheckAbsent = () => {
   if(!date || (!personId && !personSearch)){ warnEl.style.display='none'; return; }
   const m = personId ? TEAM[personId] : Object.values(TEAM).find(t=>t.name===personSearch);
   if(!m){ warnEl.style.display='none'; return; }
+  const memberId = personId || m._id;
   const memberName = m.name.toLowerCase();
   const absences = Object.values(ABSENT).filter(ab => {
     const n = (ab.name||ab.email||'').toLowerCase();
@@ -3744,11 +3799,19 @@ window.irCheckAbsent = () => {
     }
     return true;
   });
+  const dateStr = new Date(date+'T12:00').toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit'});
+  let msgs = [];
   if(absences.length) {
     const ab = absences[0];
     const timeRange = ab.timeFrom ? ` von ${ab.timeFrom} bis ${ab.timeTo}` : ' (ganztägig)';
-    const dateStr = new Date(date+'T12:00').toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit'});
-    warnEl.innerHTML = `🏖️ <strong>${m.name}</strong> ist am ${dateStr}${timeRange} abwesend${ab.grund?` (${ab.grund})`:''}!`;
+    msgs.push(`🏖️ <strong>${m.name}</strong> ist am ${dateStr}${timeRange} abwesend${ab.grund?` (${ab.grund})`:''}!`);
+  }
+  const staffConflict = recallStaffConflict(memberId, date, time);
+  if(staffConflict) {
+    msgs.push(`⛔ <strong>${m.name}</strong> hat am ${dateStr} bereits einen ${staffConflict.label}-Termin um ${staffConflict.time} Uhr (± ${RECALL_STAFF_BUFFER_MIN} Min) — Recall trotzdem möglich, bitte Zeit prüfen.`);
+  }
+  if(msgs.length) {
+    warnEl.innerHTML = msgs.join('<br>');
     warnEl.style.display='block';
   } else {
     warnEl.style.display='none';
