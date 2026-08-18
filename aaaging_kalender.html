@@ -1280,6 +1280,10 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <input type="checkbox" id="ip-aufpassen" style="width:18px;height:18px;cursor:pointer;accent-color:#E65100">
         <label for="ip-aufpassen" style="font-size:13px;font-weight:700;color:#E65100;cursor:pointer">⚠️ Aufpassen — wird im Kalender markiert</label>
       </div>
+      <div class="fg" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#FEF3EC;border:1px solid #F4C09A;border-radius:var(--r);margin-top:8px">
+        <input type="checkbox" id="ip-bloodissue" style="width:18px;height:18px;cursor:pointer;accent-color:#B85010">
+        <label for="ip-bloodissue" style="font-size:13px;font-weight:700;color:#B85010;cursor:pointer">🩸❗ Letzte Blutabnahme problematisch — wird bei Blutabnahme-Terminen markiert</label>
+      </div>
     </div>
     <div class="mftr"><button class="btn btn-sm" onclick="closeProband()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveProband()">Speichern</button></div>
   </div>
@@ -2395,12 +2399,18 @@ function renderWeek() {
         ? `<button class="btn btn-xs" onclick="toggleNoBlood('${p._tBookingId}')" title="${p._noBlood?'Blutabnahme wieder hinzufügen':'Blutabnahme entfernen (Zeiten verschieben sich um −15 Min)'}" style="${p._noBlood?'background:#FFF3E0;color:#C8102E;border-color:#FFB74D':''}">${p._noBlood?'🩸̶':'🩸'}</button>`
         : '';
 
+      // Blutabnahme-Problem-Flag: markiert, dass es beim letzten Mal Probleme bei der Blutabnahme gab —
+      // eigenständig vom allgemeinen "Aufpassen"-Zeichen, nur an Tagen mit tatsächlicher Blutabnahme sichtbar
+      const _bloodWarnBtn = (isAdmin() && p && _slotHasBlood)
+        ? `<button class="btn btn-xs" onclick="toggleBloodIssue('${p._id}',${!!p.bloodIssue})" title="${p.bloodIssue?'Blutabnahme-Problem-Markierung entfernen':'Blutabnahme beim letzten Mal problematisch — markieren'}" style="${p.bloodIssue?'background:#FEF3EC;color:#B85010;border-color:#F4C09A':''}">🩸❗</button>`
+        : '';
+
       const proHtml = isSperred
         ? `<div class="blocked-banner">🔒 <strong>Gesperrt</strong>${isSperred.grund?` · ${isSperred.grund}`:''} ${isSperred.termin!=='ALL'?`(${isSperred.termin})`:''}</div>`
         : _telBlocks
           ? _aaCrossInfo + `<div class="prow" style="background:#EAD4CB;border-radius:4px;padding:6px 8px"><span style="font-size:10px;color:#4A2A1F;font-weight:700;margin-right:6px">🧬 TELOMER ${_telTermin}</span><span style="background:#EAD4CB;color:#4A2A1F;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700;border:1px solid #C9A999">${_telBooking.tid}${_telBooking.aufpassen?' ⚠️':''}</span></div>`
         : p
-          ? _aaCrossInfo + _telWarn + `<div class="prow"><span class="pbadge">${p.pid}${p.aufpassen?` <span style="color:#E65100">⚠️</span>`:''}</span><span class="lbadge">${p.lnr}</span>${_tBadge}${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button>${_clockBtn}${_bloodBtn}${p._tBookingId?`<button class="btn btn-xs btn-d" onclick="removeTBooking('${p._tBookingId}')" title="Buchung entfernen">✕</button>`:`<button class="btn btn-xs btn-d" onclick="removeSlotAssignment('${p._id}','${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="Termin entfernen">✕</button>`}`:''}${p._customStart?`<div style="font-size:9.5px;color:#E65100;font-style:italic;margin-top:2px">⏰ Manuelle Startzeit: ${p._customStart}</div>`:''}${p._noBlood?'<div style="font-size:9.5px;color:#C8102E;font-style:italic;margin-top:2px">🩸̶ ohne Blutabnahme · Zeiten −15 Min</div>':''}${_autoNoRecall?'<div style="font-size:9.5px;color:#7B1FA2;font-style:italic;margin-top:2px">📋 ohne 24h Recall (nur in T2.2/T3.2)</div>':''}${(curTermin==='T0' && p.notiz)?`<div style="font-size:10.5px;color:var(--g5);font-style:italic;margin-top:4px;padding:4px 6px;background:var(--g1);border-radius:3px;line-height:1.3">📝 ${p.notiz.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`:''}</div>`
+          ? _aaCrossInfo + _telWarn + `<div class="prow"><span class="pbadge">${p.pid}${p.aufpassen?` <span style="color:#E65100">⚠️</span>`:''}${p.bloodIssue?` <span style="color:#B85010" title="Blutabnahme beim letzten Mal problematisch">🩸❗</span>`:''}</span><span class="lbadge">${p.lnr}</span>${_tBadge}${isAdmin()?`<button class="btn btn-xs" onclick="openEditProband('${p._id}')">✎</button>${_clockBtn}${_bloodBtn}${_bloodWarnBtn}${p._tBookingId?`<button class="btn btn-xs btn-d" onclick="removeTBooking('${p._tBookingId}')" title="Buchung entfernen">✕</button>`:`<button class="btn btn-xs btn-d" onclick="removeSlotAssignment('${p._id}','${getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})" title="Termin entfernen">✕</button>`}`:''}${p._customStart?`<div style="font-size:9.5px;color:#E65100;font-style:italic;margin-top:2px">⏰ Manuelle Startzeit: ${p._customStart}</div>`:''}${p._noBlood?'<div style="font-size:9.5px;color:#C8102E;font-style:italic;margin-top:2px">🩸̶ ohne Blutabnahme · Zeiten −15 Min</div>':''}${p.bloodIssue&&_slotHasBlood&&!p._noBlood?'<div style="font-size:9.5px;color:#B85010;font-style:italic;margin-top:2px">🩸❗ Blutabnahme beim letzten Mal problematisch</div>':''}${_autoNoRecall?'<div style="font-size:9.5px;color:#7B1FA2;font-style:italic;margin-top:2px">📋 ohne 24h Recall (nur in T2.2/T3.2)</div>':''}${(curTermin==='T0' && p.notiz)?`<div style="font-size:10.5px;color:var(--g5);font-style:italic;margin-top:4px;padding:4px 6px;background:var(--g1);border-radius:3px;line-height:1.3">📝 ${p.notiz.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`:''}</div>`
           : _aaCrossInfo + _telWarn + `<div class="prow"><span class="nop">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openAddProbandSlot(${cW},'${curTermin==='T1' ? getDayLayout(cW,d.label) : getSubTermin(curTermin,d.label)}','${d.label}',${s.slot})">+ Zuweisen</button>`:''}</div>`;
 
       const measRows=s.measures.map(m=>{
@@ -3228,7 +3238,7 @@ window.openAddProband = () => {
   if(!isAdmin()){toast('Keine Berechtigung',true);return;}
   eId=null;
   document.getElementById('proband-modal-title').textContent='Proband anlegen';
-  ['ip-pid','ip-lnr','ip-notiz'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); document.getElementById('ip-aufpassen').checked=false;
+  ['ip-pid','ip-lnr','ip-notiz'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); document.getElementById('ip-aufpassen').checked=false; document.getElementById('ip-bloodissue').checked=false;
   ['ip-t2date','ip-t2time','ip-t3date','ip-t3time'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   buildWeekSel('ip-t0week'); buildWeekSel('ip-t1week');
   // Reset week selectors but clear slot selections so termins are truly optional
@@ -3487,6 +3497,16 @@ window.toggleNoBlood = async (bookingId) => {
   } catch(e){toast('Fehler: '+e.message,true);}
 };
 
+// Markierung "Blutabnahme beim letzten Mal problematisch" direkt aus dem Kalender umschalten —
+// eigenständig vom "Aufpassen"-Flag, wird am Probanden gespeichert (probanden-Collection)
+window.toggleBloodIssue = async (probandId, current) => {
+  if(!isAdmin()){toast('Keine Berechtigung',true);return;}
+  try {
+    await updateDoc(doc(db,'probanden',probandId),{bloodIssue:!current, updated:Date.now()});
+    toast(!current ? 'Blutabnahme-Problem markiert 🩸❗' : 'Markierung entfernt ✓');
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+
 // Manuelle Startzeit für eine T-Buchung (AAAging) setzen oder zurücksetzen
 window.setCustomStartTime = async (bookingId, defaultTime) => {
   if(!isAdmin()){toast('Keine Berechtigung',true);return;}
@@ -3568,6 +3588,7 @@ window.openEditProband = id => {
   document.getElementById('ip-lnr').value=p.lnr||'';
   document.getElementById('ip-notiz').value=p.notiz||'';
   document.getElementById('ip-aufpassen').checked=p.aufpassen||false;
+  document.getElementById('ip-bloodissue').checked=p.bloodIssue||false;
   document.getElementById('ip-t2date').value=p.t2date||'';
   document.getElementById('ip-t2time').value=p.t2time||'';
   document.getElementById('ip-t3date').value=p.t3date||'';
@@ -3632,6 +3653,7 @@ window.saveProband = async () => {
     t3time:document.getElementById('ip-t3time').value||null,
     notiz:document.getElementById('ip-notiz').value.trim(),
     aufpassen:document.getElementById('ip-aufpassen').checked||false,
+    bloodIssue:document.getElementById('ip-bloodissue').checked||false,
     updated:Date.now()
   };
   try {
