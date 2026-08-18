@@ -1382,6 +1382,19 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
   </div>
 </div>
 
+<!-- TELOMER ZUSATZ-SLOT MODAL -->
+<div class="ov" id="tel-slot-modal" style="display:none" onclick="if(event.target===this)closeTelSlotModal()">
+  <div class="modal">
+    <div class="mhdr" style="background:#7B1FA2"><span class="mtitle">Telomer-Slot hinzufügen</span><button class="mclose" onclick="closeTelSlotModal()">×</button></div>
+    <div class="mbody">
+      <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="tel-slot-info"></div>
+      <div class="fg"><label class="fl">Startzeit</label><input class="fi" type="time" id="tel-slot-time"></div>
+      <div style="font-size:11px;color:var(--g4)">Der neue Slot bekommt den vollen Telomer-Messablauf (Vorbesprechung, BIA/Blutabnahme, Mikrokern, Beinpresse, Kognitive Testbatterie, Fragebogen) beginnend zur gewählten Uhrzeit.</div>
+    </div>
+    <div class="mftr"><button class="btn btn-sm" onclick="closeTelSlotModal()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveTelSlotTime()">Hinzufügen</button></div>
+  </div>
+</div>
+
 <!-- FAM BOOK MODAL -->
 <div class="ov" id="fam-book-modal" style="display:none" onclick="if(event.target===this)closeFAMBookModal()">
   <div class="modal">
@@ -1768,42 +1781,41 @@ window._T21=T21; window._T22=T22; window._T31=T31; window._T32=T32;
 const TEL_STARTS = ['08:00','08:00','08:30','08:30'];
 const TEL_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 
-function _buildTelSlots(withBlood) {
-  return TEL_STARTS.map((bs,i) => {
-    const sn=i+1; const [bH,bM]=bs.split(':').map(Number);
-    const isOdd = sn%2===1;
-    // Vorbesprechung starts 15 min before blutabnahme/start
-    const inviteTime = am(bH,bM,-15);
-    const measures = [];
-    measures.push({label:'Vorbesprechung',cls:'cfrueh',t:inviteTime});
-    // Blutabnahme/BIA tauschen sich um (T0/T2 mit Blutabnahme): odd → Blutabnahme zuerst, even → BIA zuerst
-    if(withBlood) {
-      if(isOdd) {
-        measures.push({label:'Blutabnahme',cls:'cblut',t:bs,persons:2});
-        measures.push({label:'BIA',cls:'cbia',t:am(bH,bM,15)});
-      } else {
-        measures.push({label:'BIA',cls:'cbia',t:bs});
-        measures.push({label:'Blutabnahme',cls:'cblut',t:am(bH,bM,15),persons:2});
-      }
-      measures.push({label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30),persons:3});
-    } else {
-      // T1 — ohne Blutabnahme
-      measures.push({label:'BIA',cls:'cbia',t:bs});
-      measures.push({label:'Mikrokern',cls:'cmikro',t:am(bH,bM,15),persons:3});
-    }
-    // Beinpresse vs Kogn-Test+Fragebogen tauschen sich um
-    const splitOffset = withBlood ? 45 : 30;
+function _buildOneTelSlot(slotNum, bs, withBlood) {
+  const [bH,bM]=bs.split(':').map(Number);
+  const isOdd = slotNum%2===1;
+  const inviteTime = am(bH,bM,-15);
+  const measures = [];
+  measures.push({label:'Vorbesprechung',cls:'cfrueh',t:inviteTime});
+  if(withBlood) {
     if(isOdd) {
-      measures.push({label:'Beinpresse',cls:'ciso',t:am(bH,bM, splitOffset)});
-      measures.push({label:'Kognitive Testbatterie',cls:'crbans',t:am(bH,bM, splitOffset+60)});
-      measures.push({label:'Fragebogen',cls:'cfb',t:am(bH,bM, splitOffset+105)});
+      measures.push({label:'Blutabnahme',cls:'cblut',t:bs,persons:2});
+      measures.push({label:'BIA',cls:'cbia',t:am(bH,bM,15)});
     } else {
-      measures.push({label:'Kognitive Testbatterie',cls:'crbans',t:am(bH,bM, splitOffset)});
-      measures.push({label:'Fragebogen',cls:'cfb',t:am(bH,bM, splitOffset+45)});
-      measures.push({label:'Beinpresse',cls:'ciso',t:am(bH,bM, splitOffset+60)});
+      measures.push({label:'BIA',cls:'cbia',t:bs});
+      measures.push({label:'Blutabnahme',cls:'cblut',t:am(bH,bM,15),persons:2});
     }
-    return { slot:sn, blutStart:bs, inviteTime, measures };
-  });
+    measures.push({label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30),persons:3});
+  } else {
+    measures.push({label:'BIA',cls:'cbia',t:bs});
+    measures.push({label:'Mikrokern',cls:'cmikro',t:am(bH,bM,15),persons:3});
+  }
+  const splitOffset = withBlood ? 45 : 30;
+  if(isOdd) {
+    measures.push({label:'Beinpresse',cls:'ciso',t:am(bH,bM, splitOffset)});
+    measures.push({label:'Kognitive Testbatterie',cls:'crbans',t:am(bH,bM, splitOffset+60)});
+    measures.push({label:'Fragebogen',cls:'cfb',t:am(bH,bM, splitOffset+105)});
+  } else {
+    measures.push({label:'Kognitive Testbatterie',cls:'crbans',t:am(bH,bM, splitOffset)});
+    measures.push({label:'Fragebogen',cls:'cfb',t:am(bH,bM, splitOffset+45)});
+    measures.push({label:'Beinpresse',cls:'ciso',t:am(bH,bM, splitOffset+60)});
+  }
+  return { slot:slotNum, blutStart:bs, inviteTime, measures };
+}
+window._buildOneTelSlot = _buildOneTelSlot;
+
+function _buildTelSlots(withBlood) {
+  return TEL_STARTS.map((bs,i) => _buildOneTelSlot(i+1, bs, withBlood));
 }
 const TEL_T0 = _buildTelSlots(true);   // T0 mit Blutabnahme
 const TEL_T1 = _buildTelSlots(false);  // T1 ohne Blutabnahme
@@ -1847,7 +1859,7 @@ const MRT_FIXED_START = '07:00';
 const MRT_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 
 // State for EEG/MRT bookings and MRT custom slots
-let EEG_BOOKINGS={}, MRT_BOOKINGS={}, MRT_SLOTS={};
+let EEG_BOOKINGS={}, MRT_BOOKINGS={}, MRT_SLOTS={}, TEL_EXTRA_SLOTS={};
 let FAM_BOOKINGS={}, FAM_SLOTS={};
 const FAM_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 
@@ -2056,6 +2068,13 @@ function getMrtSlotsForDay(w, day) {
   const stored = Object.values(MRT_SLOTS).find(s=>s.week===w&&s.day===day);
   return stored?.times || [];
 }
+// Zusätzliche (manuell hinzugefügte) Telomer-Slots für eine bestimmte Woche+Tag
+function getTelExtraSlotsForDay(w, day) {
+  const src = window._TEL_EXTRA_SLOTS || TEL_EXTRA_SLOTS;
+  const stored = Object.values(src).find(s=>s.week===w&&s.day===day);
+  return stored?.times || [];
+}
+window.getTelExtraSlotsForDay = getTelExtraSlotsForDay;
 // FAM: Lookup by time string (new), fällt zurück auf slotIdx (alte Daten)
 const byFAM = (w, day, time) => {
   let bk = Object.values(FAM_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.time===time);
@@ -2155,6 +2174,9 @@ function startDB() {
   });
   onSnapshot(collection(db,'mrt_slots'), snap => {
     MRT_SLOTS={}; snap.forEach(d=>{MRT_SLOTS[d.id]={...d.data(),_id:d.id}}); renderWeek();
+  });
+  onSnapshot(collection(db,'tel_extra_slots'), snap => {
+    TEL_EXTRA_SLOTS={}; snap.forEach(d=>{TEL_EXTRA_SLOTS[d.id]={...d.data(),_id:d.id}}); window._TEL_EXTRA_SLOTS=TEL_EXTRA_SLOTS; if(window.renderTelKalender) window.renderTelKalender();
   });
   onSnapshot(collection(db,'fam_bookings'), snap => {
     FAM_BOOKINGS={}; snap.forEach(d=>{FAM_BOOKINGS[d.id]={...d.data(),_id:d.id}}); renderWeek();
@@ -4878,7 +4900,7 @@ window.exportRecalls = () => {
 // ── VOLLSTÄNDIGES BACKUP ───────────────────────────────────────────
 const BACKUP_COLLECTIONS = [
   'probanden','recalls','team','assignments','sperren',
-  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots',
+  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots',
   'training_logs','training_templates','recall_rooms',
   'sp_slots','sp_probands','sp_day_trainers'
 ];
@@ -5287,6 +5309,47 @@ window.delMrtSlotTime = async (w, day, time) => {
     const times = existing.times.filter(t=>t!==time);
     await setDoc(doc(db,'mrt_slots',existing._id),{week:w,day,times});
     toast('Slot entfernt ✓');
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+
+// ── TELOMER: zusätzliche Slots (analog zu MRT) ──────────────────────
+let _telSlotCtx = null;
+window.openAddTelSlot = (w, day) => {
+  _telSlotCtx = {w, day};
+  document.getElementById('tel-slot-info').textContent = `${day} · KW ${kw(wMon(w))}`;
+  document.getElementById('tel-slot-time').value = '';
+  document.getElementById('tel-slot-modal').style.display='flex';
+};
+window.closeTelSlotModal = () => { document.getElementById('tel-slot-modal').style.display='none'; };
+window.saveTelSlotTime = async () => {
+  if(!_telSlotCtx) return;
+  const {w,day} = _telSlotCtx;
+  const t = document.getElementById('tel-slot-time').value;
+  if(!t){toast('Bitte Uhrzeit eingeben',true);return;}
+  try {
+    const src = window._TEL_EXTRA_SLOTS || TEL_EXTRA_SLOTS;
+    const existing = Object.values(src).find(s=>s.week===w&&s.day===day);
+    if(existing){
+      if((existing.times||[]).includes(t)){toast('Diese Uhrzeit ist bereits vorhanden',true);return;}
+      const times = [...(existing.times||[]),t].sort();
+      await setDoc(doc(db,'tel_extra_slots',existing._id),{week:w,day,times});
+    } else {
+      await addDoc(collection(db,'tel_extra_slots'),{week:w,day,times:[t]});
+    }
+    toast('Slot hinzugefügt ✓'); closeTelSlotModal();
+    if(window.renderTelKalender) window.renderTelKalender();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+window.delTelSlotTime = async (w, day, time) => {
+  const src = window._TEL_EXTRA_SLOTS || TEL_EXTRA_SLOTS;
+  const existing = Object.values(src).find(s=>s.week===w&&s.day===day);
+  if(!existing) return;
+  if(!confirm(`Zusatz-Slot ${time} Uhr wirklich entfernen?\n\nHinweis: Bereits zugewiesene Mitarbeiter*innen für diesen Slot bleiben in den Buchungsdaten stehen, werden aber nicht mehr angezeigt.`)) return;
+  try {
+    const times = (existing.times||[]).filter(t=>t!==time);
+    await setDoc(doc(db,'tel_extra_slots',existing._id),{week:w,day,times});
+    toast('Zusatz-Slot entfernt ✓');
+    if(window.renderTelKalender) window.renderTelKalender();
   } catch(e){toast('Fehler: '+e.message,true);}
 };
 
@@ -8372,6 +8435,17 @@ window.renderTelKalender = function() {
         TEL_SPERRE_MATCH(sp.termin);
     });
 
+    // Zusätzliche (manuell hinzugefügte) Slots für diesen Tag — wie bei MRT
+    var extraTimes = window.getTelExtraSlotsForDay ? window.getTelExtraSlotsForDay(_telCW, d.label) : [];
+    var daySlots = slots.slice();
+    extraTimes.forEach(function(t){
+      var hh = parseInt(t.split(':')[0],10), mm = parseInt(t.split(':')[1],10);
+      var slotNum = 5000 + hh*100 + mm;
+      var built = window._buildOneTelSlot(slotNum, t, true);
+      built.extra = true; built.extraTime = t;
+      daySlots.push(built);
+    });
+
     var headerBg = hd ? '#5A3A00' : daySperre ? '#7A1A1A' : '#EAD4CB';
     var dayLockBtn = isAdmin && !hd ? '<button style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 6px;color:' + (daySperre?'#fff':'rgba(0,0,0,.4)') + '" onclick="openSperrenDay(' + _telCW + ',\'' + telTerminKey + '\',\'' + d.label + '\')" title="' + (daySperre?'Tag-Sperre aufheben':'Tag sperren') + '">🔒</button>' : '';
 
@@ -8406,7 +8480,7 @@ window.renderTelKalender = function() {
     } else if(daySperre) {
       html += '<div style="padding:20px 10px;text-align:center;color:#C62828;font-size:11px;font-style:italic">🔒 Tag gesperrt' + (daySperre.grund?' · '+daySperre.grund:'') + '</div>';
     } else {
-      slots.forEach(function(sOrig) {
+      daySlots.forEach(function(sOrig) {
         var key = d.label + '_' + sOrig.slot;
         var telP = telAssigned[key];
         // Bei T1-Buchungen Slot-Layout transformieren (ohne Vorbesprechung/Blut/Mikrokern, spätere Startzeit)
@@ -8445,11 +8519,13 @@ window.renderTelKalender = function() {
         var leftBar = isBooked ? ('border-left:3px solid ' + col.leftBar + ';') : '';
 
         var slotLockBtn = isAdmin ? '<button style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;color:' + (slotSperre?'#C8102E':'rgba(0,0,0,.3)') + '" onclick="openSperrenSlot(' + _telCW + ',\'' + telTerminKey + '\',\'' + d.label + '\',' + s.slot + ')" title="' + (slotSperre?'Slot-Sperre aufheben':'Slot sperren') + '">🔒</button>' : '';
+        var extraDelBtn = (isAdmin && sOrig.extra) ? '<button style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;color:#C8102E" onclick="delTelSlotTime(' + _telCW + ',\'' + d.label + '\',\'' + sOrig.extraTime + '\')" title="Zusatz-Slot entfernen">✕</button>' : '';
+        var extraBadge = sOrig.extra ? '<span style="background:#F3E5F5;color:#7B1FA2;border:1px solid #CE93D8;padding:0 5px;border-radius:99px;font-size:8.5px;font-weight:700;margin-left:4px">ZUSATZ</span>' : '';
 
         html += '<div style="background:' + bgColor + ';border:1px solid ' + border + ';' + leftBar + 'border-radius:8px;padding:8px;margin-bottom:6px">'
           + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding-bottom:5px;border-bottom:1px solid ' + border + '">'
-          + '<strong style="font-size:12px">Slot ' + s.slot + '</strong>'
-          + '<span style="display:flex;align-items:center;gap:4px"><span style="color:#888;font-family:monospace;font-size:11px" title="Einladung: ' + (s.inviteTime||s.blutStart) + ' · Start: ' + s.blutStart + '">' + (s.inviteTime||s.blutStart) + '</span>' + slotLockBtn + '</span>'
+          + '<strong style="font-size:12px">Slot ' + s.slot + '</strong>' + extraBadge
+          + '<span style="display:flex;align-items:center;gap:4px"><span style="color:#888;font-family:monospace;font-size:11px" title="Einladung: ' + (s.inviteTime||s.blutStart) + ' · Start: ' + s.blutStart + '">' + (s.inviteTime||s.blutStart) + '</span>' + slotLockBtn + extraDelBtn + '</span>'
           + '</div>';
 
         if(slotSperre) {
@@ -8518,6 +8594,9 @@ window.renderTelKalender = function() {
         }
         html += '</div>';
       });
+      if(isAdmin) {
+        html += '<button style="margin:6px 0 4px;width:100%;padding:5px;border-radius:6px;border:1px dashed #C9A999;background:#fff;color:#7B1FA2;font-size:10.5px;cursor:pointer" onclick="openAddTelSlot(' + _telCW + ',\'' + d.label + '\')">+ Slot hinzufügen</button>';
+      }
     }
     html += '</div></div>';
   });
