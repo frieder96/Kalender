@@ -2201,7 +2201,7 @@ function startDB() {
   onSnapshot(collection(db,'t_bookings'), snap => {
     T_BOOKINGS={}; snap.forEach(d=>{T_BOOKINGS[d.id]={...d.data(),_id:d.id}});
     window._T_BOOKINGS = T_BOOKINGS;
-    renderWeek();
+    renderWeek(); renderTable();
   });
   onSnapshot(collection(db,'tel_bookings'), snap => {
     TEL_BOOKINGS={}; snap.forEach(d=>{TEL_BOOKINGS[d.id]={...d.data(),_id:d.id}});
