@@ -7781,6 +7781,51 @@ window.spOpen5rmFromSlot = (name) => {
 
   const modal = document.getElementById('sp-train-modal');
   const today = new Date().toISOString().split('T')[0];
+  const _wellnessBlockHtml = `
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #EAE7E2">
+      <div style="font-size:10px;font-weight:700;color:#888;letter-spacing:1px;margin-bottom:10px">WOHLBEFINDEN</div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;color:#444;margin-bottom:6px">RPE der Einheit <span style="font-weight:400;color:#AAA">(0 = keine Anstrengung · 10 = maximale Anstrengung)</span></div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<button type="button" onclick="spWellnessToggle('sl5rm_rpe',${v},this)"
+            data-wfield="sl5rm_rpe" data-wval="${v}"
+            style="width:32px;height:32px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#444;font-size:11px;font-weight:700;cursor:pointer">${v}</button>`).join('')}
+        </div>
+      </div>
+      ${[
+        {key:'sl5rm_befinden', label:'Befinden'},
+        {key:'sl5rm_motivation', label:'Motivation'},
+        {key:'sl5rm_schlaf', label:'Schlafqualität'},
+      ].map(f=>`<div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;color:#444;margin-bottom:6px">${f.label} <span style="font-weight:400;color:#AAA">(1 = super · 4 = schlecht)</span></div>
+        <div style="display:flex;gap:6px">
+          ${[1,2,3,4].map(v=>{
+            const labels={1:'Super',2:'Gut',3:'Mäßig',4:'Schlecht'};
+            return `<button type="button" onclick="spWellnessToggle('${f.key}',${v},this)"
+              data-wfield="${f.key}" data-wval="${v}"
+              style="flex:1;padding:7px 4px;border-radius:8px;border:2px solid #DDD;background:#fff;color:#999;font-size:10.5px;font-weight:700;cursor:pointer;text-align:center">
+              ${v}<br><span style="font-size:8.5px;font-weight:400">${labels[v]}</span>
+            </button>`;
+          }).join('')}
+        </div>
+      </div>`).join('')}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:#444;margin-bottom:6px">Schlafdauer (Std.)</div>
+          <input type="number" id="sl5-well-schlafdauer" min="0" max="24" step="0.5" placeholder="z. B. 7.5"
+            style="width:100%;padding:8px 10px;border:1px solid #DDD;border-radius:8px;font-size:12px;outline:none">
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:#444;margin-bottom:6px">Durchgeschlafen?</div>
+          <div style="display:flex;gap:6px">
+            <button type="button" onclick="spWellnessToggle('sl5rm_durchgeschlafen','ja',this)" data-wfield="sl5rm_durchgeschlafen" data-wval="ja"
+              style="flex:1;padding:8px;border-radius:8px;border:2px solid #DDD;background:#fff;color:#999;font-size:11px;font-weight:700;cursor:pointer">✅ Ja</button>
+            <button type="button" onclick="spWellnessToggle('sl5rm_durchgeschlafen','nein',this)" data-wfield="sl5rm_durchgeschlafen" data-wval="nein"
+              style="flex:1;padding:8px;border-radius:8px;border:2px solid #DDD;background:#fff;color:#999;font-size:11px;font-weight:700;cursor:pointer">❌ Nein</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
   modal.innerHTML = `
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
       <div>
@@ -7794,7 +7839,7 @@ window.spOpen5rmFromSlot = (name) => {
       <input type="date" id="sl5-date" value="${today}" style="padding:6px 10px;border:1px solid #DDD;border-radius:8px;font-size:12px;outline:none">
       <input type="text" id="sl5-note" placeholder="Notiz (optional)" style="flex:1;padding:6px 10px;border:1px solid #DDD;border-radius:8px;font-size:12px;outline:none">
     </div>
-    <div style="max-height:55vh;overflow-y:auto;padding-right:4px">${exRows}</div>
+    <div style="max-height:55vh;overflow-y:auto;padding-right:4px">${exRows}${_wellnessBlockHtml}</div>
     ${(window.isTrainer?window.isTrainer():true)?`<div style="display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #EAE7E2">
       <button onclick="spCloseTrainModal()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#888;font-size:12px;cursor:pointer">Abbrechen</button>
       <button onclick="sl5rmSave()" style="flex:2;padding:11px;border-radius:8px;border:none;background:#1A4A2A;color:#fff;font-size:12px;font-weight:700;cursor:pointer">💪 5RM speichern</button>
@@ -7835,9 +7880,23 @@ window.sl5rmSave = async () => {
     if(w>0&&r>=1&&r<=10){results[ex.id]={weight:w,reps:r,orm:parseFloat(sp5rmBrz(w,r).toFixed(2))};hasData=true;}
   });
   if(!hasData){toast('Bitte mindestens eine Übung ausfüllen',true);return;}
+  const _wGetSl = (field) => {
+    const sel = document.querySelector(`[data-wfield="${field}"][data-selected="true"]`);
+    if(sel) return isNaN(sel.dataset.wval) ? sel.dataset.wval : parseFloat(sel.dataset.wval);
+    return null;
+  };
+  const wellness = {
+    rpe: _wGetSl('sl5rm_rpe'),
+    befinden: _wGetSl('sl5rm_befinden'),
+    motivation: _wGetSl('sl5rm_motivation'),
+    schlaf: _wGetSl('sl5rm_schlaf'),
+    schlafdauer: parseFloat(document.getElementById('sl5-well-schlafdauer')?.value)||null,
+    durchgeschlafen: _wGetSl('sl5rm_durchgeschlafen'),
+  };
+  const hasWellness = Object.values(wellness).some(v=>v!==null&&v!=='');
   const c = spProbands[clientId]||{sessions:[]};
   const aaProband = mainProband || match;
-  const sessions=[...(c.sessions||[]),{id:Date.now().toString(),date,note,results}].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const sessions=[...(c.sessions||[]),{id:Date.now().toString(),date,note,results,...(hasWellness?{wellness}:{})}].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   try{
     await window._setDoc(window._doc(window.db,'sp_probands',clientId),{sessions,pid:aaProband?.pid||name,lnr:aaProband?.lnr||'',updated:Date.now()});
     toast('5RM gespeichert ✓'); spCloseTrainModal();
