@@ -8543,12 +8543,13 @@ window.renderTelKalender = function() {
       built.extra = true; built.extraTime = t;
       daySlots.push(built);
     });
-    // Für die Sortierung die tatsächliche (effektive) Startzeit ermitteln: falls der gebuchte Proband
-    // eine manuelle Startzeit hat, zählt diese statt der nominalen Slot-Zeit. Sonst die im Header
-    // angezeigte Einladungszeit (Vorbesprechung) verwenden — dieselbe Zeit, die sichtbar ist.
+    // Für die Sortierung die tatsächliche (effektive) Startzeit ermitteln: bei T1-Buchungen zählt die
+    // transformierte Zeit (Vorbesprechung/Blut/Mikrokern entfällt, spätere Startzeit), bei manueller
+    // Startzeit diese, sonst die im Header angezeigte Einladungszeit (Vorbesprechung).
     daySlots.forEach(function(sl){
       var telP = telAssigned[d.label + '_' + sl.slot];
-      sl._sortTime = (telP && telP._customStart) ? telP._customStart : (sl.inviteTime || sl.blutStart);
+      var effSlot = (telP && telP._telTermin === 'T1' && window.applyTelT1) ? window.applyTelT1(sl) : sl;
+      sl._sortTime = (telP && telP._customStart) ? telP._customStart : (effSlot.inviteTime || effSlot.blutStart);
     });
     // Chronologisch nach effektiver Startzeit sortieren, damit Zusatz-Slots UND manuell verschobene
     // Termine an der richtigen Stelle erscheinen
