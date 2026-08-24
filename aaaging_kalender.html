@@ -8543,8 +8543,15 @@ window.renderTelKalender = function() {
       built.extra = true; built.extraTime = t;
       daySlots.push(built);
     });
-    // Chronologisch nach Startzeit sortieren, damit Zusatz-Slots an der richtigen Stelle erscheinen
-    daySlots.sort(function(a,b){ return a.blutStart < b.blutStart ? -1 : a.blutStart > b.blutStart ? 1 : 0; });
+    // Für die Sortierung die tatsächliche (effektive) Startzeit ermitteln: falls der gebuchte Proband
+    // eine manuelle Startzeit hat, zählt diese statt der nominalen Slot-Zeit.
+    daySlots.forEach(function(sl){
+      var telP = telAssigned[d.label + '_' + sl.slot];
+      sl._sortTime = (telP && telP._customStart) ? telP._customStart : sl.blutStart;
+    });
+    // Chronologisch nach effektiver Startzeit sortieren, damit Zusatz-Slots UND manuell verschobene
+    // Termine an der richtigen Stelle erscheinen
+    daySlots.sort(function(a,b){ return a._sortTime < b._sortTime ? -1 : a._sortTime > b._sortTime ? 1 : 0; });
 
     var headerBg = hd ? '#5A3A00' : daySperre ? '#7A1A1A' : '#EAD4CB';
     var dayLockBtn = isAdmin && !hd ? '<button style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 6px;color:' + (daySperre?'#fff':'rgba(0,0,0,.4)') + '" onclick="openSperrenDay(' + _telCW + ',\'' + telTerminKey + '\',\'' + d.label + '\')" title="' + (daySperre?'Tag-Sperre aufheben':'Tag sperren') + '">🔒</button>' : '';
