@@ -1863,7 +1863,7 @@ const MRT_FIXED_START = '07:00';
 const MRT_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 
 // State for EEG/MRT bookings and MRT custom slots
-let EEG_BOOKINGS={}, MRT_BOOKINGS={}, MRT_SLOTS={}, TEL_EXTRA_SLOTS={};
+let EEG_BOOKINGS={}, MRT_BOOKINGS={}, MRT_SLOTS={}, TEL_EXTRA_SLOTS={}, TEL_SLOT_OVERRIDES={};
 let FAM_BOOKINGS={}, FAM_SLOTS={};
 const FAM_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 
@@ -2079,6 +2079,13 @@ function getTelExtraSlotsForDay(w, day) {
   return stored?.times || [];
 }
 window.getTelExtraSlotsForDay = getTelExtraSlotsForDay;
+// Manuelle Zeit-Überschreibungen der 4 Standard-Slots für eine bestimmte Woche+Tag → {slotNum: 'HH:MM'}
+function getTelSlotOverridesForDay(w, day) {
+  const src = window._TEL_SLOT_OVERRIDES || TEL_SLOT_OVERRIDES;
+  const stored = Object.values(src).find(s=>s.week===w&&s.day===day);
+  return stored?.overrides || {};
+}
+window.getTelSlotOverridesForDay = getTelSlotOverridesForDay;
 // FAM: Lookup by time string (new), fällt zurück auf slotIdx (alte Daten)
 const byFAM = (w, day, time) => {
   let bk = Object.values(FAM_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.time===time);
@@ -2181,6 +2188,9 @@ function startDB() {
   });
   onSnapshot(collection(db,'tel_extra_slots'), snap => {
     TEL_EXTRA_SLOTS={}; snap.forEach(d=>{TEL_EXTRA_SLOTS[d.id]={...d.data(),_id:d.id}}); window._TEL_EXTRA_SLOTS=TEL_EXTRA_SLOTS; if(window.renderTelKalender) window.renderTelKalender();
+  });
+  onSnapshot(collection(db,'tel_slot_overrides'), snap => {
+    TEL_SLOT_OVERRIDES={}; snap.forEach(d=>{TEL_SLOT_OVERRIDES[d.id]={...d.data(),_id:d.id}}); window._TEL_SLOT_OVERRIDES=TEL_SLOT_OVERRIDES; if(window.renderTelKalender) window.renderTelKalender();
   });
   onSnapshot(collection(db,'fam_bookings'), snap => {
     FAM_BOOKINGS={}; snap.forEach(d=>{FAM_BOOKINGS[d.id]={...d.data(),_id:d.id}}); renderWeek();
@@ -4942,7 +4952,7 @@ window.exportRecalls = () => {
 // ── VOLLSTÄNDIGES BACKUP ───────────────────────────────────────────
 const BACKUP_COLLECTIONS = [
   'probanden','recalls','team','assignments','sperren',
-  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots',
+  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots','tel_slot_overrides',
   'training_logs','training_templates','recall_rooms',
   'sp_slots','sp_probands','sp_day_trainers'
 ];
@@ -5391,6 +5401,48 @@ window.delTelSlotTime = async (w, day, time) => {
     const times = (existing.times||[]).filter(t=>t!==time);
     await setDoc(doc(db,'tel_extra_slots',existing._id),{week:w,day,times});
     toast('Zusatz-Slot entfernt ✓');
+    if(window.renderTelKalender) window.renderTelKalender();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+
+// Startzeit eines der 4 Standard-Slots für eine bestimmte Woche+Tag ändern —
+// wirkt nur für diesen einen Tag (nicht dauerhaft für alle Wochen), Reihenfolge passt sich automatisch an.
+window.editTelBaseSlotTime = async (w, day, slotNum, oldTime) => {
+  const input = prompt(`Neue Startzeit für Slot ${slotNum} an diesem Tag (Format HH:MM)\nAktuell: ${oldTime}\n\nGilt nur für diesen einen Termin/Tag. Bereits zugewiesene Mitarbeiter*innen bleiben in den Buchungsdaten stehen, werden aber ggf. nicht mehr an der erwarteten Messung angezeigt, falls sich Zeiten verschieben.`, oldTime);
+  if(input===null) return;
+  const t = input.trim();
+  if(!/^\d{1,2}:\d{2}$/.test(t)){toast('Ungültiges Format, bitte HH:MM',true);return;}
+  const norm = t.split(':').map((x,i)=>i===0?x.padStart(2,'0'):x).join(':');
+  if(norm===oldTime) return;
+  try {
+    const src = window._TEL_SLOT_OVERRIDES || TEL_SLOT_OVERRIDES;
+    const existing = Object.values(src).find(s=>s.week===w&&s.day===day);
+    const overrides = {...(existing?.overrides||{}), [slotNum]: norm};
+    if(existing){
+      await setDoc(doc(db,'tel_slot_overrides',existing._id),{week:w,day,overrides});
+    } else {
+      await addDoc(collection(db,'tel_slot_overrides'),{week:w,day,overrides});
+    }
+    toast('Startzeit geändert ✓');
+    if(window.renderTelKalender) window.renderTelKalender();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+// (die Anzeige sortiert bei jedem Rendern chronologisch nach Startzeit).
+window.editTelSlotTime = async (w, day, oldTime) => {
+  const src = window._TEL_EXTRA_SLOTS || TEL_EXTRA_SLOTS;
+  const existing = Object.values(src).find(s=>s.week===w&&s.day===day);
+  if(!existing) return;
+  const input = prompt(`Neue Uhrzeit für den Zusatz-Slot (Format HH:MM)\nAktuell: ${oldTime}\n\nHinweis: Bereits zugewiesene Mitarbeiter*innen für diesen Slot bleiben in den Buchungsdaten stehen, werden aber nicht mehr angezeigt.`, oldTime);
+  if(input===null) return;
+  const t = input.trim();
+  if(!/^\d{1,2}:\d{2}$/.test(t)){toast('Ungültiges Format, bitte HH:MM',true);return;}
+  const norm = t.split(':').map((x,i)=>i===0?x.padStart(2,'0'):x).join(':');
+  if(norm===oldTime) return;
+  if((existing.times||[]).includes(norm)){toast('Diese Uhrzeit ist bereits vorhanden',true);return;}
+  try {
+    const times = (existing.times||[]).filter(x=>x!==oldTime).concat([norm]).sort();
+    await setDoc(doc(db,'tel_extra_slots',existing._id),{week:w,day,times});
+    toast('Uhrzeit geändert ✓');
     if(window.renderTelKalender) window.renderTelKalender();
   } catch(e){toast('Fehler: '+e.message,true);}
 };
@@ -8479,7 +8531,11 @@ window.renderTelKalender = function() {
 
     // Zusätzliche (manuell hinzugefügte) Slots für diesen Tag — wie bei MRT
     var extraTimes = window.getTelExtraSlotsForDay ? window.getTelExtraSlotsForDay(_telCW, d.label) : [];
-    var daySlots = slots.slice();
+    var slotOverrides = window.getTelSlotOverridesForDay ? window.getTelSlotOverridesForDay(_telCW, d.label) : {};
+    var daySlots = slots.map(function(baseSlot){
+      var ov = slotOverrides[baseSlot.slot];
+      return ov ? window._buildOneTelSlot(baseSlot.slot, ov, true) : baseSlot;
+    });
     extraTimes.forEach(function(t){
       var hh = parseInt(t.split(':')[0],10), mm = parseInt(t.split(':')[1],10);
       var slotNum = 5000 + hh*100 + mm;
@@ -8563,13 +8619,15 @@ window.renderTelKalender = function() {
         var leftBar = isBooked ? ('border-left:3px solid ' + col.leftBar + ';') : '';
 
         var slotLockBtn = isAdmin ? '<button style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;color:' + (slotSperre?'#C8102E':'rgba(0,0,0,.3)') + '" onclick="openSperrenSlot(' + _telCW + ',\'' + telTerminKey + '\',\'' + d.label + '\',' + s.slot + ')" title="' + (slotSperre?'Slot-Sperre aufheben':'Slot sperren') + '">🔒</button>' : '';
+        var extraEditBtn = (isAdmin && sOrig.extra) ? '<button style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;color:#7B1FA2" onclick="editTelSlotTime(' + _telCW + ',\'' + d.label + '\',\'' + sOrig.extraTime + '\')" title="Zusatz-Slot-Uhrzeit ändern">✏️</button>' : '';
+        var baseEditBtn = (isAdmin && !sOrig.extra) ? '<button style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;color:#7B1FA2" onclick="editTelBaseSlotTime(' + _telCW + ',\'' + d.label + '\',' + s.slot + ',\'' + s.blutStart + '\')" title="Slot-Startzeit ändern (Reihenfolge passt sich automatisch an)">✏️</button>' : '';
         var extraDelBtn = (isAdmin && sOrig.extra) ? '<button style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;color:#C8102E" onclick="delTelSlotTime(' + _telCW + ',\'' + d.label + '\',\'' + sOrig.extraTime + '\')" title="Zusatz-Slot entfernen">✕</button>' : '';
         var extraBadge = sOrig.extra ? '<span style="background:#F3E5F5;color:#7B1FA2;border:1px solid #CE93D8;padding:0 5px;border-radius:99px;font-size:8.5px;font-weight:700;margin-left:4px">ZUSATZ</span>' : '';
 
         html += '<div style="background:' + bgColor + ';border:1px solid ' + border + ';' + leftBar + 'border-radius:8px;padding:8px;margin-bottom:6px">'
           + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding-bottom:5px;border-bottom:1px solid ' + border + '">'
           + '<strong style="font-size:12px">' + (sOrig.extra ? 'Slot' : ('Slot ' + s.slot)) + '</strong>' + extraBadge
-          + '<span style="display:flex;align-items:center;gap:4px"><span style="color:#888;font-family:monospace;font-size:11px" title="Einladung: ' + (s.inviteTime||s.blutStart) + ' · Start: ' + s.blutStart + '">' + (s.inviteTime||s.blutStart) + '</span>' + slotLockBtn + extraDelBtn + '</span>'
+          + '<span style="display:flex;align-items:center;gap:4px"><span style="color:#888;font-family:monospace;font-size:11px" title="Einladung: ' + (s.inviteTime||s.blutStart) + ' · Start: ' + s.blutStart + '">' + (s.inviteTime||s.blutStart) + '</span>' + slotLockBtn + extraEditBtn + baseEditBtn + extraDelBtn + '</span>'
           + '</div>';
 
         if(slotSperre) {
