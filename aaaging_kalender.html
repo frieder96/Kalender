@@ -8634,7 +8634,7 @@ window.renderTelKalender = function() {
         html += '<div style="background:' + bgColor + ';border:1px solid ' + border + ';' + leftBar + 'border-radius:8px;padding:8px;margin-bottom:6px">'
           + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding-bottom:5px;border-bottom:1px solid ' + border + '">'
           + '<strong style="font-size:12px">' + (sOrig.extra ? 'Slot' : ('Slot ' + s.slot)) + '</strong>' + extraBadge
-          + '<span style="display:flex;align-items:center;gap:4px"><span style="color:#888;font-family:monospace;font-size:11px" title="Einladung: ' + (s.inviteTime||s.blutStart) + ' · Start: ' + s.blutStart + '">' + (s.inviteTime||s.blutStart) + '</span>' + slotLockBtn + extraEditBtn + baseEditBtn + extraDelBtn + '</span>'
+          + '<span style="display:flex;align-items:center;gap:4px"><span style="color:#888;font-family:monospace;font-size:11px" title="Start: ' + s.blutStart + (s.inviteTime && s.inviteTime!==s.blutStart ? ' · Einladung: ' + s.inviteTime : '') + '">' + s.blutStart + '</span>' + slotLockBtn + extraEditBtn + baseEditBtn + extraDelBtn + '</span>'
           + '</div>';
 
         if(slotSperre) {
