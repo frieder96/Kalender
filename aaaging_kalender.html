@@ -1051,6 +1051,35 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
                       <div class="field" style="flex:1"><label>Notiz (optional)</label><input type="text" id="sp-testNote" placeholder="z.B. Nach 4 Wochen Pause"></div>
                     </div>
                     <div class="exercises-test" id="sp-exerciseInputs"></div>
+
+                    <div style="margin-top:18px;padding-top:14px;border-top:1px solid #EAE7E2">
+                      <div style="font-size:10px;font-weight:700;color:#888;letter-spacing:1px;margin-bottom:12px">WOHLBEFINDEN</div>
+
+                      <div style="margin-bottom:14px">
+                        <div style="font-size:11px;font-weight:600;color:#444;margin-bottom:6px">RPE der Einheit <span style="font-weight:400;color:#AAA">(0 = keine Anstrengung · 10 = maximale Anstrengung)</span></div>
+                        <div id="sp5-rpe-row" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                      </div>
+
+                      <div id="sp5-scale-fields"></div>
+
+                      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+                        <div>
+                          <div style="font-size:11px;font-weight:600;color:#444;margin-bottom:6px">Schlafdauer (Stunden)</div>
+                          <input type="number" id="sp5-well-schlafdauer" min="0" max="24" step="0.5" placeholder="z. B. 7.5"
+                            style="width:100%;padding:9px 12px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">
+                        </div>
+                        <div>
+                          <div style="font-size:11px;font-weight:600;color:#444;margin-bottom:6px">Durchgeschlafen?</div>
+                          <div style="display:flex;gap:6px">
+                            <button type="button" onclick="spWellnessToggle('sp5rm_durchgeschlafen','ja',this)" data-wfield="sp5rm_durchgeschlafen" data-wval="ja"
+                              style="flex:1;padding:9px;border-radius:8px;border:2px solid #DDD;background:#fff;color:#999;font-size:12px;font-weight:700;cursor:pointer">✅ Ja</button>
+                            <button type="button" onclick="spWellnessToggle('sp5rm_durchgeschlafen','nein',this)" data-wfield="sp5rm_durchgeschlafen" data-wval="nein"
+                              style="flex:1;padding:9px;border-radius:8px;border:2px solid #DDD;background:#fff;color:#999;font-size:12px;font-weight:700;cursor:pointer">❌ Nein</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     <button class="save-test-btn" onclick="spSaveSession()">💾 Test speichern</button>
                   </div>
                 </div>
@@ -7919,7 +7948,38 @@ function sp5rmRenderForm(){
     </div>
     <div class="ex-result" id="sp5res-${ex.id}">—</div>
   </div>`).join('');
-  sp5rmRenderPcts(); sp5rmUpdateTable();
+  sp5rmRenderPcts(); sp5rmUpdateTable(); sp5rmRenderWellness();
+}
+// Wohlbefinden-Fragen für den 5RM-Test — dieselben wie beim normalen Trainingsprotokoll
+// (eigene data-wfield-Namen mit "sp5rm_"-Präfix, damit sie nicht mit dem Trainingsprotokoll-Modal kollidieren)
+function sp5rmRenderWellness(){
+  const rpeRow = document.getElementById('sp5-rpe-row');
+  if(rpeRow){
+    rpeRow.innerHTML = [0,1,2,3,4,5,6,7,8,9,10].map(v=>`<button type="button" onclick="spWellnessToggle('sp5rm_rpe',${v},this)"
+      data-wfield="sp5rm_rpe" data-wval="${v}"
+      style="width:36px;height:36px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#444;font-size:12px;font-weight:700;cursor:pointer">${v}</button>`).join('');
+  }
+  const scaleEl = document.getElementById('sp5-scale-fields');
+  if(scaleEl){
+    scaleEl.innerHTML = [
+      {key:'sp5rm_befinden', label:'Befinden', hint:'1 = super · 4 = schlecht'},
+      {key:'sp5rm_motivation', label:'Motivation', hint:'1 = super · 4 = schlecht'},
+      {key:'sp5rm_schlaf', label:'Schlafqualität', hint:'1 = super · 4 = schlecht'},
+    ].map(f=>`<div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;color:#444;margin-bottom:6px">${f.label} <span style="font-weight:400;color:#AAA">(${f.hint})</span></div>
+      <div style="display:flex;gap:6px">
+        ${[1,2,3,4].map(v=>{
+          const labels={1:'Super',2:'Gut',3:'Mäßig',4:'Schlecht'};
+          return `<button type="button" onclick="spWellnessToggle('${f.key}',${v},this)"
+            data-wfield="${f.key}" data-wval="${v}"
+            style="flex:1;padding:8px 4px;border-radius:8px;border:2px solid #DDD;background:#fff;color:#999;font-size:11px;font-weight:700;cursor:pointer;text-align:center">
+            ${v}<br><span style="font-size:9px;font-weight:400">${labels[v]}</span>
+          </button>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+  }
+  const sd = document.getElementById('sp5-well-schlafdauer'); if(sd) sd.value='';
 }
 window.sp5rmCalc=exId=>{
   const w=parseFloat(document.getElementById('sp5w-'+exId)?.value);
@@ -7942,7 +8002,22 @@ window.spSaveSession=async()=>{
     if(w>0&&r>=1&&r<=10){results[ex.id]={weight:w,reps:r,orm:parseFloat(sp5rmBrz(w,r).toFixed(2))};hasData=true;}
   });
   if(!hasData){toast('Bitte mindestens eine Übung ausfüllen',true);return;}
-  const sessions=[...(c.sessions||[]),{id:Date.now().toString(),date,note,results}].sort((a,b)=>a.date.localeCompare(b.date));
+  // Wohlbefinden-Daten einsammeln (dieselben Felder wie beim Trainingsprotokoll, eigenes Präfix)
+  const _wGet5 = (field) => {
+    const sel = document.querySelector(`[data-wfield="${field}"][data-selected="true"]`);
+    if(sel) return isNaN(sel.dataset.wval) ? sel.dataset.wval : parseFloat(sel.dataset.wval);
+    return null;
+  };
+  const wellness = {
+    rpe: _wGet5('sp5rm_rpe'),
+    befinden: _wGet5('sp5rm_befinden'),
+    motivation: _wGet5('sp5rm_motivation'),
+    schlaf: _wGet5('sp5rm_schlaf'),
+    schlafdauer: parseFloat(document.getElementById('sp5-well-schlafdauer')?.value)||null,
+    durchgeschlafen: _wGet5('sp5rm_durchgeschlafen'),
+  };
+  const hasWellness = Object.values(wellness).some(v=>v!==null&&v!=='');
+  const sessions=[...(c.sessions||[]),{id:Date.now().toString(),date,note,results,...(hasWellness?{wellness}:{})}].sort((a,b)=>a.date.localeCompare(b.date));
   try{
     await window._setDoc(window._doc(window.db,'sp_probands',sp5rmClientId),{sessions,pid:aaProband.pid,lnr:aaProband.lnr||'',updated:Date.now()});
     toast('Test gespeichert ✓'); spSwitchTab5rm('history');
@@ -7960,6 +8035,17 @@ function sp5rmRenderHistory(){
       return `<tr><td>${ex?ex.icon+' '+ex.name:exId}</td><td>${val.weight}kg × ${val.reps}Wdh.</td><td><strong>${orm.toFixed(1)}kg</strong></td>${pctCells}</tr>`;
     }).join('');
     const pctHeaders=sp5rmPcts.map(p=>`<th>${p}%</th>`).join('');
+    const wellnessSummary = s.wellness ? (() => {
+      const labels4={1:'Super',2:'Gut',3:'Mäßig',4:'Schlecht'};
+      const parts=[];
+      if(s.wellness.rpe!==null&&s.wellness.rpe!==undefined) parts.push(`RPE ${s.wellness.rpe}`);
+      if(s.wellness.befinden) parts.push(`Befinden: ${labels4[s.wellness.befinden]||s.wellness.befinden}`);
+      if(s.wellness.motivation) parts.push(`Motivation: ${labels4[s.wellness.motivation]||s.wellness.motivation}`);
+      if(s.wellness.schlaf) parts.push(`Schlaf: ${labels4[s.wellness.schlaf]||s.wellness.schlaf}`);
+      if(s.wellness.schlafdauer) parts.push(`${s.wellness.schlafdauer}h Schlafdauer`);
+      if(s.wellness.durchgeschlafen) parts.push(s.wellness.durchgeschlafen==='ja'?'✅ Durchgeschlafen':'❌ Nicht durchgeschlafen');
+      return parts.length ? `<div style="font-size:10.5px;color:#888;padding:6px 0 0;border-top:1px solid #EAE7E2;margin-top:8px">🩺 ${parts.join(' · ')}</div>` : '';
+    })() : '';
     return `<div class="session-card">
       <div class="session-header" onclick="sp5rmToggle('${s.id}')">
         <div><div class="date">📅 ${new Date(s.date+'T12:00:00').toLocaleDateString('de-AT',{day:'2-digit',month:'long',year:'numeric'})}</div>${s.note?`<div class="note">${s.note}</div>`:''}</div>
@@ -7970,6 +8056,7 @@ function sp5rmRenderHistory(){
       </div>
       <div class="session-body" id="sp5sb-${s.id}">
         <table class="session-table"><thead><tr><th>Übung</th><th>5RM</th><th>1RM</th>${pctHeaders}</tr></thead><tbody>${rows}</tbody></table>
+        ${wellnessSummary}
       </div>
     </div>`;
   }).join('');
