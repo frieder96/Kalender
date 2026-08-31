@@ -2600,6 +2600,28 @@ function renderWeek() {
       ? `<div style="font-size:9.5px;color:rgba(255,220,160,.95);margin-top:3px">🏖️ Abwesend: ${_absentNames.join(', ')}</div>`
       : '';
 
+    // ── Familiarisierung — integriert aus dem eigenen FAM-Kalender ──
+    // Nutzt dieselbe Datengrundlage (fam_slots/fam_bookings), nur zusätzlich hier eingeblendet.
+    // Nur bei T1/T2/T3 (curTermin ist zu diesem Zeitpunkt auf 'T1' vereinheitlicht), nicht bei T0.
+    const famSection = curTermin==='T1' ? (() => {
+      const famTimes = getFamSlotsForDay(cW, d.label);
+      const famRows = famTimes.map((t,fi) => {
+        const bk = byFAM(cW, d.label, t);
+        const proHtml = bk
+          ? `<span class="pbadge" style="font-size:10px">${bk.pid}</span><span class="lbadge" style="font-size:10px">${bk.lnr}</span>${isAdmin()?`<button class="btn btn-xs btn-d" onclick="delFAMBooking('${bk._id}')">✕</button>`:''}`
+          : `<span class="nop" style="font-size:10px">Nicht belegt</span>${isAdmin()?`<button class="btn btn-xs btn-p" onclick="openFAMBookModal(${cW},'${d.label}','${t}')">+ Zuweisen</button>`:''}`;
+        const delSlotBtn = isAdmin()
+          ? `<button class="slot-lock-btn" onclick="delFamSlotTime(${cW},'${d.label}','${t}')" title="Slot entfernen" style="color:#C8102E;font-size:10px">✕</button>` : '';
+        return `<div style="display:flex;align-items:center;gap:5px;padding:4px 6px;background:var(--tfambg,#F5EEE2);border:1px solid var(--tfambd,#E8D5B5);border-radius:4px;margin-bottom:4px;flex-wrap:wrap">
+          <span style="font-size:9.5px;font-weight:700;color:var(--tfamc,#8B5A00)">🧪 Familiarisierung ${t}</span>
+          <span style="display:flex;align-items:center;gap:4px;margin-left:auto">${proHtml}${delSlotBtn}</span>
+        </div>`;
+      }).join('');
+      const famAddBtn = isAdmin()
+        ? `<button class="btn btn-xs" style="margin-top:2px;width:100%;font-size:9.5px" onclick="openAddFamSlot(${cW},'${d.label}')">+ Familiarisierungs-Slot hinzufügen</button>` : '';
+      return `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--g2)">${famRows}${famAddBtn}</div>`;
+    })() : '';
+
     return `<div class="dcol">
       <div class="dayhdr-top" style="background:${hdrColor};border-radius:var(--r) var(--r) 0 0">
         <div style="display:flex;align-items:center;justify-content:space-between">
@@ -2609,7 +2631,7 @@ function renderWeek() {
         <div class="drow"><span class="ddate">${fD(date)} · ${dayFilled}/${slots.length}</span><span class="dphase">${phaseLabel}</span></div>
         ${t12note}${dayBlockedNote}${absentNote}
         <div class="dfill"><div class="dfill-bar" style="width:${pct}%"></div></div>
-      </div>${cards}
+      </div>${cards}${famSection}
     </div>`;
   }).join('')}</div>`;
 }
