@@ -6529,13 +6529,30 @@ window.spDelProband=async(id)=>{
 };
 
 // ── PROBAND LIST ───────────────────────────
+let spProbandFilterMode = 'all'; // 'all' | 'withDates'
+window.spToggleProbandFilter = () => {
+  spProbandFilterMode = spProbandFilterMode==='all' ? 'withDates' : 'all';
+  spRenderProbanden();
+};
 function spRenderProbanden(){
   const root=document.getElementById('sp-pv-react-root'); if(!root) return;
-  const probands=spGetProbands().filter(p=>p.pid && p.pid.trim()!=='');
+  let probands=spGetProbands().filter(p=>p.pid && p.pid.trim()!=='').map(p=>{
+    const bookings = window.spListProbandBookings ? window.spListProbandBookings(p.pid) : [];
+    return {...p, _firstBooking: bookings[0]||null};
+  });
+  if(spProbandFilterMode==='withDates'){
+    probands = probands.filter(p=>p._firstBooking).sort((a,b)=>a._firstBooking.date - b._firstBooking.date);
+  }
+  const filterActive = spProbandFilterMode==='withDates';
   root.innerHTML=`<div class="pv-wrap">
     <div class="pv-header">
       <h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800">Probanden <span style="font-size:14px;color:#BBB;font-weight:400;font-family:monospace">${probands.length}</span></h2>
       <span style="font-size:12px;color:var(--g5)">Wird automatisch aus Probandenverwaltung befüllt · nur Probanden mit vergebener Probandennummer</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <button onclick="spToggleProbandFilter()" style="padding:6px 14px;border-radius:8px;border:1px solid ${filterActive?'#1A1A2E':'#DDD'};background:${filterActive?'#1A1A2E':'#fff'};color:${filterActive?'#fff':'#888'};font-size:12px;font-weight:600;cursor:pointer">
+        ${filterActive?'✓ Nur mit Terminen · nach Start sortiert':'Nur Probanden mit Terminen anzeigen'}
+      </button>
     </div>
     <input class="pv-search" placeholder="P-ID oder Laufnummer suchen…" oninput="spFilterP(this.value)">
     <div id="sp-prows">${probands.length?probands.map(p=>{
@@ -6544,8 +6561,7 @@ function spRenderProbanden(){
       const pct = Math.min(count/SP_TOTAL,1), color=spPColor(count,SP_TOTAL);
       const meta = [p.t0week!==undefined?'T0 ✓':'', p.t1week!==undefined?'T1 ✓':'', p.notiz].filter(Boolean).join(' · ');
       // Erste gebuchte Trainingseinheit + geplantes Ende der 48-Wochen-Intervention
-      const bookings = window.spListProbandBookings ? window.spListProbandBookings(p.pid) : [];
-      const first = bookings[0];
+      const first = p._firstBooking;
       let startEndInfo = '<span style="font-size:10.5px;color:#CCC">Noch keine Trainingseinheit gebucht</span>';
       if(first){
         const startDate = first.date;
