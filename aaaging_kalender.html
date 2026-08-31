@@ -6351,6 +6351,23 @@ function spListProbandBookings(name){
 window.spListProbandBookings = spListProbandBookings;
 function _spISO(d){ const p=x=>String(x).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 
+// Frühestes Trainingsdatum eines Probanden — aus Kalenderbuchungen UND Trainingsprotokollen kombiniert
+// (falls eine Buchung versehentlich gelöscht wurde, das Protokoll aber noch existiert, zählt trotzdem das Protokoll-Datum).
+function spGetFirstTrainingDate(pid){
+  const anchor = new Date('2026-03-30T12:00:00');
+  const dates = [];
+  const bookings = spListProbandBookings(pid);
+  if(bookings[0]) dates.push(bookings[0].date);
+  Object.values(SP_TRAINING_LOGS).filter(l=>l.proband===pid).forEach(l=>{
+    const monday = new Date(anchor); monday.setDate(anchor.getDate()+l.wo*7);
+    const date = new Date(monday); date.setDate(monday.getDate()+(l.di-1));
+    dates.push(date);
+  });
+  if(!dates.length) return null;
+  return dates.reduce((min,d)=>d<min?d:min);
+}
+window.spGetFirstTrainingDate = spGetFirstTrainingDate;
+
 // ── SUB-TAB SWITCH ─────────────────────────
 window.spRenderProtokolle = () => {
   const el = document.getElementById('sp-proto-root'); if(!el) return;
@@ -6537,11 +6554,11 @@ window.spToggleProbandFilter = () => {
 function spRenderProbanden(){
   const root=document.getElementById('sp-pv-react-root'); if(!root) return;
   let probands=spGetProbands().filter(p=>p.pid && p.pid.trim()!=='').map(p=>{
-    const bookings = window.spListProbandBookings ? window.spListProbandBookings(p.pid) : [];
-    return {...p, _firstBooking: bookings[0]||null};
+    const firstDate = window.spGetFirstTrainingDate ? window.spGetFirstTrainingDate(p.pid) : null;
+    return {...p, _firstDate: firstDate};
   });
   if(spProbandFilterMode==='withDates'){
-    probands = probands.filter(p=>p._firstBooking).sort((a,b)=>a._firstBooking.date - b._firstBooking.date);
+    probands = probands.filter(p=>p._firstDate).sort((a,b)=>a._firstDate - b._firstDate);
   }
   const filterActive = spProbandFilterMode==='withDates';
   root.innerHTML=`<div class="pv-wrap">
@@ -6560,11 +6577,12 @@ function spRenderProbanden(){
       const count = spCountAll(p.pid);
       const pct = Math.min(count/SP_TOTAL,1), color=spPColor(count,SP_TOTAL);
       const meta = [p.t0week!==undefined?'T0 ✓':'', p.t1week!==undefined?'T1 ✓':'', p.notiz].filter(Boolean).join(' · ');
-      // Erste gebuchte Trainingseinheit + geplantes Ende der 48-Wochen-Intervention
-      const first = p._firstBooking;
+      // Erste gebuchte Trainingseinheit (oder frühestes Protokoll, falls Buchung gelöscht wurde) +
+      // geplantes Ende der 48-Wochen-Intervention
+      const first = p._firstDate;
       let startEndInfo = '<span style="font-size:10.5px;color:#CCC">Noch keine Trainingseinheit gebucht</span>';
       if(first){
-        const startDate = first.date;
+        const startDate = first;
         const endDate = new Date(startDate); endDate.setDate(startDate.getDate()+48*7);
         const fmtFull = d => `${spFmtDate(d)}.${d.getFullYear()}`;
         const isOverdue = endDate < new Date() && count < SP_TOTAL;
