@@ -6531,11 +6531,11 @@ window.spDelProband=async(id)=>{
 // ── PROBAND LIST ───────────────────────────
 function spRenderProbanden(){
   const root=document.getElementById('sp-pv-react-root'); if(!root) return;
-  const probands=spGetProbands();
+  const probands=spGetProbands().filter(p=>p.pid && p.pid.trim()!=='');
   root.innerHTML=`<div class="pv-wrap">
     <div class="pv-header">
       <h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800">Probanden <span style="font-size:14px;color:#BBB;font-weight:400;font-family:monospace">${probands.length}</span></h2>
-      <span style="font-size:12px;color:var(--g5)">Wird automatisch aus Probandenverwaltung befüllt</span>
+      <span style="font-size:12px;color:var(--g5)">Wird automatisch aus Probandenverwaltung befüllt · nur Probanden mit vergebener Probandennummer</span>
     </div>
     <input class="pv-search" placeholder="P-ID oder Laufnummer suchen…" oninput="spFilterP(this.value)">
     <div id="sp-prows">${probands.length?probands.map(p=>{
@@ -6543,11 +6543,23 @@ function spRenderProbanden(){
       const count = spCountAll(p.pid);
       const pct = Math.min(count/SP_TOTAL,1), color=spPColor(count,SP_TOTAL);
       const meta = [p.t0week!==undefined?'T0 ✓':'', p.t1week!==undefined?'T1 ✓':'', p.notiz].filter(Boolean).join(' · ');
+      // Erste gebuchte Trainingseinheit + geplantes Ende der 48-Wochen-Intervention
+      const bookings = window.spListProbandBookings ? window.spListProbandBookings(p.pid) : [];
+      const first = bookings[0];
+      let startEndInfo = '<span style="font-size:10.5px;color:#CCC">Noch keine Trainingseinheit gebucht</span>';
+      if(first){
+        const startDate = first.date;
+        const endDate = new Date(startDate); endDate.setDate(startDate.getDate()+48*7);
+        const fmtFull = d => `${spFmtDate(d)}.${d.getFullYear()}`;
+        const isOverdue = endDate < new Date() && count < SP_TOTAL;
+        startEndInfo = `<span style="font-size:10.5px;color:#999">🏁 Start: <strong style="color:#666">${fmtFull(startDate)}</strong> · Geplantes Ende (48 Wo.): <strong style="color:${isOverdue?'#C8102E':'#666'}">${fmtFull(endDate)}</strong>${isOverdue?' ⚠️':''}</span>`;
+      }
       return `<div class="proband-row">
         <div class="proband-avatar" style="font-size:10px">${p.pid}</div>
         <div class="proband-info">
           <div class="proband-name">${p.pid} <span style="font-size:12px;color:#6b7a99;font-family:monospace">${p.lnr||''}</span></div>
           <div class="proband-meta">${meta||'—'}</div>
+          <div style="margin-top:4px">${startEndInfo}</div>
         </div>
         <div class="proband-stats">
           <div class="proband-progress">
