@@ -6162,8 +6162,9 @@ window.renderRecallKalender = function() {
   var todayStr  = localDate(new Date());
   var firstDay  = new Date(y,m,1);
   var totalDays = new Date(y,m+1,0).getDate();
-  var startDow  = (firstDay.getDay()+6)%7;
-  var DOWS = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+  var startDowRaw = (firstDay.getDay()+6)%7;
+  var startDow  = startDowRaw > 4 ? 0 : startDowRaw; // Fällt der 1. auf Sa/So, startet das Raster direkt bei der folgenden Mo
+  var DOWS = ['Mo','Di','Mi','Do','Fr'];
 
   var thisMonthRecalls = Object.keys(events).filter(function(ds){
     return ds.startsWith(y+'-'+p2(m+1)) && events[ds].some(function(e){ return e.type==='recall'; });
@@ -6177,19 +6178,22 @@ window.renderRecallKalender = function() {
     + thisMonthRecalls + ' Recall-Termin' + (thisMonthRecalls!==1?'e':'')
     + '</span></div>';
 
-  html += '<div class="cal-grid" style="margin-bottom:12px">';
+  var _renderedDays = 0;
+  html += '<div class="cal-grid" style="margin-bottom:12px;grid-template-columns:repeat(5,1fr)">';
   DOWS.forEach(function(d){ html += '<div class="cal-dow">'+d+'</div>'; });
   for(var i=0; i<startDow; i++) html += '<div class="cal-day other-month"></div>';
 
   for(var d=1; d<=totalDays; d++) {
+    var date      = new Date(y,m,d);
+    var dow       = (date.getDay()+6)%7;
+    if(dow > 4) continue; // Sa/So überspringen
     var ds = y+'-'+p2(m+1)+'-'+p2(d);
     var isToday   = ds===todayStr;
-    var date      = new Date(y,m,d);
-    var isWeekend = (date.getDay()+6)%7 >= 5;
     var holiday   = isHoliday ? isHoliday(date) : null;
     var dayEvs    = events[ds]||[];
     var hasRecall = dayEvs.some(function(e){ return e.type==='recall'; });
-    var bgColor   = isToday ? '#E3EEFF' : hasRecall ? '#FEF9F5' : isWeekend||holiday ? 'var(--g1)' : '#fff';
+    var bgColor   = isToday ? '#E3EEFF' : hasRecall ? '#FEF9F5' : holiday ? 'var(--g1)' : '#fff';
+    _renderedDays++;
 
     var evHtml = dayEvs.map(function(ev) {
       if(ev.type==='recall') {
@@ -6203,23 +6207,21 @@ window.renderRecallKalender = function() {
 
     html += '<div class="cal-day' + (isToday?' today':'') + '"'
       + ' style="min-height:80px;background:' + bgColor + ';' + (isToday?'box-shadow:0 0 0 2px var(--ub);':'') + '">'
-      + '<div class="cal-day-num' + (isToday?' today-num':'') + '" style="color:' + (isWeekend||holiday?'#A89070':isToday?'var(--ub)':'#555') + '">'
+      + '<div class="cal-day-num' + (isToday?' today-num':'') + '" style="color:' + (holiday?'#A89070':isToday?'var(--ub)':'#555') + '">'
       + d + (holiday?' 🎉':'') + '</div>'
       + evHtml
       + (isAdm ? '<button class="add-absent-btn" onclick="openAddRecall()" style="background:#F0C898;border-color:#E0A868">+ Recall</button>' : '')
       + '</div>';
   }
 
-  var filled = startDow + totalDays;
-  var rem = (7 - filled%7)%7;
+  var filled = startDow + _renderedDays;
+  var rem = (5 - filled%5)%5;
   for(var j=0; j<rem; j++) html += '<div class="cal-day other-month"></div>';
   html += '</div>';
 
   html += '<div style="display:flex;gap:14px;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid var(--g2);border-radius:var(--r)">'
     + '<span style="font-size:11px;font-weight:700;color:var(--g5)">Legende:</span>'
     + '<span style="display:flex;align-items:center;gap:5px;font-size:11.5px"><span style="width:12px;height:12px;background:#FEF3EC;border:1px solid #F4C09A;border-radius:2px;display:inline-block"></span><span style="color:#B85010;font-weight:600">📋 Recall-Termin</span></span>'
-    + '<span style="display:flex;align-items:center;gap:5px;font-size:11.5px"><span style="width:12px;height:12px;background:#E8F5E9;border:1px solid #A5D6A7;border-radius:2px;display:inline-block"></span><span style="color:#2E7D32;font-weight:600">💊▶ Sachet-Start</span></span>'
-    + '<span style="display:flex;align-items:center;gap:5px;font-size:11.5px"><span style="width:12px;height:12px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:2px;display:inline-block"></span><span style="color:#E65100;font-weight:600">💊■ Sachet-Ende (Vorrat leer)</span></span>'
     + '</div>';
 
   wrap.innerHTML = html;
