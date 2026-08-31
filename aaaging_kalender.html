@@ -1942,6 +1942,7 @@ window._renderWeek = () => renderWeek();
 window._T0 = () => T0;
 window._T11 = () => T11;
 window._T12 = () => T12;
+window._T12_KW27 = () => T12_KW27;
 window._wDay = wDay;
 window.wMon = wMon;
 window.kw = kw;
@@ -2240,7 +2241,7 @@ function startDB() {
   onSnapshot(collection(db,'t_bookings'), snap => {
     T_BOOKINGS={}; snap.forEach(d=>{T_BOOKINGS[d.id]={...d.data(),_id:d.id}});
     window._T_BOOKINGS = T_BOOKINGS;
-    renderWeek(); renderTable();
+    renderWeek(); renderTable(); if(window.renderMonatsübersicht) window.renderMonatsübersicht();
   });
   onSnapshot(collection(db,'tel_bookings'), snap => {
     TEL_BOOKINGS={}; snap.forEach(d=>{TEL_BOOKINGS[d.id]={...d.data(),_id:d.id}});
@@ -2964,65 +2965,39 @@ function renderGesamt() {
   let totalEvents = 0;
 
   // For each day, collect all events
+  const DAYOFF_G = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3};
   const dayEvents = DAYS.map(day => {
     const events = [];
+    const dayDate = wDay(cW, DOFF_MAP[day]);
+    const dayStr = _localDate(dayDate);
+    const coveredThisDay = new Set(); // probandId_termin, um Legacy-Fallback-Doppelzählung zu vermeiden
 
-    // T0 slots
+    // T0 slots (unverändert, Legacy-Feld wird hier noch aktiv genutzt)
     T0.forEach(s => {
       const p = byT0(cW, day, s.slot);
       if (p) { events.push({type:'T0', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
     });
 
-    // T1.1 slots — loop ALL T11 slots, match by booked day (not slot.day property)
-    if (day==='Montag'||day==='Dienstag') {
-      T11.forEach(s => {
-        const p = byT11(cW, day, s.slot);
-        if (p) { events.push({type:'T1.1', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
-      });
-    // T1.2 slots
-    } else {
-      T12.forEach(s => {
-        const p = byT12(cW, day, s.slot);
-        if (p) { events.push({type:'T1.2', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
-      });
-    }
-
-    // T2 slots
-    const dayDate = wDay(cW, DOFF_MAP[day]);
-    const dayStr = _localDate(dayDate);
-    if (day==='Montag'||day==='Dienstag') {
-      T21.forEach(s => {
-        const p = byT21(cW, day, s.slot);
-        if (p) { events.push({type:'T2.1', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
-      });
-    } else if (day==='Mittwoch'||day==='Donnerstag') {
-      T22.forEach(s => {
-        const p = byT22(cW, day, s.slot);
-        if (p) { events.push({type:'T2.2', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
-      });
-    }
-    // T2 flexible date fallback
-    ps.forEach(p => {
-      if (p.t2date===dayStr && p.t2slot11===undefined && p.t2slot12===undefined) {
-        events.push({type:'T2', time:p.t2time||'', pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++;
-      }
+    // T1/T2/T3 — aus den echten Buchungen (t_bookings), inkl. V/N-Altformat-Unterstützung
+    Object.values(T_BOOKINGS).forEach(bk => {
+      if (bk.week !== cW || bk.day !== day || !bk.slot || !bk.sub) return;
+      const isFirstHalf = bk.sub === 'T1.1' || bk.sub === 'V';
+      const termin = bk.termin || 'T1';
+      const label = termin + (isFirstHalf ? '.1' : '.2');
+      const pool = isFirstHalf ? T11 : (typeof T12_KW27!=='undefined' ? T12_KW27 : T12);
+      const slotDef = pool.find(s => s.slot === Number(bk.slot));
+      const p = ps.find(x => x._id === bk.probandId);
+      events.push({type:label, slot:bk.slot, time:slotDef?slotDef.blutStart:'', pid:bk.pid||p?.pid||'', lnr:bk.lnr||p?.lnr||'', id:bk.probandId});
+      totalEvents++;
+      coveredThisDay.add(bk.probandId + '_' + termin);
     });
 
-    // T3 slots
-    if (day==='Montag'||day==='Dienstag') {
-      T31.forEach(s => {
-        const p = byT31(cW, day, s.slot);
-        if (p) { events.push({type:'T3.1', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
-      });
-    } else if (day==='Mittwoch'||day==='Donnerstag') {
-      T32.forEach(s => {
-        const p = byT32(cW, day, s.slot);
-        if (p) { events.push({type:'T3.2', slot:s.slot, time:s.blutStart, pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++; }
-      });
-    }
-    // T3 flexible date fallback
+    // T2/T3 Legacy-Fallback (manuelles Datum ohne Kalenderbuchung) — nur falls keine Buchung existiert
     ps.forEach(p => {
-      if (p.t3date===dayStr && p.t3slot11===undefined && p.t3slot12===undefined) {
+      if (p.t2date===dayStr && !coveredThisDay.has(p._id+'_T2')) {
+        events.push({type:'T2', time:p.t2time||'', pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++;
+      }
+      if (p.t3date===dayStr && !coveredThisDay.has(p._id+'_T3')) {
         events.push({type:'T3', time:p.t3time||'', pid:p.pid, lnr:p.lnr, id:p._id}); totalEvents++;
       }
     });
@@ -5920,6 +5895,7 @@ function renderMonatsübersicht() {
   const T0 = window._T0 ? window._T0() : [];
   const T11 = window._T11 ? window._T11() : [];
   const T12 = window._T12 ? window._T12() : [];
+  const T12_KW27 = window._T12_KW27 ? window._T12_KW27() : T12;
   const wDay = window._wDay;
   const localDate = window._localDate;
   const isHoliday = window._isAustrianHoliday;
@@ -5947,7 +5923,7 @@ function renderMonatsübersicht() {
     var p = Object.values(window._P()).find(function(x){ return x._id === bk.probandId; }) || {};
     var isFirstHalf = bk.sub === 'T1.1' || bk.sub === 'V';
     var label = (bk.termin || 'T1') + (isFirstHalf ? '.1' : '.2');
-    var slotPool = isFirstHalf ? T11 : (typeof T12_KW27 !== 'undefined' && T12_KW27 ? T12_KW27 : T12);
+    var slotPool = isFirstHalf ? T11 : T12_KW27;
     var slotDef = slotPool.find(function(s){ return s.slot===Number(bk.slot); });
     addEv(wDay(bk.week, DAYOFF[bk.day]||0), bk.pid||p.pid, bk.lnr||p.lnr, label, slotDef?slotDef.blutStart:'', p.aufpassen);
     aaaCovered[bk.probandId + '_T1'] = true; // markiere T1 als abgedeckt (egal welcher Termin-Typ, da überlappende Slots nicht möglich)
@@ -6178,15 +6154,7 @@ window.renderRecallKalender = function() {
     var pid = p ? (p.pid||'—') : '?';
     var lnr = p ? (p.lnr||'') : '';
     if(r.date) {
-      addEv(r.date, {type:'recall', pid:pid, lnr:lnr, time:r.time||'', recallId:r._id, sachets:r.sachets||0});
-    }
-    var startDs = r.sachetStart || r.date;
-    if(startDs && r.sachets) {
-      addEv(startDs, {type:'sachet-start', pid:pid, lnr:lnr, sachets:r.sachets, recallId:r._id});
-      var endDate = new Date(startDs+'T12:00');
-      endDate.setDate(endDate.getDate() + parseInt(r.sachets) - 1);
-      var endDs = endDate.getFullYear()+'-'+p2(endDate.getMonth()+1)+'-'+p2(endDate.getDate());
-      addEv(endDs, {type:'sachet-end', pid:pid, lnr:lnr, sachets:r.sachets, recallId:r._id});
+      addEv(r.date, {type:'recall', pid:pid, lnr:lnr, time:r.time||'', recallId:r._id});
     }
   });
 
@@ -6200,9 +6168,6 @@ window.renderRecallKalender = function() {
   var thisMonthRecalls = Object.keys(events).filter(function(ds){
     return ds.startsWith(y+'-'+p2(m+1)) && events[ds].some(function(e){ return e.type==='recall'; });
   }).length;
-  var thisMonthEnds = Object.keys(events).filter(function(ds){
-    return ds.startsWith(y+'-'+p2(m+1)) && events[ds].some(function(e){ return e.type==='sachet-end'; });
-  }).length;
 
   var html = '<div class="month-nav">'
     + '<div style="display:flex;gap:3px"><button class="arr" onclick="recallCalNav(-1)">&#8592;</button><button class="arr" onclick="recallCalNav(1)">&#8594;</button></div>'
@@ -6210,7 +6175,6 @@ window.renderRecallKalender = function() {
     + '<button class="btn btn-sm" onclick="recallCalToday()" style="margin-left:4px">Aktueller Monat</button>'
     + '<span style="margin-left:auto;font-size:12px;color:var(--g5)">'
     + thisMonthRecalls + ' Recall-Termin' + (thisMonthRecalls!==1?'e':'')
-    + (thisMonthEnds ? ' &nbsp;·&nbsp; ' + thisMonthEnds + ' Sachet-Ende' + (thisMonthEnds!==1?'s':'') : '')
     + '</span></div>';
 
   html += '<div class="cal-grid" style="margin-bottom:12px">';
@@ -6225,22 +6189,14 @@ window.renderRecallKalender = function() {
     var holiday   = isHoliday ? isHoliday(date) : null;
     var dayEvs    = events[ds]||[];
     var hasRecall = dayEvs.some(function(e){ return e.type==='recall'; });
-    var hasEnd    = dayEvs.some(function(e){ return e.type==='sachet-end'; });
-    var bgColor   = isToday ? '#E3EEFF' : hasEnd ? '#FFF9F0' : hasRecall ? '#FEF9F5' : isWeekend||holiday ? 'var(--g1)' : '#fff';
+    var bgColor   = isToday ? '#E3EEFF' : hasRecall ? '#FEF9F5' : isWeekend||holiday ? 'var(--g1)' : '#fff';
 
     var evHtml = dayEvs.map(function(ev) {
       if(ev.type==='recall') {
         return '<div onclick="' + (isAdm ? "openEditRecall('"+ev.recallId+"')" : '') + '"'
           + ' style="background:#FEF3EC;border:1px solid #F4C09A;color:#B85010;border-radius:3px;padding:2px 5px;font-size:9.5px;font-weight:600;margin-bottom:2px;' + (isAdm?'cursor:pointer':'') + '">'
           + '📋 ' + ev.pid + (ev.time ? ' <span style="font-weight:400;color:#C88040">'+ev.time+'</span>' : '')
-          + (ev.sachets ? ' <span style="color:#2E7D32;font-weight:700">💊'+ev.sachets+'</span>' : '')
           + '</div>';
-      } else if(ev.type==='sachet-start') {
-        return '<div style="background:#E8F5E9;border:1px solid #A5D6A7;color:#2E7D32;border-radius:3px;padding:2px 5px;font-size:9.5px;font-weight:600;margin-bottom:2px">'
-          + '💊▶ ' + ev.pid + ' <span style="font-weight:400">' + ev.sachets + ' St.</span></div>';
-      } else if(ev.type==='sachet-end') {
-        return '<div style="background:#FFF3E0;border:1px solid #FFB74D;color:#E65100;border-radius:3px;padding:2px 5px;font-size:9.5px;font-weight:600;margin-bottom:2px">'
-          + '💊■ ' + ev.pid + ' <span style="font-weight:400">leer</span></div>';
       }
       return '';
     }).join('');
