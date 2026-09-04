@@ -9446,6 +9446,17 @@ window.renderTelErinnerungen = function() {
     var statusText  = dU===null ? '' : dU<0 ? 'überfällig ('+Math.abs(dU)+' T.)' : dU===0 ? 'heute fällig' : 'in '+dU+' T.';
     var targetKW = targetVal && window.kw ? window.kw(targetVal) : null;
     var targetKwLabel = targetKW ? ('KW '+targetKW+' / '+targetVal.getFullYear()) : (targetVal ? fmtD(targetVal) : '');
+    var jumpBtnHtml = '';
+    var _targetISO = '';
+    if(targetVal) {
+      var _dow = targetVal.getDay()||7;
+      var _anchor = new Date('2026-03-30T12:00:00');
+      var _monday = new Date(targetVal); _monday.setDate(targetVal.getDate()-_dow+1); _monday.setHours(12,0,0,0);
+      var _targetWeek = Math.round((_monday-_anchor)/(7*86400000));
+      jumpBtnHtml = '<button type="button" onclick="telErinJumpToWeek('+_targetWeek+')" style="padding:2px 8px;border-radius:6px;border:1px solid #8B5A4A;background:#fff;color:#8B5A4A;font-size:10px;font-weight:600;cursor:pointer;margin-left:6px">→ Zielwoche im Kalender</button>';
+      var _p2 = function(x){ return String(x).padStart(2,'0'); };
+      _targetISO = targetVal.getFullYear()+'-'+_p2(targetVal.getMonth()+1)+'-'+_p2(targetVal.getDate());
+    }
     var formId = tp._id+'_'+key;
     erin = erin || {};
     var kontakt = erin.kontakt || '';
@@ -9485,10 +9496,10 @@ window.renderTelErinnerungen = function() {
     );
 
     return '<div style="flex:1;min-width:220px">'+head
-      + (targetVal ? '<div style="font-size:11.5px;color:#777;margin-bottom:5px">Zielwoche: <strong style="color:#4A2A1F">'+targetKwLabel+'</strong>'+(statusText?' · <span style="color:'+statusColor+';font-weight:700">'+statusText+'</span>':'')+'</div>' : '<div style="font-size:11.5px;color:#BBB;margin-bottom:5px">kein Anker-Termin</div>')
+      + (targetVal ? '<div style="font-size:11.5px;color:#777;margin-bottom:5px">Zielwoche: <strong style="color:#4A2A1F">'+targetKwLabel+'</strong>'+(statusText?' · <span style="color:'+statusColor+';font-weight:700">'+statusText+'</span>':'')+jumpBtnHtml+'</div>' : '<div style="font-size:11.5px;color:#BBB;margin-bottom:5px">kein Anker-Termin</div>')
       + (isAdm ? (
         '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">'
-        + '<input type="date" id="terin-date-'+formId+'" oninput="telErinDateChanged(\''+formId+'\')" style="padding:5px 7px;border:1px solid #DDD;border-radius:6px;font-size:11px;outline:none;width:128px">'
+        + '<input type="date" id="terin-date-'+formId+'" value="'+_targetISO+'" oninput="telErinDateChanged(\''+formId+'\')" style="padding:5px 7px;border:1px solid #DDD;border-radius:6px;font-size:11px;outline:none;width:128px">'
         + '<input type="time" id="terin-time-'+formId+'" value="08:00" style="padding:5px 7px;border:1px solid #DDD;border-radius:6px;font-size:11px;outline:none;width:76px">'
         + '<button onclick="telErinBook(\''+tp._id+'\',\''+key+'\')" style="padding:5px 11px;background:#8B5A4A;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">Buchen</button>'
         + '<span id="terin-kw-'+formId+'" style="font-size:10.5px;color:#999;font-weight:600"></span>'
@@ -9514,6 +9525,11 @@ window.renderTelErinnerungen = function() {
   }).join('');
 
   el.innerHTML = statsHtml + searchBarHtml + (rowsHtml || '<div style="padding:40px;text-align:center;color:#888;font-style:italic">Keine Probanden gefunden.</div>');
+
+  // Für alle Felder mit vorausgefülltem Zieldatum sofort KW + freie Slots anzeigen (kein Klick nötig)
+  el.querySelectorAll('input[type="date"][id^="terin-date-"]').forEach(function(inp){
+    if(inp.value) { var fid = inp.id.replace('terin-date-',''); window.telErinDateChanged(fid); }
+  });
 };
 
 window.telErinSetSearch = function(v){ window._telErinSearch = v; window.renderTelErinnerungen(); };
@@ -9559,13 +9575,21 @@ window.telErinDateChanged = function(formId) {
     var label = sl.time + (sl.extra?' ✦':'') + (free?'':' · belegt');
     return '<button type="button" '+(free?('onclick="telErinPickSlot(\''+formId+'\',\''+sl.time+'\')"'):'disabled')
       + ' style="padding:4px 9px;border-radius:6px;border:1px solid '+(free?'#8B5A4A':'#DDD')+';background:'+(free?'#fff':'#F5F5F5')+';color:'+(free?'#4A2A1F':'#BBB')+';font-size:10.5px;font-weight:600;cursor:'+(free?'pointer':'not-allowed')+'">'+label+'</button>';
-  }).join('');
+  }).join('') + '<button type="button" onclick="telErinPickSlot(\''+formId+'\',\'\');document.getElementById(\'terin-time-'+formId+'\').focus()" style="padding:4px 9px;border-radius:6px;border:1px dashed #7B1FA2;background:#F8F1FB;color:#7B1FA2;font-size:10.5px;font-weight:600;cursor:pointer" title="Freie Uhrzeit eintragen — wird automatisch als neuer Zusatz-Slot angelegt">+ Sondertermin</button>';
   if(slotsEl) slotsEl.innerHTML = '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">'+chipsHtml+'</div>';
 };
 
 window.telErinPickSlot = function(formId, time) {
   var timeInput = document.getElementById('terin-time-'+formId);
   if(timeInput) timeInput.value = time;
+};
+
+// Springt im Telomer-Kalender direkt zur angegebenen Zielwoche (z.B. von der Erinnerungsansicht aus)
+window.telErinJumpToWeek = function(week) {
+  _telCW = week;
+  window._telManualNav = true;
+  goTab('tel-kalender', document.querySelector('#nav-telomer .ntab'));
+  renderTelKalender();
 };
 
 // Trägt einen T0/T1/T2-Termin direkt aus der Erinnerungsansicht ein — landet als echte
