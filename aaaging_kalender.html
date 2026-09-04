@@ -9357,13 +9357,17 @@ window.renderTelErinnerungen = function() {
     if(bk.customStartTime) return bk.customStartTime;
     var slot = Number(bk.slot);
     if(!slot) return '';
+    var isT1 = bk.termin === 'T1'; // T1 hat keine Blutabnahme → kein 15-Min-Vorlauf, Start = Blutabnahme-Zeit direkt
     if(slot >= 5000) {
       var hh = Math.floor((slot-5000)/100), mm = (slot-5000)%100;
-      return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+      if(isT1) return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+      var dt = new Date(2000,0,1,hh,mm); dt.setMinutes(dt.getMinutes()-15);
+      return String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
     }
     var pool = window._TEL_T0 || [];
     var def = pool.find(function(s){ return s.slot===slot; });
-    return def ? def.blutStart : '';
+    if(!def) return '';
+    return isT1 ? def.blutStart : def.inviteTime;
   }
 
   function getTerminInfo(tp, termin) {
