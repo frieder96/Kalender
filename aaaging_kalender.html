@@ -9483,11 +9483,13 @@ window.renderTelErinnerungen = function() {
     return '<div style="flex:1;min-width:220px">'+head
       + (targetVal ? '<div style="font-size:11.5px;color:#777;margin-bottom:5px">Zielwoche: <strong style="color:#4A2A1F">'+targetKwLabel+'</strong>'+(statusText?' · <span style="color:'+statusColor+';font-weight:700">'+statusText+'</span>':'')+'</div>' : '<div style="font-size:11.5px;color:#BBB;margin-bottom:5px">kein Anker-Termin</div>')
       + (isAdm ? (
-        '<div style="display:flex;gap:4px;flex-wrap:wrap">'
-        + '<input type="date" id="terin-date-'+formId+'" style="padding:5px 7px;border:1px solid #DDD;border-radius:6px;font-size:11px;outline:none;width:128px">'
+        '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">'
+        + '<input type="date" id="terin-date-'+formId+'" oninput="telErinDateChanged(\''+formId+'\')" style="padding:5px 7px;border:1px solid #DDD;border-radius:6px;font-size:11px;outline:none;width:128px">'
         + '<input type="time" id="terin-time-'+formId+'" value="08:00" style="padding:5px 7px;border:1px solid #DDD;border-radius:6px;font-size:11px;outline:none;width:76px">'
         + '<button onclick="telErinBook(\''+tp._id+'\',\''+key+'\')" style="padding:5px 11px;background:#8B5A4A;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">Buchen</button>'
+        + '<span id="terin-kw-'+formId+'" style="font-size:10.5px;color:#999;font-weight:600"></span>'
         + '</div>'
+        + '<div id="terin-slots-'+formId+'"></div>'
       ) : '')
       + kontaktFormHtml
       + '</div>';
@@ -9512,6 +9514,55 @@ window.renderTelErinnerungen = function() {
 
 window.telErinSetSearch = function(v){ window._telErinSearch = v; window.renderTelErinnerungen(); };
 window.telErinSetSort = function(v){ window._telErinSort = v; window.renderTelErinnerungen(); };
+
+// Zeigt live KW + freie/belegte Slots an, sobald ein Datum im Buchungsformular gewählt wird.
+window.telErinDateChanged = function(formId) {
+  var dateVal = document.getElementById('terin-date-'+formId)?.value;
+  var kwEl = document.getElementById('terin-kw-'+formId);
+  var slotsEl = document.getElementById('terin-slots-'+formId);
+  if(!dateVal){ if(kwEl) kwEl.textContent=''; if(slotsEl) slotsEl.innerHTML=''; return; }
+
+  var d = new Date(dateVal+'T12:00');
+  var dow = d.getDay()||7;
+  var DAYNAMES = {1:'Montag',2:'Dienstag',3:'Mittwoch',4:'Donnerstag',5:'Freitag'};
+  if(dow>5){
+    if(kwEl) kwEl.innerHTML = '<span style="color:#C8102E">kein Werktag</span>';
+    if(slotsEl) slotsEl.innerHTML = '';
+    return;
+  }
+  var dayLabel = DAYNAMES[dow];
+  var anchor = new Date('2026-03-30T12:00:00');
+  var monday = new Date(d); monday.setDate(d.getDate()-dow+1); monday.setHours(12,0,0,0);
+  var week = Math.round((monday-anchor)/(7*86400000));
+  var kwNum = window.kw ? window.kw(monday) : '?';
+  if(kwEl) kwEl.textContent = 'KW '+kwNum+' / '+monday.getFullYear()+' · '+dayLabel;
+
+  // Standard-Slots (aus der einheitlichen Telomer-Slot-Struktur) + evtl. Zusatz-Slots dieses Tages
+  var pool = window._TEL_T0 || [];
+  var slotList = pool.map(function(s){ return {slot:s.slot, time:s.blutStart, extra:false}; });
+  var extraSrc = window._TEL_EXTRA_SLOTS || {};
+  var existingExtra = Object.values(extraSrc).find(function(s){ return s.week===week && s.day===dayLabel; });
+  if(existingExtra) (existingExtra.times||[]).forEach(function(t){
+    var hh=parseInt(t.split(':')[0],10), mm=parseInt(t.split(':')[1],10);
+    slotList.push({slot:5000+hh*100+mm, time:t, extra:true});
+  });
+  slotList.sort(function(a,b){ return a.time<b.time?-1:a.time>b.time?1:0; });
+
+  var bookings = Object.values(window._TEL_BOOKINGS||{}).filter(function(bk){ return bk.week===week && bk.day===dayLabel; });
+  var chipsHtml = slotList.map(function(sl){
+    var bk = bookings.find(function(b){ return Number(b.slot)===sl.slot; });
+    var free = !bk;
+    var label = sl.time + (sl.extra?' ✦':'') + (free?'':' · belegt');
+    return '<button type="button" '+(free?('onclick="telErinPickSlot(\''+formId+'\',\''+sl.time+'\')"'):'disabled')
+      + ' style="padding:4px 9px;border-radius:6px;border:1px solid '+(free?'#8B5A4A':'#DDD')+';background:'+(free?'#fff':'#F5F5F5')+';color:'+(free?'#4A2A1F':'#BBB')+';font-size:10.5px;font-weight:600;cursor:'+(free?'pointer':'not-allowed')+'">'+label+'</button>';
+  }).join('');
+  if(slotsEl) slotsEl.innerHTML = '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">'+chipsHtml+'</div>';
+};
+
+window.telErinPickSlot = function(formId, time) {
+  var timeInput = document.getElementById('terin-time-'+formId);
+  if(timeInput) timeInput.value = time;
+};
 
 // Trägt einen T0/T1/T2-Termin direkt aus der Erinnerungsansicht ein — landet als echte
 // Buchung im Telomer-Kalender (tel_bookings). Zeit außerhalb der 4 Standard-Slots
