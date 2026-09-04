@@ -9332,6 +9332,9 @@ window.exportTelProbanden = function() {
 };
 
 // ── TELOMER ERINNERUNGSKALENDER ──────────────────────────────────
+// Ein Feld pro Person (nicht mehr zwei Karten pro Phase), mit Suche/Sortierung
+// und der Möglichkeit, T0/T1/T2-Zieltermine direkt einzutragen — landet als echte
+// Buchung im Telomer-Kalender (tel_bookings), nicht nur als Erinnerungsnotiz.
 window.renderTelErinnerungen = function() {
   var el = document.getElementById('tel-erinnerungen-content'); if(!el) return;
   var wDay = window._wDay;
@@ -9340,12 +9343,15 @@ window.renderTelErinnerungen = function() {
 
   var DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
   var today  = new Date(); today.setHours(0,0,0,0);
-  var TEAM   = window._teamCache || {};
-  var ERINNERUNGEN = window._TEL_ERINNERUNGEN || {};
   var TEL_BK = window._TEL_BOOKINGS || {};
   var isAdm  = window.isAdmin && window.isAdmin();
+  var ERINNERUNGEN = window._TEL_ERINNERUNGEN || {};
+  var TEAM = window._teamCache || {};
+  var teamOptHtml = Object.values(TEAM).map(function(m2) {
+    var kz = m2.kuerzel || m2.name.slice(0,2).toUpperCase();
+    return '<option value="'+kz+'">'+m2.name+(m2.kuerzel?' ('+m2.kuerzel+')':'')+'</option>';
+  }).join('');
 
-  // Helper: liefert {week, day} für einen Termin (tel_bookings hat Vorrang, sonst Legacy-Felder)
   function getTerminInfo(tp, termin) {
     var bk = Object.values(TEL_BK).find(function(b){ return b.probandId===tp._id && b.termin===termin; });
     if(bk && bk.week !== undefined && bk.day) return {week:bk.week, day:bk.day};
@@ -9361,177 +9367,188 @@ window.renderTelErinnerungen = function() {
     return;
   }
 
-  var entries = [];
-  tps.forEach(function(tp) {
-    var t0 = getTerminInfo(tp,'T0');
-    var t1 = getTerminInfo(tp,'T1');
-    var t2 = getTerminInfo(tp,'T2');
+  var q = (window._telErinSearch||'').trim().toLowerCase();
+  var sortMode = window._telErinSort || 'due';
 
-    // ── Phase T0 → T1 ───────────────────────────────────
-    if(t0) {
-      var t0Date = wDay(t0.week, DAYOFF[t0.day]||0); t0Date.setHours(0,0,0,0);
-      // Supplement-Start: erster Montag NACH T0
-      var dayOfWeek = t0Date.getDay();
-      var daysToNextMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);
-      var supplementStart = new Date(t0Date); supplementStart.setDate(t0Date.getDate() + daysToNextMonday);
-      // Erinnerung: 9 Wochen nach Supplement-Start
-      var reminderDate = new Date(supplementStart); reminderDate.setDate(supplementStart.getDate() + 63);
-      // T1-Ziel: 12 Wochen nach Supplement-Start
-      var targetDate = new Date(supplementStart); targetDate.setDate(supplementStart.getDate() + 84);
-      var nextBooked = !!t1;
-      // Erinnerung gespeichert unter _id+'_T0' — Legacy: _id (ohne Suffix) wird als T0-Phase übernommen
-      var erin = ERINNERUNGEN[tp._id+'_T0'] || ERINNERUNGEN[tp._id] || {};
-      entries.push({
-        tp:tp, phase:'T0', erinId:tp._id+'_T0', erin:erin,
-        anchorLabel:'T0', anchorDate:t0Date, anchorExtra:'Supplement-Start: '+supplementStart.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}),
-        reminderDate:reminderDate, targetDate:targetDate, targetLabel:'T1',
-        nextBookedDate: nextBooked ? wDay(t1.week, DAYOFF[t1.day]||0) : null,
-        nextBooked:nextBooked,
-        daysUntil:Math.round((reminderDate - today) / 86400000),
-        erledigt: !!(erin.erledigt || nextBooked)
-      });
-    }
+  var rows = tps.map(function(tp){
+    var t0 = getTerminInfo(tp,'T0'), t1 = getTerminInfo(tp,'T1'), t2 = getTerminInfo(tp,'T2');
+    var t0Date = t0 ? wDay(t0.week, DAYOFF[t0.day]||0) : null; if(t0Date) t0Date.setHours(0,0,0,0);
+    var t1Date = t1 ? wDay(t1.week, DAYOFF[t1.day]||0) : null; if(t1Date) t1Date.setHours(0,0,0,0);
+    var t2Date = t2 ? wDay(t2.week, DAYOFF[t2.day]||0) : null; if(t2Date) t2Date.setHours(0,0,0,0);
 
-    // ── Phase T1 → T2 ───────────────────────────────────
-    if(t1) {
-      var t1Date = wDay(t1.week, DAYOFF[t1.day]||0); t1Date.setHours(0,0,0,0);
-      // Anker direkt T1 (Supplement läuft durch, kein neuer "Start")
-      var reminderDate2 = new Date(t1Date); reminderDate2.setDate(t1Date.getDate() + 63);
-      var targetDate2   = new Date(t1Date); targetDate2.setDate(t1Date.getDate() + 84);
-      var nextBooked2 = !!t2;
-      var erin2 = ERINNERUNGEN[tp._id+'_T1'] || {};
-      entries.push({
-        tp:tp, phase:'T1', erinId:tp._id+'_T1', erin:erin2,
-        anchorLabel:'T1', anchorDate:t1Date, anchorExtra:null,
-        reminderDate:reminderDate2, targetDate:targetDate2, targetLabel:'T2',
-        nextBookedDate: nextBooked2 ? wDay(t2.week, DAYOFF[t2.day]||0) : null,
-        nextBooked:nextBooked2,
-        daysUntil:Math.round((reminderDate2 - today) / 86400000),
-        erledigt: !!(erin2.erledigt || nextBooked2)
-      });
+    var t1Target = null;
+    if(t0Date) {
+      var dow = t0Date.getDay();
+      var supplementStart = new Date(t0Date); supplementStart.setDate(t0Date.getDate() + (dow===0?1:(8-dow)));
+      t1Target = new Date(supplementStart); t1Target.setDate(supplementStart.getDate() + 84);
     }
+    var t2Target = null;
+    if(t1Date) { t2Target = new Date(t1Date); t2Target.setDate(t1Date.getDate() + 84); }
+
+    var nextDue = (!t1 && t1Target) ? t1Target : (!t2 && t2Target) ? t2Target : null;
+    return {tp:tp, t0Date:t0Date, t1Date:t1Date, t2Date:t2Date, t1Target:t1Target, t2Target:t2Target, nextDue:nextDue};
   });
 
-  // Sortierung: offene zuerst, dann nach daysUntil
-  entries.sort(function(a, b) {
-    if(a.erledigt !== b.erledigt) return a.erledigt ? 1 : -1;
-    return a.daysUntil - b.daysUntil;
+  if(q) {
+    rows = rows.filter(function(r){
+      return (r.tp.tid||'').toLowerCase().indexOf(q)>=0 || (r.tp.lnr||'').toLowerCase().indexOf(q)>=0;
+    });
+  }
+
+  rows.sort(function(a,b){
+    if(sortMode==='alpha') return (a.tp.tid||'').localeCompare(b.tp.tid||'', undefined, {numeric:true});
+    var av = a.nextDue ? a.nextDue.getTime() : Infinity;
+    var bv = b.nextDue ? b.nextDue.getTime() : Infinity;
+    return av-bv;
   });
 
-  var offen = entries.filter(function(e){ return !e.erledigt && e.daysUntil <= 0; }).length;
-  var bald  = entries.filter(function(e){ return !e.erledigt && e.daysUntil > 0 && e.daysUntil <= 14; }).length;
-  var erlN  = entries.filter(function(e){ return e.erledigt; }).length;
+  var overdueN = rows.filter(function(r){ return r.nextDue && r.nextDue < today; }).length;
+  var soonN    = rows.filter(function(r){ return r.nextDue && r.nextDue >= today && (r.nextDue-today)/86400000 <= 14; }).length;
+  var doneN    = rows.filter(function(r){ return !r.nextDue; }).length;
 
-  var statsHtml = '<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">'
-    + (offen ? '<div style="background:#FDF2F4;border:1px solid #E8BFBF;border-left:4px solid #C8102E;border-radius:var(--r);padding:9px 14px;font-size:13px;color:#C8102E;font-weight:700">🔴 ' + offen + ' überfällig</div>' : '')
-    + (bald  ? '<div style="background:#FFF8E0;border:1px solid #FFCC80;border-left:4px solid #E87127;border-radius:var(--r);padding:9px 14px;font-size:13px;color:#C8870A;font-weight:700">🟡 ' + bald + ' in &lt;2 Wochen fällig</div>' : '')
-    + '<div style="background:#F2FAF5;border:1px solid #A5D6A7;border-left:4px solid #2E8B57;border-radius:var(--r);padding:9px 14px;font-size:13px;color:#2E8B57;font-weight:700">✅ ' + erlN + ' / ' + entries.length + ' erledigt</div>'
+  var statsHtml = '<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">'
+    + (overdueN ? '<div style="background:#FDF2F4;border:1px solid #E8BFBF;border-left:4px solid #C8102E;border-radius:var(--r);padding:8px 13px;font-size:12.5px;color:#C8102E;font-weight:700">🔴 '+overdueN+' überfällig</div>' : '')
+    + (soonN    ? '<div style="background:#FFF8E0;border:1px solid #FFCC80;border-left:4px solid #E87127;border-radius:var(--r);padding:8px 13px;font-size:12.5px;color:#C8870A;font-weight:700">🟡 '+soonN+' in &lt;2 Wochen fällig</div>' : '')
+    + '<div style="background:#F2FAF5;border:1px solid #A5D6A7;border-left:4px solid #2E8B57;border-radius:var(--r);padding:8px 13px;font-size:12.5px;color:#2E8B57;font-weight:700">✅ '+doneN+' / '+rows.length+' vollständig gebucht</div>'
     + '</div>';
 
-  var cardsHtml = entries.map(function(entry) {
-    var tp   = entry.tp;
-    var id   = entry.erinId;
-    var erin = entry.erin;
-    var dU   = entry.daysUntil;
+  var searchBarHtml = '<div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">'
+    + '<input type="text" placeholder="🔍 Proband suchen (TID oder Laufnr.)…" value="'+(q?q.replace(/"/g,'&quot;'):'')+'" oninput="telErinSetSearch(this.value)" style="flex:1;min-width:220px;padding:9px 14px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">'
+    + '<button onclick="telErinSetSort(\'due\')" style="padding:8px 14px;border-radius:8px;border:1px solid '+(sortMode==='due'?'#8B5A4A':'#DDD')+';background:'+(sortMode==='due'?'#EAD4CB':'#fff')+';color:'+(sortMode==='due'?'#4A2A1F':'#888')+';font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">📅 Nach Termin</button>'
+    + '<button onclick="telErinSetSort(\'alpha\')" style="padding:8px 14px;border-radius:8px;border:1px solid '+(sortMode==='alpha'?'#8B5A4A':'#DDD')+';background:'+(sortMode==='alpha'?'#EAD4CB':'#fff')+';color:'+(sortMode==='alpha'?'#4A2A1F':'#888')+';font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">🔤 Alphabetisch</button>'
+    + '</div>';
 
-    var anchorStr = entry.anchorDate.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
-    var remStr    = entry.reminderDate.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
-    var tgtKW     = window.kw ? window.kw(entry.targetDate) : '?';
-    var tgtStr    = entry.targetDate.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'});
+  var fmtD = function(d){ return d ? d.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}) : ''; };
 
-    var leftBorder, bg, statusLabel, statusColor;
-    if(entry.nextBooked) {
-      leftBorder='#2E8B57'; bg='#F2FAF5'; statusLabel=entry.targetLabel+' gebucht ✅'; statusColor='#2E8B57';
-    } else if(erin.erledigt) {
-      leftBorder='#4A90D9'; bg='#EEF5FC'; statusLabel='Kontakt erfolgt'; statusColor='#4A90D9';
-    } else if(dU < 0) {
-      leftBorder='#C8102E'; bg='#FDF5F5'; statusLabel='Überfällig · '+Math.abs(dU)+' Tage'; statusColor='#C8102E';
-    } else if(dU === 0) {
-      leftBorder='#E65100'; bg='#FFF5EF'; statusLabel='Heute fällig!'; statusColor='#E65100';
-    } else if(dU <= 7) {
-      leftBorder='#E87127'; bg='#FFF9F0'; statusLabel='Fällig in '+dU+' Tagen'; statusColor='#E87127';
-    } else if(dU <= 14) {
-      leftBorder='#C8870A'; bg='#FFFDE7'; statusLabel='Fällig in '+dU+' Tagen'; statusColor='#C8870A';
-    } else {
-      leftBorder='#B0BEC5'; bg='#fff'; statusLabel='Fällig in '+dU+' Tagen'; statusColor='#90A4AE';
+  function terminCell(tp, key, dateVal, targetVal, label, erin) {
+    var head = '<div style="font-size:10px;font-weight:700;color:#999;letter-spacing:.5px;margin-bottom:4px">'+label+'</div>';
+    if(dateVal) {
+      return '<div style="flex:1;min-width:150px">'+head+'<div style="font-size:13px;font-weight:700;color:#2E8B57">✅ '+fmtD(dateVal)+'</div></div>';
     }
+    var dU = targetVal ? Math.round((targetVal-today)/86400000) : null;
+    var statusColor = dU===null ? '#999' : dU<0 ? '#C8102E' : dU<=14 ? '#E87127' : '#999';
+    var statusText  = dU===null ? '' : dU<0 ? 'überfällig ('+Math.abs(dU)+' T.)' : dU===0 ? 'heute fällig' : 'in '+dU+' T.';
+    var formId = tp._id+'_'+key;
+    erin = erin || {};
+    var kontakt = erin.kontakt || '';
+    var kuerzel = erin.kuerzel || '';
+    var anmerkung = erin.anmerkung || '';
+    var erledigtChecked = erin.erledigt ? 'checked' : '';
 
-    var nextInfoHtml = '';
-    if(entry.nextBooked && entry.nextBookedDate) {
-      var nbStr = entry.nextBookedDate.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
-      nextInfoHtml = '<div style="margin-top:10px;padding:9px 12px;background:#E8F5E9;border-radius:6px;font-size:12px;color:#2E7D32;font-weight:600">✅ '+entry.targetLabel+'-Termin bereits gebucht: '+nbStr+'</div>';
-    }
-
-    var savedInfoHtml = '';
-    if(!entry.nextBooked && !isAdm && (erin.erledigt || erin.kontakt || erin.anmerkung)) {
-      var parts = [];
-      if(erin.kontakt) parts.push(erin.kontakt==='mail'?'📧 Mail':'📞 Telefon');
-      if(erin.kuerzel) parts.push('von '+erin.kuerzel);
-      savedInfoHtml = '<div style="margin-top:10px;padding:9px 12px;background:#EEF5FC;border-radius:6px;font-size:12px;color:#4A90D9">'
-        + (parts.length ? parts.join(' · ') : 'Kontakt erfolgt')
-        + (erin.anmerkung ? '<div style="margin-top:4px;color:#555;font-weight:400">📝 '+erin.anmerkung+'</div>' : '')
-        + '</div>';
-    }
-
-    var formHtml = '';
-    if(!entry.nextBooked && isAdm) {
-      var kontakt = erin.kontakt || '';
-      var kuerzel = erin.kuerzel || '';
-      var anmerkung = erin.anmerkung || '';
-      var erledigtChecked = erin.erledigt ? 'checked' : '';
-      var teamOptHtml = Object.values(TEAM).map(function(m2) {
-        var kz = m2.kuerzel || m2.name.slice(0,2).toUpperCase();
-        return '<option value="'+kz+'">'+m2.name+(m2.kuerzel?' ('+m2.kuerzel+')':'')+'</option>';
-      }).join('');
-
-      formHtml = '<div style="border-top:1px solid #E8E4DE;margin-top:12px;padding-top:12px">'
-        + '<input type="hidden" id="erin-kontakt-'+id+'" value="'+kontakt+'">'
-        + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
-        + '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;font-weight:700;color:#4A2A1F">'
-        + '<input type="checkbox" id="erin-done-'+id+'" '+erledigtChecked+' style="width:17px;height:17px;accent-color:#8B5A4A;cursor:pointer"> Kontakt erfolgt</label>'
-        + '<button id="erin-mail-'+id+'" type="button" onclick="telErinToggleKontakt(\''+id+'\',\'mail\')"'
-        + ' style="padding:5px 13px;border-radius:99px;border:1px solid '+(kontakt==='mail'?'#4A90D9':'#DDD')+';background:'+(kontakt==='mail'?'#EEF5FC':'#fff')+';color:'+(kontakt==='mail'?'#4A90D9':'#888')+';font-size:11px;font-weight:700;cursor:pointer">📧 Mail</button>'
-        + '<button id="erin-tel-'+id+'" type="button" onclick="telErinToggleKontakt(\''+id+'\',\'telefon\')"'
-        + ' style="padding:5px 13px;border-radius:99px;border:1px solid '+(kontakt==='telefon'?'#4A90D9':'#DDD')+';background:'+(kontakt==='telefon'?'#EEF5FC':'#fff')+';color:'+(kontakt==='telefon'?'#4A90D9':'#888')+';font-size:11px;font-weight:700;cursor:pointer">📞 Telefon</button>'
-        + '<div style="display:flex;align-items:center;gap:6px;margin-left:4px">'
-        + '<label style="font-size:11px;color:#999;white-space:nowrap">Wer:</label>'
-        + '<input id="erin-kuerzel-'+id+'" list="erin-kuerzel-list-'+id+'" value="'+kuerzel+'" placeholder="Kürzel" maxlength="10"'
-        + ' style="width:80px;padding:5px 8px;border:1px solid #DDD;border-radius:6px;font-size:12px;font-family:monospace;outline:none">'
-        + '<datalist id="erin-kuerzel-list-'+id+'">'+teamOptHtml+'</datalist>'
-        + '</div></div>'
-        + '<textarea id="erin-anmerkung-'+id+'" rows="2" placeholder="Offene Fragen, Anmerkungen …"'
-        + ' style="width:100%;padding:7px 10px;border:1px solid #DDD;border-radius:8px;font-size:12px;resize:vertical;outline:none;font-family:\'Source Sans 3\',sans-serif;color:#414141">'
-        + anmerkung.replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        + '</textarea>'
-        + '<div style="text-align:right;margin-top:8px">'
-        + '<button type="button" onclick="saveTelErinnerung(\''+id+'\')"'
-        + ' style="padding:7px 18px;background:#8B5A4A;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">💾 Speichern</button>'
-        + '</div></div>';
-    }
-
-    // Phasen-Badge: zeigt klar welche Phase (T0→T1 oder T1→T2)
-    var phaseBadge = '<span style="font-size:10.5px;font-weight:700;background:'+(entry.phase==='T0'?'#EAD4CB':'#D7B8A8')+';color:#4A2A1F;padding:2px 9px;border-radius:99px;border:1px solid #C9A999">' + entry.anchorLabel+' → '+entry.targetLabel + '</span>';
-
-    return '<div style="background:'+bg+';border:1px solid #E0DDD8;border-left:4px solid '+leftBorder+';border-radius:var(--rl);padding:16px 18px;margin-bottom:12px;box-shadow:var(--sh)">'
-      + '<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">'
-      + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
-      + '<span style="font-family:monospace;font-size:14px;font-weight:800;color:#4A2A1F;background:#EAD4CB;padding:3px 12px;border-radius:99px;border:1px solid #C9A999">'+tp.tid+(tp.aufpassen?' ⚠️':'')+'</span>'
-      + (tp.lnr ? '<span style="font-size:12px;color:var(--g5)">Laufnr. <strong style="color:var(--bk)">'+tp.lnr+'</strong></span>' : '')
-      + phaseBadge
+    var kontaktFormHtml = isAdm ? (
+      '<div style="border-top:1px dashed #EAE7E2;margin-top:8px;padding-top:8px">'
+      + '<input type="hidden" id="erin-kontakt-'+formId+'" value="'+kontakt+'">'
+      + '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px">'
+      + '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:700;color:#4A2A1F">'
+      + '<input type="checkbox" id="erin-done-'+formId+'" '+erledigtChecked+' style="width:14px;height:14px;accent-color:#8B5A4A;cursor:pointer"> Kontakt erfolgt</label>'
+      + '<button id="erin-mail-'+formId+'" type="button" onclick="telErinToggleKontakt(\''+formId+'\',\'mail\')"'
+      + ' style="padding:3px 9px;border-radius:99px;border:1px solid '+(kontakt==='mail'?'#4A90D9':'#DDD')+';background:'+(kontakt==='mail'?'#EEF5FC':'#fff')+';color:'+(kontakt==='mail'?'#4A90D9':'#888')+';font-size:10px;font-weight:700;cursor:pointer">📧</button>'
+      + '<button id="erin-tel-'+formId+'" type="button" onclick="telErinToggleKontakt(\''+formId+'\',\'telefon\')"'
+      + ' style="padding:3px 9px;border-radius:99px;border:1px solid '+(kontakt==='telefon'?'#4A90D9':'#DDD')+';background:'+(kontakt==='telefon'?'#EEF5FC':'#fff')+';color:'+(kontakt==='telefon'?'#4A90D9':'#888')+';font-size:10px;font-weight:700;cursor:pointer">📞</button>'
+      + '<input id="erin-kuerzel-'+formId+'" list="erin-kuerzel-list-'+formId+'" value="'+kuerzel+'" placeholder="Wer?" maxlength="10"'
+      + ' style="width:60px;padding:3px 6px;border:1px solid #DDD;border-radius:6px;font-size:10px;font-family:monospace;outline:none">'
+      + '<datalist id="erin-kuerzel-list-'+formId+'">'+teamOptHtml+'</datalist>'
       + '</div>'
-      + '<span style="font-size:11px;font-weight:700;color:'+statusColor+';border:1px solid '+leftBorder+';padding:3px 10px;border-radius:99px;white-space:nowrap">'+statusLabel+'</span>'
+      + '<textarea id="erin-anmerkung-'+formId+'" rows="1" placeholder="Kommentar / offene Fragen…"'
+      + ' style="width:100%;padding:5px 8px;border:1px solid #DDD;border-radius:6px;font-size:11px;resize:vertical;outline:none;font-family:\'Source Sans 3\',sans-serif;color:#414141;margin-bottom:5px">'
+      + anmerkung.replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      + '</textarea>'
+      + '<button type="button" onclick="saveTelErinnerung(\''+formId+'\')"'
+      + ' style="padding:4px 12px;background:#8B5A4A;color:#fff;border:none;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer">💾 Notiz speichern</button>'
       + '</div>'
-      + '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--g5)">'
-      + '<span>📅 '+entry.anchorLabel+': <strong style="color:#4A2A1F">'+anchorStr+'</strong></span>'
-      + (entry.anchorExtra ? '<span>💊 '+entry.anchorExtra+'</span>' : '')
-      + '<span>🔔 Erinnerung: <strong style="color:'+statusColor+'">'+remStr+'</strong></span>'
-      + '<span style="color:#999;font-size:11px">→ '+entry.targetLabel+' Zieltermin: <strong>KW '+tgtKW+' (≈ '+tgtStr+')</strong></span>'
-      + '</div>'
-      + nextInfoHtml + savedInfoHtml + formHtml
+    ) : (
+      (erin.erledigt || erin.kontakt || erin.anmerkung) ? (
+        '<div style="border-top:1px dashed #EAE7E2;margin-top:8px;padding-top:8px;font-size:11px;color:#4A90D9">'
+        + (erin.kontakt ? (erin.kontakt==='mail'?'📧 Mail':'📞 Telefon') : 'Kontakt erfolgt')
+        + (erin.kuerzel ? ' · von '+erin.kuerzel : '')
+        + (erin.anmerkung ? '<div style="margin-top:3px;color:#555">📝 '+erin.anmerkung+'</div>' : '')
+        + '</div>'
+      ) : ''
+    );
+
+    return '<div style="flex:1;min-width:220px">'+head
+      + (targetVal ? '<div style="font-size:11.5px;color:#777;margin-bottom:5px">Ziel: '+fmtD(targetVal)+(statusText?' · <span style="color:'+statusColor+';font-weight:700">'+statusText+'</span>':'')+'</div>' : '<div style="font-size:11.5px;color:#BBB;margin-bottom:5px">kein Anker-Termin</div>')
+      + (isAdm ? (
+        '<div style="display:flex;gap:4px;flex-wrap:wrap">'
+        + '<input type="date" id="terin-date-'+formId+'" style="padding:5px 7px;border:1px solid #DDD;border-radius:6px;font-size:11px;outline:none;width:128px">'
+        + '<input type="time" id="terin-time-'+formId+'" value="08:00" style="padding:5px 7px;border:1px solid #DDD;border-radius:6px;font-size:11px;outline:none;width:76px">'
+        + '<button onclick="telErinBook(\''+tp._id+'\',\''+key+'\')" style="padding:5px 11px;background:#8B5A4A;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">Buchen</button>'
+        + '</div>'
+      ) : '')
+      + kontaktFormHtml
       + '</div>';
+  }
+
+  var rowsHtml = rows.map(function(r){
+    var tp = r.tp;
+    return '<div style="background:#fff;border:1px solid #E0DDD8;border-radius:var(--rl);padding:14px 18px;margin-bottom:10px;box-shadow:var(--sh)">'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:11px;flex-wrap:wrap">'
+      + '<span style="font-family:monospace;font-size:14px;font-weight:800;color:#4A2A1F;background:#EAD4CB;padding:3px 12px;border-radius:99px;border:1px solid #C9A999">'+tp.tid+(tp.aufpassen?' ⚠️':'')+'</span>'
+      + (tp.lnr ? '<span style="font-size:12px;color:var(--g5)">'+tp.lnr+'</span>' : '')
+      + '</div>'
+      + '<div style="display:flex;gap:18px;flex-wrap:wrap">'
+      + terminCell(tp, 'T0', r.t0Date, null, 'T0', ERINNERUNGEN[tp._id+'_T0'])
+      + terminCell(tp, 'T1', r.t1Date, r.t1Target, 'T1', ERINNERUNGEN[tp._id+'_T1'])
+      + terminCell(tp, 'T2', r.t2Date, r.t2Target, 'T2', ERINNERUNGEN[tp._id+'_T2'])
+      + '</div></div>';
   }).join('');
 
-  el.innerHTML = statsHtml + (cardsHtml || '<div style="padding:40px;text-align:center;color:#888;font-style:italic">Noch keine T0-Termine — Erinnerungen erscheinen sobald T0 gebucht ist.</div>');
+  el.innerHTML = statsHtml + searchBarHtml + (rowsHtml || '<div style="padding:40px;text-align:center;color:#888;font-style:italic">Keine Probanden gefunden.</div>');
+};
+
+window.telErinSetSearch = function(v){ window._telErinSearch = v; window.renderTelErinnerungen(); };
+window.telErinSetSort = function(v){ window._telErinSort = v; window.renderTelErinnerungen(); };
+
+// Trägt einen T0/T1/T2-Termin direkt aus der Erinnerungsansicht ein — landet als echte
+// Buchung im Telomer-Kalender (tel_bookings). Zeit außerhalb der 4 Standard-Slots
+// wird automatisch als Zusatz-Slot angelegt (analog "+ Slot hinzufügen" im Kalender).
+window.telErinBook = async function(probandId, termin) {
+  var formId = probandId+'_'+termin;
+  var dateVal = document.getElementById('terin-date-'+formId)?.value;
+  var timeVal = document.getElementById('terin-time-'+formId)?.value || '08:00';
+  if(!dateVal){ toast('Bitte Datum wählen',true); return; }
+
+  var d = new Date(dateVal+'T12:00');
+  var dow = d.getDay()||7; // 1=Mo..7=So
+  var DAYNAMES = {1:'Montag',2:'Dienstag',3:'Mittwoch',4:'Donnerstag',5:'Freitag'};
+  if(dow>5){ toast('Bitte einen Wochentag Mo–Fr wählen',true); return; }
+  var dayLabel = DAYNAMES[dow];
+  var anchor = new Date('2026-03-30T12:00:00');
+  var monday = new Date(d); monday.setDate(d.getDate()-dow+1); monday.setHours(12,0,0,0);
+  var week = Math.round((monday-anchor)/(7*86400000));
+
+  var tp = window._TELP ? window._TELP[probandId] : null;
+  try {
+    var fns = window._fbFns;
+    var TEL_STARTS_DEFAULT = ['08:00','08:00','08:30','08:30'];
+    var stdIdx = TEL_STARTS_DEFAULT.indexOf(timeVal);
+    var slotNum;
+    if(stdIdx >= 0) {
+      slotNum = stdIdx+1;
+    } else {
+      var hh = parseInt(timeVal.split(':')[0],10), mm = parseInt(timeVal.split(':')[1],10);
+      slotNum = 5000 + hh*100 + mm;
+      var extraSrc = window._TEL_EXTRA_SLOTS || {};
+      var existingExtra = Object.values(extraSrc).find(function(s){ return s.week===week && s.day===dayLabel; });
+      var times = existingExtra ? (existingExtra.times||[]).slice() : [];
+      if(times.indexOf(timeVal)<0) {
+        times.push(timeVal); times.sort();
+        if(existingExtra) await fns.setDoc(fns.doc(window.db,'tel_extra_slots',existingExtra._id),{week:week,day:dayLabel,times:times});
+        else await fns.addDoc(fns.collection(window.db,'tel_extra_slots'),{week:week,day:dayLabel,times:times});
+      }
+    }
+    var existing = Object.values(window._TEL_BOOKINGS||{}).find(function(bk){
+      return bk.week===week && bk.day===dayLabel && Number(bk.slot)===Number(slotNum);
+    });
+    if(existing){ toast('Dieser Termin ist bereits belegt',true); return; }
+
+    await fns.addDoc(fns.collection(window.db,'tel_bookings'),{
+      termin: termin, week: week, day: dayLabel, slot: Number(slotNum),
+      probandId: probandId, tid: tp?(tp.tid||''):'', lnr: tp?(tp.lnr||''):'',
+      created: Date.now()
+    });
+    toast(termin+'-Termin gebucht ✓ (erscheint im Telomer-Kalender)');
+  } catch(e){ toast('Fehler: '+e.message, true); }
 };
 
 window.telErinToggleKontakt = function(id, type) {
@@ -9549,7 +9566,7 @@ window.telErinToggleKontakt = function(id, type) {
 
 window.saveTelErinnerung = async function(erinId) {
   // erinId hat das Format "<probandId>_T0" oder "<probandId>_T1"; falls Legacy (ohne Suffix) → als T0 behandeln
-  var match = erinId.match(/^(.+)_(T[01])$/);
+  var match = erinId.match(/^(.+)_(T[012])$/);
   var probandId = match ? match[1] : erinId;
   var phase     = match ? match[2] : 'T0';
   var firebaseDocId = match ? erinId : (probandId + '_T0'); // immer mit Suffix speichern
