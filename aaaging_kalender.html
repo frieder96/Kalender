@@ -9376,14 +9376,13 @@ window.renderTelErinnerungen = function() {
     var t1Date = t1 ? wDay(t1.week, DAYOFF[t1.day]||0) : null; if(t1Date) t1Date.setHours(0,0,0,0);
     var t2Date = t2 ? wDay(t2.week, DAYOFF[t2.day]||0) : null; if(t2Date) t2Date.setHours(0,0,0,0);
 
-    var t1Target = null;
+    var t1Target = null, t2Target = null, interventionStart = null;
     if(t0Date) {
       var dow = t0Date.getDay();
-      var supplementStart = new Date(t0Date); supplementStart.setDate(t0Date.getDate() + (dow===0?1:(8-dow)));
-      t1Target = new Date(supplementStart); t1Target.setDate(supplementStart.getDate() + 84);
+      interventionStart = new Date(t0Date); interventionStart.setDate(t0Date.getDate() + (dow===0?1:(8-dow)));
+      t1Target = new Date(interventionStart); t1Target.setDate(interventionStart.getDate() + 84);  // 12 Wochen nach Interventionsstart
+      t2Target = new Date(interventionStart); t2Target.setDate(interventionStart.getDate() + 168); // 24 Wochen nach Interventionsstart — IMMER ab T0, nie ab T1 (auch wenn T1 zeitlich abgewichen ist)
     }
-    var t2Target = null;
-    if(t1Date) { t2Target = new Date(t1Date); t2Target.setDate(t1Date.getDate() + 84); }
 
     var nextDue = (!t1 && t1Target) ? t1Target : (!t2 && t2Target) ? t2Target : null;
     return {tp:tp, t0Date:t0Date, t1Date:t1Date, t2Date:t2Date, t1Target:t1Target, t2Target:t2Target, nextDue:nextDue};
