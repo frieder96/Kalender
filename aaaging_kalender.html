@@ -9352,12 +9352,26 @@ window.renderTelErinnerungen = function() {
     return '<option value="'+kz+'">'+m2.name+(m2.kuerzel?' ('+m2.kuerzel+')':'')+'</option>';
   }).join('');
 
+  function getTelBookingTime(bk) {
+    if(!bk) return '';
+    if(bk.customStartTime) return bk.customStartTime;
+    var slot = Number(bk.slot);
+    if(!slot) return '';
+    if(slot >= 5000) {
+      var hh = Math.floor((slot-5000)/100), mm = (slot-5000)%100;
+      return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+    }
+    var pool = window._TEL_T0 || [];
+    var def = pool.find(function(s){ return s.slot===slot; });
+    return def ? def.blutStart : '';
+  }
+
   function getTerminInfo(tp, termin) {
     var bk = Object.values(TEL_BK).find(function(b){ return b.probandId===tp._id && b.termin===termin; });
-    if(bk && bk.week !== undefined && bk.day) return {week:bk.week, day:bk.day};
+    if(bk && bk.week !== undefined && bk.day) return {week:bk.week, day:bk.day, time:getTelBookingTime(bk)};
     var w = termin==='T0' ? tp.t0week : termin==='T1' ? tp.t1week : tp.t2week;
     var d = termin==='T0' ? tp.t0day  : termin==='T1' ? tp.t1day  : tp.t2day;
-    if(w !== undefined && w !== null && d) return {week:w, day:d};
+    if(w !== undefined && w !== null && d) return {week:w, day:d, time:''};
     return null;
   }
 
@@ -9375,7 +9389,6 @@ window.renderTelErinnerungen = function() {
     var t0Date = t0 ? wDay(t0.week, DAYOFF[t0.day]||0) : null; if(t0Date) t0Date.setHours(0,0,0,0);
     var t1Date = t1 ? wDay(t1.week, DAYOFF[t1.day]||0) : null; if(t1Date) t1Date.setHours(0,0,0,0);
     var t2Date = t2 ? wDay(t2.week, DAYOFF[t2.day]||0) : null; if(t2Date) t2Date.setHours(0,0,0,0);
-
     var t1Target = null, t2Target = null, interventionStart = null;
     if(t0Date) {
       var dow = t0Date.getDay();
@@ -9385,7 +9398,7 @@ window.renderTelErinnerungen = function() {
     }
 
     var nextDue = (!t1 && t1Target) ? t1Target : (!t2 && t2Target) ? t2Target : null;
-    return {tp:tp, t0Date:t0Date, t1Date:t1Date, t2Date:t2Date, t1Target:t1Target, t2Target:t2Target, nextDue:nextDue};
+    return {tp:tp, t0Date:t0Date, t1Date:t1Date, t2Date:t2Date, t0Time:t0?t0.time:'', t1Time:t1?t1.time:'', t2Time:t2?t2.time:'', t1Target:t1Target, t2Target:t2Target, nextDue:nextDue};
   });
 
   if(q) {
@@ -9419,14 +9432,16 @@ window.renderTelErinnerungen = function() {
 
   var fmtD = function(d){ return d ? d.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}) : ''; };
 
-  function terminCell(tp, key, dateVal, targetVal, label, erin) {
+  function terminCell(tp, key, dateVal, timeVal, targetVal, label, erin) {
     var head = '<div style="font-size:10px;font-weight:700;color:#999;letter-spacing:.5px;margin-bottom:4px">'+label+'</div>';
     if(dateVal) {
-      return '<div style="flex:1;min-width:150px">'+head+'<div style="font-size:13px;font-weight:700;color:#2E8B57">✅ '+fmtD(dateVal)+'</div></div>';
+      return '<div style="flex:1;min-width:150px">'+head+'<div style="font-size:13px;font-weight:700;color:#2E8B57">✅ '+fmtD(dateVal)+(timeVal?' <span style="font-weight:600;color:#4A9B6E">· '+timeVal+' Uhr</span>':'')+'</div></div>';
     }
     var dU = targetVal ? Math.round((targetVal-today)/86400000) : null;
     var statusColor = dU===null ? '#999' : dU<0 ? '#C8102E' : dU<=14 ? '#E87127' : '#999';
     var statusText  = dU===null ? '' : dU<0 ? 'überfällig ('+Math.abs(dU)+' T.)' : dU===0 ? 'heute fällig' : 'in '+dU+' T.';
+    var targetKW = targetVal && window.kw ? window.kw(targetVal) : null;
+    var targetKwLabel = targetKW ? ('KW '+targetKW+' / '+targetVal.getFullYear()) : (targetVal ? fmtD(targetVal) : '');
     var formId = tp._id+'_'+key;
     erin = erin || {};
     var kontakt = erin.kontakt || '';
@@ -9466,7 +9481,7 @@ window.renderTelErinnerungen = function() {
     );
 
     return '<div style="flex:1;min-width:220px">'+head
-      + (targetVal ? '<div style="font-size:11.5px;color:#777;margin-bottom:5px">Ziel: '+fmtD(targetVal)+(statusText?' · <span style="color:'+statusColor+';font-weight:700">'+statusText+'</span>':'')+'</div>' : '<div style="font-size:11.5px;color:#BBB;margin-bottom:5px">kein Anker-Termin</div>')
+      + (targetVal ? '<div style="font-size:11.5px;color:#777;margin-bottom:5px">Zielwoche: <strong style="color:#4A2A1F">'+targetKwLabel+'</strong>'+(statusText?' · <span style="color:'+statusColor+';font-weight:700">'+statusText+'</span>':'')+'</div>' : '<div style="font-size:11.5px;color:#BBB;margin-bottom:5px">kein Anker-Termin</div>')
       + (isAdm ? (
         '<div style="display:flex;gap:4px;flex-wrap:wrap">'
         + '<input type="date" id="terin-date-'+formId+'" style="padding:5px 7px;border:1px solid #DDD;border-radius:6px;font-size:11px;outline:none;width:128px">'
@@ -9486,9 +9501,9 @@ window.renderTelErinnerungen = function() {
       + (tp.lnr ? '<span style="font-size:12px;color:var(--g5)">'+tp.lnr+'</span>' : '')
       + '</div>'
       + '<div style="display:flex;gap:18px;flex-wrap:wrap">'
-      + terminCell(tp, 'T0', r.t0Date, null, 'T0', ERINNERUNGEN[tp._id+'_T0'])
-      + terminCell(tp, 'T1', r.t1Date, r.t1Target, 'T1', ERINNERUNGEN[tp._id+'_T1'])
-      + terminCell(tp, 'T2', r.t2Date, r.t2Target, 'T2', ERINNERUNGEN[tp._id+'_T2'])
+      + terminCell(tp, 'T0', r.t0Date, r.t0Time, null, 'T0', ERINNERUNGEN[tp._id+'_T0'])
+      + terminCell(tp, 'T1', r.t1Date, r.t1Time, r.t1Target, 'T1', ERINNERUNGEN[tp._id+'_T1'])
+      + terminCell(tp, 'T2', r.t2Date, r.t2Time, r.t2Target, 'T2', ERINNERUNGEN[tp._id+'_T2'])
       + '</div></div>';
   }).join('');
 
