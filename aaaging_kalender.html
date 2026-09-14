@@ -6112,10 +6112,12 @@ function renderMonatsübersicht() {
   }
 
   // Day cells (nur Mo–Fr, Sa/So werden übersprungen)
+  var _renderedGridDays = 0;
   for(var d=1; d<=totalDays; d++) {
     var date = new Date(_monatYear, _monatMonth, d);
     var dow = (date.getDay()+6)%7;
     if(dow > 4) continue; // Sa/So überspringen
+    _renderedGridDays++;
     var ds = _localDate(date);
     var isToday = ds === today;
     var holiday = isHoliday ? isHoliday(date) : null;
@@ -6142,10 +6144,10 @@ function renderMonatsübersicht() {
   }
 
   // Fill remaining cells
-  var filled = startDow + totalDays;
-  var remainder = filled % 7;
+  var filled = startEmpty + _renderedGridDays;
+  var remainder = filled % 5;
   if(remainder > 0) {
-    for(var i=remainder; i<7; i++) {
+    for(var i=remainder; i<5; i++) {
       html += '<div style="min-height:80px;background:var(--g1);border-radius:4px;opacity:.3"></div>';
     }
   }
@@ -6278,7 +6280,7 @@ window.renderRecallKalender = function() {
     var ds = y+'-'+p2(m+1)+'-'+p2(d);
     var isToday   = ds===todayStr;
     var holiday   = isHoliday ? isHoliday(date) : null;
-    var dayEvs    = events[ds]||[];
+    var dayEvs    = (events[ds]||[]).slice().sort(function(a,b){ return (a.time||'').localeCompare(b.time||''); });
     var hasRecall = dayEvs.some(function(e){ return e.type==='recall'; });
     var bgColor   = isToday ? '#E3EEFF' : hasRecall ? '#FEF9F5' : holiday ? 'var(--g1)' : '#fff';
     _renderedDays++;
