@@ -3176,6 +3176,7 @@ function renderTable() {
   if(!tbody.innerHTML.trim()) tbody.innerHTML='<tr><td colspan="12" class="te">Kein Proband erfüllt die gewählten Filter.</td></tr>';
   pvUpdateFilterButtons();
 }
+window.renderTable = renderTable;
 
 window.pvToggleFilter = (key) => {
   window._pvFilters = window._pvFilters || {};
@@ -3349,6 +3350,7 @@ function renderRecalls() {
     </div>`;
   }).join('');
 }
+window.renderRecalls = renderRecalls;
 
 function updStats() {
   const ps=Object.values(P);
