@@ -801,6 +801,14 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         </div>
       </div>
       <div id="recall-holidays" style="margin-bottom:12px"></div>
+      <div id="recall-list-controls" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <input type="text" id="recall-search" placeholder="🔍 Proband suchen (P-ID oder Laufnr.)…" oninput="renderRecalls()" style="flex:1;min-width:220px;padding:8px 14px;border:1px solid var(--g2);border-radius:var(--r);font-size:13px;outline:none">
+        <div style="display:flex;background:#fff;border:1px solid var(--g2);border-radius:var(--r);overflow:hidden">
+          <button class="btn btn-sm recall-tf-btn" id="recall-tf-upcoming" onclick="recallSetTimeFilter('upcoming')" style="border-radius:0">Kommende</button>
+          <button class="btn btn-sm recall-tf-btn" id="recall-tf-past" onclick="recallSetTimeFilter('past')" style="border-radius:0;border-left:1px solid var(--g2)">Vergangene</button>
+          <button class="btn btn-sm recall-tf-btn" id="recall-tf-all" onclick="recallSetTimeFilter('all')" style="border-radius:0;border-left:1px solid var(--g2)">Alle</button>
+        </div>
+      </div>
       <div id="recall-list"></div>
       <div id="recall-kalender-wrap" style="display:none"></div>
     </div>
@@ -3262,10 +3270,39 @@ function recallStaffConflict(memberId, date, time) {
 }
 window.recallStaffConflict = recallStaffConflict;
 
+window.recallSetTimeFilter = (mode) => {
+  window._recallTimeFilter = mode;
+  renderRecalls();
+};
+function recallUpdateTimeFilterButtons() {
+  const active = window._recallTimeFilter || 'upcoming';
+  ['upcoming','past','all'].forEach(key => {
+    const btn = document.getElementById('recall-tf-'+key);
+    if(!btn) return;
+    if(key===active) { btn.style.background='var(--ub)'; btn.style.color='#fff'; }
+    else { btn.style.background='#fff'; btn.style.color='var(--g5)'; }
+  });
+}
+
 function renderRecalls() {
   const el=document.getElementById('recall-list'); if(!el) return;
-  const rs=Object.values(RECALLS).sort((a,b)=>{const d=(a.date||'').localeCompare(b.date||'');return d!==0?d:(a.time||'').localeCompare(b.time||'');});
-  if(!rs.length){el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--g4);font-style:italic">Noch keine Recalls eingetragen.</div>';return;}
+  let rs=Object.values(RECALLS).sort((a,b)=>{const d=(a.date||'').localeCompare(b.date||'');return d!==0?d:(a.time||'').localeCompare(b.time||'');});
+
+  const searchVal = (document.getElementById('recall-search')?.value||'').trim().toLowerCase();
+  if(searchVal){
+    rs = rs.filter(r => {
+      const p = Object.values(P).find(x=>x._id===r.pid);
+      return p && ((p.pid||'').toLowerCase().includes(searchVal) || (p.lnr||'').toLowerCase().includes(searchVal));
+    });
+  }
+
+  const timeFilter = window._recallTimeFilter || 'upcoming';
+  const todayStr = _localDate(new Date());
+  if(timeFilter==='upcoming') rs = rs.filter(r => (r.date||'') >= todayStr);
+  else if(timeFilter==='past') rs = rs.filter(r => (r.date||'') < todayStr);
+  recallUpdateTimeFilterButtons();
+
+  if(!rs.length){el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--g4);font-style:italic">'+(timeFilter==='past'?'Keine vergangenen Recalls.':timeFilter==='upcoming'?'Keine kommenden Recalls.':'Noch keine Recalls eingetragen.')+'</div>';return;}
   el.innerHTML=rs.map(r=>{
     const p=Object.values(P).find(x=>x._id===r.pid);
     // Check if assigned person is absent on this date/time
