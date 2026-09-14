@@ -770,7 +770,8 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <div class="stat"><div class="sv" id="st3">0</div><div class="sl">T3 geplant</div></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-        <input type="text" id="pv-search" placeholder="🔍 P-ID oder Laufnummer suchen…" oninput="renderTable()" style="flex:1;min-width:220px;padding:8px 14px;border:1px solid var(--g2);border-radius:var(--r);font-size:13px;outline:none">
+        <input type="text" id="pv-search" placeholder="🔍 P-ID oder Laufnummer suchen…" oninput="renderTable()" onkeydown="if(event.key==='Enter')renderTable()" style="flex:1;min-width:220px;padding:8px 14px;border:1px solid var(--g2);border-radius:var(--r);font-size:13px;outline:none">
+        <button class="btn btn-sm btn-p" onclick="renderTable()">Suchen</button>
         <button class="btn btn-sm" id="pv-filter-t0" onclick="pvToggleFilter('t0')">T0 offen</button>
         <button class="btn btn-sm" id="pv-filter-t1" onclick="pvToggleFilter('t1')">T1 offen</button>
         <button class="btn btn-sm" id="pv-filter-t2" onclick="pvToggleFilter('t2')">T2 offen</button>
