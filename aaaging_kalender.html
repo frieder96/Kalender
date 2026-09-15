@@ -1731,13 +1731,14 @@ window._getT0ForWeek = getT0ForWeek;
 
 // T1.1: 8 slots (1-4 Mo, 5-8 Di)
 const T11_STARTS = ['08:00','08:00','08:15','08:15','08:30','08:30','08:45','08:45'];
-const T11 = T11_STARTS.map((bs,i) => {
-  const sn=i+1; const [bH,bM]=bs.split(':').map(Number);
+function _buildOneT11Slot(sn, bs, bloodFirstOverride) {
+  const [bH,bM]=bs.split(':').map(Number);
   const day = sn<=4?'Montag':'Dienstag'; const isFirst=sn<=4;
-  const isOdd = sn%2===1;
+  const bloodFirst = (bloodFirstOverride!==undefined && bloodFirstOverride!==null) ? bloodFirstOverride : (sn%2===1);
   const measures = [];
-  // Blutabnahme/BIA tauschen sich um: odd Slot → Blutabnahme zuerst, even Slot → BIA zuerst
-  if(isOdd) {
+  // Blutabnahme/BIA-Reihenfolge: standardmäßig odd Slot → Blutabnahme zuerst, even Slot → BIA zuerst
+  // (kann pro Tag manuell überschrieben werden, siehe bloodFirstOverride)
+  if(bloodFirst) {
     measures.push({label:'Blutabnahme',cls:'cblut',t:bs,persons:2});
     measures.push({label:'BIA',cls:'cbia',t:am(bH,bM,15)});
   } else {
@@ -1753,8 +1754,10 @@ const T11 = T11_STARTS.map((bs,i) => {
     measures.push({label:'Fragebogen',cls:'cfb',t:am(bH,bM,60)});
     measures.push({label:'24h Recall',cls:'crecall',t:am(bH,bM,90)});
   }
-  return { slot:sn, day, blutStart:bs, measures };
-});
+  return { slot:sn, day, blutStart:bs, measures, bloodFirst };
+}
+window._buildOneT11Slot = _buildOneT11Slot;
+const T11 = T11_STARTS.map((bs,i) => _buildOneT11Slot(i+1, bs));
 
 // T1.2: 8 slots (1-4 Mi, 5-8 Do) — RBANS nach 75min (statt 105min), 24h Recall bleibt
 const T12 = Array.from({length:8},(_,i) => {
@@ -1910,7 +1913,7 @@ const MRT_FIXED_START = '07:00';
 const MRT_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 
 // State for EEG/MRT bookings and MRT custom slots
-let EEG_BOOKINGS={}, MRT_BOOKINGS={}, MRT_SLOTS={}, TEL_EXTRA_SLOTS={}, TEL_SLOT_OVERRIDES={};
+let EEG_BOOKINGS={}, MRT_BOOKINGS={}, MRT_SLOTS={}, TEL_EXTRA_SLOTS={}, TEL_SLOT_OVERRIDES={}, AAA_SLOT_OVERRIDES={};
 let FAM_BOOKINGS={}, FAM_SLOTS={};
 const FAM_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 
@@ -2240,6 +2243,9 @@ function startDB() {
   onSnapshot(collection(db,'tel_slot_overrides'), snap => {
     TEL_SLOT_OVERRIDES={}; snap.forEach(d=>{TEL_SLOT_OVERRIDES[d.id]={...d.data(),_id:d.id}}); window._TEL_SLOT_OVERRIDES=TEL_SLOT_OVERRIDES; if(window.renderTelKalender) window.renderTelKalender();
   });
+  onSnapshot(collection(db,'aaa_slot_overrides'), snap => {
+    AAA_SLOT_OVERRIDES={}; snap.forEach(d=>{AAA_SLOT_OVERRIDES[d.id]={...d.data(),_id:d.id}}); window._AAA_SLOT_OVERRIDES=AAA_SLOT_OVERRIDES; renderWeek();
+  });
   onSnapshot(collection(db,'fam_bookings'), snap => {
     FAM_BOOKINGS={}; snap.forEach(d=>{FAM_BOOKINGS[d.id]={...d.data(),_id:d.id}}); renderWeek();
   });
@@ -2299,6 +2305,47 @@ document.getElementById('linp-email').addEventListener('keydown',e=>{if(e.key===
 // Local date helper (avoids UTC timezone shift)
 const _localDate = d => { const p=x=>String(x).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; };
 window._localDate = _localDate;
+
+// Manuelle Zeit-Überschreibungen der V-Slots (T11) für eine bestimmte Woche+Tag → {slotNum: 'HH:MM'|{time,bloodFirst}}
+function getAaaSlotOverridesForDay(w, day) {
+  const src = window._AAA_SLOT_OVERRIDES || AAA_SLOT_OVERRIDES;
+  const stored = Object.values(src).find(s=>s.week===w&&s.day===day);
+  return stored?.overrides || {};
+}
+window.getAaaSlotOverridesForDay = getAaaSlotOverridesForDay;
+
+async function _saveAaaOverride(w, day, slotNum, patch) {
+  const src = window._AAA_SLOT_OVERRIDES || AAA_SLOT_OVERRIDES;
+  const existing = Object.values(src).find(s=>s.week===w&&s.day===day);
+  const rawPrev = existing?.overrides?.[slotNum];
+  const prev = (typeof rawPrev === 'string') ? {time: rawPrev} : (rawPrev || {});
+  const overrides = {...(existing?.overrides||{}), [slotNum]: {...prev, ...patch}};
+  if(existing) await setDoc(doc(db,'aaa_slot_overrides',existing._id),{week:w,day,overrides});
+  else await addDoc(collection(db,'aaa_slot_overrides'),{week:w,day,overrides});
+}
+
+window.editAaaBaseSlotTime = async (w, day, slotNum, oldTime) => {
+  const input = prompt(`Neue Startzeit für Slot ${slotNum} an diesem Tag (Format HH:MM)\nAktuell: ${oldTime}\n\nGilt nur für diesen einen Tag/diese Woche. Bereits zugewiesene Mitarbeiter*innen bleiben in den Buchungsdaten stehen, werden aber ggf. nicht mehr an der erwarteten Messung angezeigt, falls sich Zeiten verschieben.`, oldTime);
+  if(input===null) return;
+  const t = input.trim();
+  if(!/^\d{1,2}:\d{2}$/.test(t)){toast('Ungültiges Format, bitte HH:MM',true);return;}
+  const norm = t.split(':').map((x,i)=>i===0?x.padStart(2,'0'):x).join(':');
+  if(norm===oldTime) return;
+  try {
+    await _saveAaaOverride(w, day, slotNum, {time: norm});
+    toast('Startzeit geändert ✓');
+    renderWeek();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+
+// Reihenfolge Blutabnahme/BIA für diesen einen Tag umschalten (unabhängig von der Startzeit)
+window.editAaaBloodOrder = async (w, day, slotNum, currentBloodFirst) => {
+  try {
+    await _saveAaaOverride(w, day, slotNum, {bloodFirst: !currentBloodFirst});
+    toast(!currentBloodFirst ? 'Blutabnahme kommt jetzt zuerst ✓' : 'BIA kommt jetzt zuerst ✓');
+    renderWeek();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
 
 function renderWeek() {
   curTermin = window.curTermin || 'T0';
@@ -2369,7 +2416,15 @@ function renderWeek() {
   const _dgridStyle = (_t0FriWeek && days.length===5) ? ' style="grid-template-columns:repeat(5,1fr)"' : '';
   content.innerHTML = _kw27Banner + `<div class="dgrid"${_dgridStyle}>${days.map((d,i)=>{
     const date=wDay(cW,d.off);
-    const slots=slotSets[i];
+    const slots=(curTermin==='T1' && getDayLayout(cW,d.label)==='T1.1')
+      ? slotSets[i].map(base => {
+          const raw = getAaaSlotOverridesForDay(cW, d.label)[base.slot];
+          if(!raw) return base;
+          const ov = (typeof raw === 'string') ? {time: raw} : raw;
+          if(ov.time===undefined && ov.bloodFirst===undefined) return base;
+          return window._buildOneT11Slot(base.slot, ov.time || base.blutStart, ov.bloodFirst);
+        })
+      : slotSets[i];
     const getter=getters[i];
     const dayFilled=slots.filter(s=>getter(cW,d.label,s.slot)).length;
     const pct=Math.round(dayFilled/slots.length*100);
@@ -2543,6 +2598,12 @@ function renderWeek() {
       const lockIcon = isAdmin()
         ? `<button class="slot-lock-btn ${slotSperr?'locked':''}" onclick="openSperrenSlot(${cW},'${curTermin==='T0'?'T0':getDayLayout(cW,d.label)}','${d.label}',${s.slot})" title="${slotSperr?'Sperre aufheben':'Slot sperren'}">🔒</button>`
         : '';
+      const editTimeIcon = (isAdmin() && curTermin==='T1' && getDayLayout(cW,d.label)==='T1.1')
+        ? `<button class="slot-lock-btn" onclick="editAaaBaseSlotTime(${cW},'${d.label}',${s.slot},'${s.blutStart}')" title="Slot-Startzeit ändern (nur dieser Tag)">✏️</button>`
+        : '';
+      const swapOrderIcon = (isAdmin() && curTermin==='T1' && getDayLayout(cW,d.label)==='T1.1')
+        ? `<button class="slot-lock-btn" onclick="editAaaBloodOrder(${cW},'${d.label}',${s.slot},${!!s.bloodFirst})" title="${s.bloodFirst?'BIA zuerst stellen':'Blutabnahme zuerst stellen'} (nur dieser Tag)">🔄</button>`
+        : '';
 
       const _scTClass = (p && p._termin && curTermin==='T1') ? ` sc-${p._termin.toLowerCase()}` : '';
       return {time: s.blutStart, html: `<div class="sc ${p&&!isSperred?'booked':''}${_scTClass} ${isSperred?'slot-blocked':''}">
@@ -2550,7 +2611,7 @@ function renderWeek() {
           <span class="sc-num">Slot ${s.slot}</span>
           <div style="display:flex;align-items:center;gap:4px">
             <span class="sc-time">${s.blutStart}</span>
-            ${lockIcon}
+            ${lockIcon}${editTimeIcon}${swapOrderIcon}
           </div>
         </div>
         <div class="sc-body">${proHtml}<div style="margin-top:4px">${isSperred?'':measRows}</div></div>
@@ -5095,7 +5156,7 @@ window.exportRecalls = () => {
 // ── VOLLSTÄNDIGES BACKUP ───────────────────────────────────────────
 const BACKUP_COLLECTIONS = [
   'probanden','recalls','team','assignments','sperren',
-  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots','tel_slot_overrides',
+  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots','tel_slot_overrides','aaa_slot_overrides',
   'training_logs','training_templates','recall_rooms',
   'sp_slots','sp_probands','sp_day_trainers'
 ];
