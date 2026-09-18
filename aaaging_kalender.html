@@ -1893,11 +1893,25 @@ function isEegSeptWeek(w) {
   return (m===7 && d===31) || (m===8 && (d===7 || d===14)); // Aug=7, Sep=8 (0-indiziert)
 }
 window._isEegSeptWeek = isEegSeptWeek;
+// Sonderfall: KW44/2026 bis KW5/2027 — 4 Slots statt 3, für alle Tage (nicht nur Mi/Do)
+function isEegExtendedRange(w) {
+  const mo = wMon(w);
+  const year = mo.getFullYear();
+  const week = kw(mo);
+  if(year===2026 && week>=44) return true;
+  if(year===2027 && week<=5) return true;
+  return false;
+}
+window._isEegExtendedRange = isEegExtendedRange;
 const EEG_DAYS   = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 const EEG_SLOTS  = EEG_STARTS.map((t,i)=>({slot:i+1, blutStart:t, end:EEG_ENDS[i], measures:[{label:'EEG-Messung',cls:'ceinschl',t}]}));
 function getEegSlotsForWeek(w, day) {
   // Sonderfall: 31.08./07.09./14.09.2026 — nur Mittwoch und Donnerstag bekommen 4 Slots statt 3
   if(isEegSeptWeek(w) && (day==='Mittwoch' || day==='Donnerstag')) {
+    return EEG_STARTS_SEPT.map((t,i)=>({slot:i+1, blutStart:t, end:EEG_ENDS_SEPT[i], measures:[{label:'EEG-Messung',cls:'ceinschl',t}]}));
+  }
+  // Sonderfall: KW44/2026 bis KW5/2027 — 4 Slots statt 3, alle Tage
+  if(isEegExtendedRange(w)) {
     return EEG_STARTS_SEPT.map((t,i)=>({slot:i+1, blutStart:t, end:EEG_ENDS_SEPT[i], measures:[{label:'EEG-Messung',cls:'ceinschl',t}]}));
   }
   const weekNum = kw(wMon(w));
