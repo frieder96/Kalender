@@ -1350,6 +1350,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <div class="fg"><label class="fl">Datum</label><input class="fi" type="date" id="ir-date" oninput="recalcSachetEnd(); irCheckAbsent()"></div>
         <div class="fg"><label class="fl">Uhrzeit</label><input class="fi" type="time" id="ir-time" oninput="irCheckAbsent()"></div>
       </div>
+      <input type="hidden" id="ir-room">
 
       <div class="fg"><label class="fl">Durchgeführt von <span style="font-weight:400;color:var(--g4)">(optional)</span></label>
         <input class="fi" id="ir-person-search" list="ir-person-list" placeholder="Name suchen…" autocomplete="off" oninput="irSyncPerson(); irCheckAbsent()">
@@ -2730,13 +2731,13 @@ function renderWeek() {
           <div class="prow" style="flex-wrap:wrap">
             ${rp?`<span class="pbadge" style="font-size:10px">${rp.pid}</span><span class="lbadge" style="font-size:10px">${rp.lnr}</span>`:'<span class="nop" style="font-size:10px">Proband nicht gefunden</span>'}
             ${rm?`<span class="team-chip" style="font-size:10px">${rm.name}</span>`:''}
-            ${isAdmin()?`<button class="btn btn-xs" onclick="openEditRecall('${r._id}')">✎</button><button class="btn btn-xs btn-d" onclick="delRecall('${r._id}')">✕</button>`:''}
+            ${isTrainer()?`<button class="btn btn-xs" onclick="openEditRecall('${r._id}')">✎</button><button class="btn btn-xs btn-d" onclick="delRecall('${r._id}')">✕</button>`:''}
           </div>
           ${r.note?`<div style="font-size:9.5px;color:var(--g5);font-style:italic;margin-top:3px">📝 ${r.note}</div>`:''}
         </div>
       </div>`};
     }) : [];
-    const recallAddBtn = curTermin==='T1' && isAdmin()
+    const recallAddBtn = curTermin==='T1' && isTrainer()
       ? `<button class="btn btn-xs" style="margin-top:6px;width:100%;font-size:9.5px" onclick="openAddRecall('${_dayDateStr}')">+ Recall hinzufügen</button>` : '';
 
     const allCards = [...cards, ...famCards, ...recallCards].sort((a,b)=> a.time<b.time?-1:a.time>b.time?1:0);
@@ -3419,7 +3420,7 @@ function renderRecalls() {
           ${r.person?(()=>{const m=TEAM[r.person]||Object.values(TEAM).find(t=>t.name===r.person||t.email===r.person);return m?`<span style="font-size:11px;font-weight:600;color:var(--ub);background:var(--ubl);border:1px solid var(--t1bd);border-radius:99px;padding:1px 8px">${m.name}</span>`:'';})():''}
           ${r.note?`<span style="font-size:12px;color:var(--g5);font-style:italic">· ${r.note}</span>`:''}
         </div>
-        ${isAdmin()?`<div style="display:flex;gap:5px"><button class="btn btn-xs" onclick="openEditRecall('${r._id}')">Bearbeiten</button><button class="btn btn-xs btn-d" onclick="delRecall('${r._id}')">Löschen</button></div>`:''}
+        ${isTrainer()?`<div style="display:flex;gap:5px"><button class="btn btn-xs" onclick="openEditRecall('${r._id}')">Bearbeiten</button><button class="btn btn-xs btn-d" onclick="delRecall('${r._id}')">Löschen</button></div>`:''}
       </div>
       ${absentWarn}
     </div>`;
@@ -4032,12 +4033,13 @@ window.deleteRoom = async (id) => {
   catch(e){toast('Fehler: '+e.message,true);}
 };
 
-window.openAddRecall = (presetDate) => {
-  if(!isAdmin()){toast('Keine Berechtigung',true);return;}
+window.openAddRecall = (presetDate, presetTime, presetRoom) => {
+  if(!isTrainer()){toast('Keine Berechtigung',true);return;}
   recallEditId=null;
-  document.getElementById('recall-modal-title').textContent='24h Recall eintragen';
+  document.getElementById('recall-modal-title').textContent = presetRoom ? `24h Recall eintragen — Raum ${presetRoom}` : '24h Recall eintragen';
   document.getElementById('ir-date').value=presetDate||'';
-  document.getElementById('ir-time').value='';
+  document.getElementById('ir-time').value=presetTime||'';
+  document.getElementById('ir-room').value=presetRoom||'';
   document.getElementById('ir-sachets').value='';
   document.getElementById('ir-sachet-start').value='';
   const _sed=document.getElementById('ir-sachet-end');if(_sed)_sed.style.display='none';
@@ -4068,6 +4070,7 @@ window.openEditRecall = id => {
   document.getElementById('ir-pid').value = r.pid||'';
   document.getElementById('ir-date').value=r.date||'';
   document.getElementById('ir-time').value=r.time||'';
+  document.getElementById('ir-room').value=r.room||'';
   document.getElementById('ir-sachets').value=r.sachets||'';
   document.getElementById('ir-sachet-start').value=r.sachetStart||'';
   document.getElementById('ir-note').value=r.note||'';
@@ -4169,10 +4172,11 @@ window.saveRecall = async () => {
   const time=document.getElementById('ir-time').value;
   const note=document.getElementById('ir-note').value.trim();
   const person=document.getElementById('ir-person').value;
+  const room=document.getElementById('ir-room').value;
   const sachets=document.getElementById('ir-sachets').value;
   if(!pid||!date){toast('Proband und Datum sind Pflicht',true);return;}
   const sachetStart=document.getElementById('ir-sachet-start').value;
-  const data={pid,date,time,note,person,sachets:sachets?parseInt(sachets):null,sachetStart:sachetStart||null,updated:Date.now()};
+  const data={pid,date,time,note,person,room:room||null,sachets:sachets?parseInt(sachets):null,sachetStart:sachetStart||null,updated:Date.now()};
   try {
     if(recallEditId){ await updateDoc(doc(db,'recalls',recallEditId),data); }
     else { await addDoc(collection(db,'recalls'),{...data,created:Date.now()}); }
@@ -6271,10 +6275,15 @@ function renderRecallHolidays() {
 }
 
 
-// ── RECALL KALENDERANSICHT ────────────────────────────────────────
-var _recallCalMonth = new Date().getMonth();
-var _recallCalYear  = new Date().getFullYear();
+// ── RECALL RASTER (Mi/Do, BIA + RBANS, 11–16 Uhr) ─────────────────────
+// Feste, wöchentlich wiederkehrende Struktur — bestehende freie Recall-Einträge
+// (ohne room-Feld) bleiben unberührt und erscheinen weiterhin nur in der Liste.
+const RECALL_GRID_DAYS  = ['Mittwoch','Donnerstag'];
+const RECALL_GRID_TIMES = ['11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00'];
+const RECALL_GRID_ROOMS = ['BIA','RBANS'];
+const RECALL_GRID_DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
 window._recallView  = 'list';
+let _recallGridCW = 0;
 
 window.setRecallView = function(view) {
   window._recallView = view;
@@ -6290,107 +6299,91 @@ window.setRecallView = function(view) {
 };
 
 window.recallCalNav = function(dir) {
-  _recallCalMonth += dir;
-  if(_recallCalMonth > 11){ _recallCalMonth=0; _recallCalYear++; }
-  if(_recallCalMonth < 0) { _recallCalMonth=11; _recallCalYear--; }
+  _recallGridCW += dir;
   renderRecallKalender();
 };
 window.recallCalToday = function() {
-  _recallCalMonth = new Date().getMonth();
-  _recallCalYear  = new Date().getFullYear();
+  var wDay = window._wDay;
+  var today = new Date(); today.setHours(12,0,0,0);
+  var dow = today.getDay()||7;
+  var monday = new Date(today); monday.setDate(today.getDate()-dow+1);
+  _recallGridCW = Math.round((monday - window.START) / (7*86400000));
   renderRecallKalender();
 };
 
+function getRecallSlotBooking(dateStr, time, room) {
+  const RECALLS = window._RECALLS || {};
+  return Object.values(RECALLS).find(r => r.date===dateStr && r.time===time && r.room===room) || null;
+}
+// Alte Recall-Einträge ohne Raum-Feld, die trotzdem auf diesen Tag/diese Zeit fallen —
+// werden separat angezeigt, damit man sie beim Belegen der Raum-Slots sieht (Doppelbuchungs-Schutz).
+function getLegacyRecallsAt(dateStr, time) {
+  const RECALLS = window._RECALLS || {};
+  return Object.values(RECALLS).filter(r => r.date===dateStr && r.time===time && !r.room);
+}
+
 window.renderRecallKalender = function() {
   var wrap = document.getElementById('recall-kalender-wrap'); if(!wrap) return;
-  var RECALLS   = window._RECALLS || {};
-  var allP      = window._P ? window._P() : {};
-  var localDate = window._localDate;
-  var isHoliday = window._isAustrianHoliday;
-  var isAdm     = window.isAdmin && window.isAdmin();
-  if(!localDate){ wrap.innerHTML='<div style="padding:20px;color:#888">Wird geladen…</div>'; return; }
-
-  var y = _recallCalYear, m = _recallCalMonth;
-  var p2 = function(x){ return String(x).padStart(2,'0'); };
-
-  // Events aufbauen: recall-termin, sachet-start, sachet-end
-  var events = {};
-  function addEv(ds, ev) { if(!events[ds]) events[ds]=[]; events[ds].push(ev); }
-
-  Object.values(RECALLS).forEach(function(r) {
-    var p   = Object.values(allP).find(function(x){ return x._id===r.pid; });
-    var pid = p ? (p.pid||'—') : '?';
-    var lnr = p ? (p.lnr||'') : '';
-    if(r.date) {
-      addEv(r.date, {type:'recall', pid:pid, lnr:lnr, time:r.time||'', recallId:r._id});
-    }
-  });
-
-  var MONATE = ['Jänner','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
-  var todayStr  = localDate(new Date());
-  var firstDay  = new Date(y,m,1);
-  var totalDays = new Date(y,m+1,0).getDate();
-  var startDowRaw = (firstDay.getDay()+6)%7;
-  var startDow  = startDowRaw > 4 ? 0 : startDowRaw; // Fällt der 1. auf Sa/So, startet das Raster direkt bei der folgenden Mo
-  var DOWS = ['Mo','Di','Mi','Do','Fr'];
-
-  var thisMonthRecalls = Object.keys(events).filter(function(ds){
-    return ds.startsWith(y+'-'+p2(m+1)) && events[ds].some(function(e){ return e.type==='recall'; });
-  }).length;
+  var allP = window._P ? window._P() : {};
+  var wMon = window.wMon;
+  var wDay = window._wDay;
+  var kw = window.kw;
+  var _localDate = window._localDate;
+  var mon  = wMon(_recallGridCW);
+  var kwNum = kw(mon);
 
   var html = '<div class="month-nav">'
     + '<div style="display:flex;gap:3px"><button class="arr" onclick="recallCalNav(-1)">&#8592;</button><button class="arr" onclick="recallCalNav(1)">&#8594;</button></div>'
-    + '<span class="month-badge" style="background:var(--ub)">' + MONATE[m] + ' ' + y + '</span>'
-    + '<button class="btn btn-sm" onclick="recallCalToday()" style="margin-left:4px">Aktueller Monat</button>'
-    + '<span style="margin-left:auto;font-size:12px;color:var(--g5)">'
-    + thisMonthRecalls + ' Recall-Termin' + (thisMonthRecalls!==1?'e':'')
-    + '</span></div>';
-
-  var _renderedDays = 0;
-  html += '<div class="cal-grid" style="margin-bottom:12px;grid-template-columns:repeat(5,1fr)">';
-  DOWS.forEach(function(d){ html += '<div class="cal-dow">'+d+'</div>'; });
-  for(var i=0; i<startDow; i++) html += '<div class="cal-day other-month"></div>';
-
-  for(var d=1; d<=totalDays; d++) {
-    var date      = new Date(y,m,d);
-    var dow       = (date.getDay()+6)%7;
-    if(dow > 4) continue; // Sa/So überspringen
-    var ds = y+'-'+p2(m+1)+'-'+p2(d);
-    var isToday   = ds===todayStr;
-    var holiday   = isHoliday ? isHoliday(date) : null;
-    var dayEvs    = (events[ds]||[]).slice().sort(function(a,b){ return (a.time||'').localeCompare(b.time||''); });
-    var hasRecall = dayEvs.some(function(e){ return e.type==='recall'; });
-    var bgColor   = isToday ? '#E3EEFF' : hasRecall ? '#FEF9F5' : holiday ? 'var(--g1)' : '#fff';
-    _renderedDays++;
-
-    var evHtml = dayEvs.map(function(ev) {
-      if(ev.type==='recall') {
-        return '<div onclick="' + (isAdm ? "openEditRecall('"+ev.recallId+"')" : '') + '"'
-          + ' style="background:#FEF3EC;border:1px solid #F4C09A;color:#B85010;border-radius:3px;padding:2px 5px;font-size:9.5px;font-weight:600;margin-bottom:2px;' + (isAdm?'cursor:pointer':'') + '">'
-          + '📋 ' + ev.pid + (ev.time ? ' <span style="font-weight:400;color:#C88040">'+ev.time+'</span>' : '')
-          + '</div>';
-      }
-      return '';
-    }).join('');
-
-    html += '<div class="cal-day' + (isToday?' today':'') + '"'
-      + ' style="min-height:80px;background:' + bgColor + ';' + (isToday?'box-shadow:0 0 0 2px var(--ub);':'') + '">'
-      + '<div class="cal-day-num' + (isToday?' today-num':'') + '" style="color:' + (holiday?'#A89070':isToday?'var(--ub)':'#555') + '">'
-      + d + (holiday?' 🎉':'') + '</div>'
-      + evHtml
-      + (isAdm ? '<button class="add-absent-btn" onclick="openAddRecall()" style="background:#F0C898;border-color:#E0A868">+ Recall</button>' : '')
-      + '</div>';
-  }
-
-  var filled = startDow + _renderedDays;
-  var rem = (5 - filled%5)%5;
-  for(var j=0; j<rem; j++) html += '<div class="cal-day other-month"></div>';
-  html += '</div>';
-
-  html += '<div style="display:flex;gap:14px;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid var(--g2);border-radius:var(--r)">'
-    + '<span style="font-size:11px;font-weight:700;color:var(--g5)">Legende:</span>'
-    + '<span style="display:flex;align-items:center;gap:5px;font-size:11.5px"><span style="width:12px;height:12px;background:#FEF3EC;border:1px solid #F4C09A;border-radius:2px;display:inline-block"></span><span style="color:#B85010;font-weight:600">📋 Recall-Termin</span></span>'
+    + '<span class="month-badge" style="background:var(--ub)">KW ' + kwNum + ' / ' + mon.getFullYear() + '</span>'
+    + '<button class="btn btn-sm" onclick="recallCalToday()" style="margin-left:4px">Aktuelle Woche</button>'
     + '</div>';
+
+  html += '<div style="display:grid;grid-template-columns:100px repeat(' + RECALL_GRID_DAYS.length + ',1fr);gap:2px;margin-bottom:12px">';
+  html += '<div></div>';
+  RECALL_GRID_DAYS.forEach(function(day){
+    var dOff = RECALL_GRID_DAYOFF[day];
+    var d = wDay(_recallGridCW, dOff);
+    var dStr = d.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'});
+    html += '<div style="text-align:center;font-size:12px;font-weight:700;color:var(--g5);padding:6px 0">' + day + ' <span style="font-weight:400;color:var(--g4)">' + dStr + '</span></div>';
+  });
+
+  RECALL_GRID_TIMES.forEach(function(time){
+    var isOfficialSlot = time.slice(-2) === '00'; // volle Stunde = offizieller, buchbarer Slot; :30 nur zur Anzeige alter Termine
+    html += '<div style="display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:' + (isOfficialSlot?'12px':'10px') + ';font-weight:' + (isOfficialSlot?'700':'400') + ';color:var(--g5);font-family:monospace">' + time + '</div>';
+    RECALL_GRID_DAYS.forEach(function(day){
+      var dOff = RECALL_GRID_DAYOFF[day];
+      var dateStr = _localDate(wDay(_recallGridCW, dOff));
+      var roomCells = !isOfficialSlot ? '' : RECALL_GRID_ROOMS.map(function(room){
+        var bk = getRecallSlotBooking(dateStr, time, room);
+        var p = bk ? Object.values(allP).find(function(x){ return x._id===bk.pid; }) : null;
+        if(bk) {
+          var teamCache = window._teamCache || {};
+          var person = bk.person ? teamCache[bk.person] : null;
+          return '<div style="flex:1;background:#FEF3EC;border:1px solid #F4C09A;border-radius:6px;padding:5px 7px;font-size:11px;min-width:0">'
+            + '<div style="font-size:9px;font-weight:700;color:#B85010;letter-spacing:.5px">' + room + '</div>'
+            + '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">'
+            + '<span style="font-weight:700;color:#4A2A1F">' + (p?p.pid:'?') + '</span>'
+            + '<span style="color:#999;font-size:10px">' + (p?p.lnr:'') + '</span>'
+            + '<button onclick="openEditRecall(\'' + bk._id + '\')" style="background:none;border:none;color:#4A90D9;cursor:pointer;font-size:11px" title="Bearbeiten">✎</button>'
+            + '<button onclick="delRecall(\'' + bk._id + '\')" style="margin-left:auto;background:none;border:none;color:#C8102E;cursor:pointer;font-size:12px" title="Entfernen">✕</button>'
+            + '</div>'
+            + (person ? '<div style="font-size:9.5px;color:#B85010;margin-top:2px">👤 ' + person.name + '</div>' : '<div style="font-size:9.5px;color:#D0A080;margin-top:2px;font-style:italic">keine Person zugewiesen</div>')
+            + '</div>';
+        }
+        return '<button onclick="openAddRecall(\'' + dateStr + '\',\'' + time + '\',\'' + room + '\')" style="flex:1;background:#fff;border:1px dashed var(--g3);border-radius:6px;padding:5px 7px;font-size:10.5px;color:var(--g4);cursor:pointer;min-height:38px;text-align:left">'
+          + '<div style="font-size:9px;font-weight:700;letter-spacing:.5px">' + room + '</div>+ Proband</button>';
+      }).join('');
+      var legacyHtml = getLegacyRecallsAt(dateStr, time).map(function(lr){
+        var lp = Object.values(allP).find(function(x){ return x._id===lr.pid; });
+        return '<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:6px;padding:3px 7px;font-size:10px;color:#B85010;margin-top:2px;display:flex;align-items:center;gap:5px">'
+          + '⚠️ alter Eintrag ohne Raum: <strong>' + (lp?lp.pid:'?') + '</strong>'
+          + '<button onclick="openEditRecall(\'' + lr._id + '\')" style="margin-left:auto;background:none;border:none;color:#4A90D9;cursor:pointer;font-size:11px" title="Bearbeiten">✎</button>'
+          + '</div>';
+      }).join('');
+      html += '<div>' + '<div style="display:flex;gap:4px">' + roomCells + '</div>' + legacyHtml + '</div>';
+    });
+  });
+  html += '</div>';
 
   wrap.innerHTML = html;
 };
