@@ -2743,6 +2743,19 @@ function renderWeek() {
     const allCards = [...cards, ...famCards, ...recallCards].sort((a,b)=> a.time<b.time?-1:a.time>b.time?1:0);
     const cardsHtml = allCards.map(c=>c.html).join('') + famAddBtn + recallAddBtn;
 
+    // Koordination für den ganzen Vormittag (V-Layout) — nicht an einen einzelnen Slot gebunden,
+    // nutzt dasselbe Zuweisungssystem (inkl. Abwesenheits-/Konflikt-Prüfung) wie einzelne Messungen.
+    const koordHtml = (curTermin==='T1' && getDayLayout(cW,d.label)==='T1.1') ? (() => {
+      const koordKey = `KOORD_${cW}_${d.label}`;
+      const koordAssigned = ASSIGN[koordKey];
+      const koordMember = koordAssigned ? TEAM[koordAssigned.person] : null;
+      return `<div style="margin:0;padding:6px 10px;background:#EEF3F9;border-bottom:1px solid #B8CBE0;font-size:11px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="font-weight:700;color:#003975">👥 Koordination (Vormittag):</span>
+        ${koordMember ? `<span style="color:#003975">${koordMember.name}</span>` : `<span style="color:#999;font-style:italic">nicht zugewiesen</span>`}
+        ${isAdmin() ? `<button class="assign-btn" style="margin-left:auto" onclick="openAssignModal('${koordKey}','Koordination','${d.label} Vormittag · KW ${kw(wMon(cW))}','${_localDate(date)}','')">${koordMember?'ändern':'zuweisen'}</button>` : ''}
+      </div>`;
+    })() : '';
+
     return `<div class="dcol">
       <div class="dayhdr-top" style="background:${hdrColor};border-radius:var(--r) var(--r) 0 0">
         <div style="display:flex;align-items:center;justify-content:space-between">
@@ -2752,7 +2765,7 @@ function renderWeek() {
         <div class="drow"><span class="ddate">${fD(date)} · ${dayFilled}/${slots.length}</span><span class="dphase">${phaseLabel}</span></div>
         ${t12note}${dayBlockedNote}${absentNote}
         <div class="dfill"><div class="dfill-bar" style="width:${pct}%"></div></div>
-      </div>${cardsHtml}
+      </div>${koordHtml}${cardsHtml}
     </div>`;
   }).join('')}</div>`;
 }
