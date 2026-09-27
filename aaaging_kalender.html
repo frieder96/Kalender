@@ -6870,7 +6870,7 @@ function spRenderProbanden(){
 window.spFilterP=q=>document.querySelectorAll('#sp-prows .proband-row').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(q.toLowerCase())?'':'none';});
 
 // ── CALENDAR ───────────────────────────────
-let spWeekOff=0, spActiveStudio=1, spCalTab='calendar', spModal=null;
+let spWeekOff=spCurrentWeekOff(), spActiveStudio=1, spCalTab='calendar', spModal=null;
 
 function spRenderCalendar(){
   const root=document.getElementById('sp-cal-root'); if(!root) return;
