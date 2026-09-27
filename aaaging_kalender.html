@@ -1352,6 +1352,15 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       </div>
       <input type="hidden" id="ir-room">
 
+      <div class="fg"><label class="fl">Art des Termins</label>
+        <div style="display:flex;gap:8px">
+          <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border:1px solid var(--g2);border-radius:var(--r);cursor:pointer;font-size:13px" id="ir-mode-onsite-lbl">
+            <input type="radio" name="ir-mode" id="ir-mode-onsite" value="onsite" checked onchange="irUpdateModeStyle()">📍 Vor Ort</label>
+          <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border:1px solid var(--g2);border-radius:var(--r);cursor:pointer;font-size:13px" id="ir-mode-phone-lbl">
+            <input type="radio" name="ir-mode" id="ir-mode-phone" value="phone" onchange="irUpdateModeStyle()">📞 Telefonisch</label>
+        </div>
+      </div>
+
       <div class="fg"><label class="fl">Durchgeführt von <span style="font-weight:400;color:var(--g4)">(optional)</span></label>
         <input class="fi" id="ir-person-search" list="ir-person-list" placeholder="Name suchen…" autocomplete="off" oninput="irSyncPerson(); irCheckAbsent()">
         <datalist id="ir-person-list"></datalist>
@@ -1928,7 +1937,7 @@ const MRT_FIXED_START = '07:00';
 const MRT_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 
 // State for EEG/MRT bookings and MRT custom slots
-let EEG_BOOKINGS={}, MRT_BOOKINGS={}, MRT_SLOTS={}, TEL_EXTRA_SLOTS={}, TEL_SLOT_OVERRIDES={}, AAA_SLOT_OVERRIDES={};
+let EEG_BOOKINGS={}, MRT_BOOKINGS={}, MRT_SLOTS={}, TEL_EXTRA_SLOTS={}, TEL_SLOT_OVERRIDES={}, AAA_SLOT_OVERRIDES={}, RECALL_DAY_RELEASE={};
 let FAM_BOOKINGS={}, FAM_SLOTS={};
 const FAM_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 
@@ -2174,6 +2183,7 @@ const app  = initializeApp(firebaseConfig);
 auth = getAuth(app);
 db   = getFirestore(app);
 window.db = db;
+window.doc = doc; window.setDoc = setDoc; window.addDoc = addDoc; window.updateDoc = updateDoc; window.deleteDoc = deleteDoc; window.collection = collection;
 
 onAuthStateChanged(auth, async user => {
   document.getElementById('loading-screen').style.display='none';
@@ -2260,6 +2270,9 @@ function startDB() {
   });
   onSnapshot(collection(db,'aaa_slot_overrides'), snap => {
     AAA_SLOT_OVERRIDES={}; snap.forEach(d=>{AAA_SLOT_OVERRIDES[d.id]={...d.data(),_id:d.id}}); window._AAA_SLOT_OVERRIDES=AAA_SLOT_OVERRIDES; renderWeek();
+  });
+  onSnapshot(collection(db,'recall_day_release'), snap => {
+    RECALL_DAY_RELEASE={}; snap.forEach(d=>{RECALL_DAY_RELEASE[d.id]={...d.data(),_id:d.id}}); window._RECALL_DAY_RELEASE=RECALL_DAY_RELEASE; if(window.renderRecallKalender) window.renderRecallKalender();
   });
   onSnapshot(collection(db,'fam_bookings'), snap => {
     FAM_BOOKINGS={}; snap.forEach(d=>{FAM_BOOKINGS[d.id]={...d.data(),_id:d.id}}); renderWeek();
@@ -2724,7 +2737,7 @@ function renderWeek() {
       const rm = r.person ? (TEAM[r.person]||Object.values(TEAM).find(t=>t.name===r.person||t.email===r.person)) : null;
       return {time: r.time||'00:00', html: `<div class="sc" style="background:#FFF8E1;border:1px solid #FFD54F">
         <div class="sc-top">
-          <span class="sc-num" style="color:#8B6F00">📋 Recall</span>
+          <span class="sc-num" style="color:#8B6F00">📋 Recall${r.mode?` ${r.mode==='phone'?'📞':'📍'}`:''}</span>
           <div style="display:flex;align-items:center;gap:4px"><span class="sc-time">${r.time||'—'}</span></div>
         </div>
         <div class="sc-body">
@@ -3429,6 +3442,7 @@ function renderRecalls() {
           ${p?`<span class="pbadge">${p.pid}</span><span class="lbadge">${p.lnr}</span>`:`<span style="color:var(--g4);font-size:12px">Proband nicht gefunden</span>`}
           <span style="font-family:monospace;font-size:12px;color:var(--bk);font-weight:700">${r.date?new Date(r.date+'T12:00').toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}):''}</span>
           ${r.time?`<span style="font-family:monospace;font-size:12px;color:var(--g5)">${r.time} Uhr</span>`:''}
+          ${r.mode?`<span style="font-size:11px;color:var(--g5)">${r.mode==='phone'?'📞 Telefonisch':'📍 Vor Ort'}</span>`:''}
           ${r.sachets?`<span style="font-size:11px;font-weight:700;color:#2E7D32;background:#E8F5E9;border:1px solid #A5D6A7;border-radius:99px;padding:1px 8px">💊 ${r.sachets} Sachets</span>`:''}
           ${r.person?(()=>{const m=TEAM[r.person]||Object.values(TEAM).find(t=>t.name===r.person||t.email===r.person);return m?`<span style="font-size:11px;font-weight:600;color:var(--ub);background:var(--ubl);border:1px solid var(--t1bd);border-radius:99px;padding:1px 8px">${m.name}</span>`:'';})():''}
           ${r.note?`<span style="font-size:12px;color:var(--g5);font-style:italic">· ${r.note}</span>`:''}
@@ -4057,6 +4071,9 @@ window.openAddRecall = (presetDate, presetTime, presetRoom) => {
   document.getElementById('ir-sachet-start').value='';
   const _sed=document.getElementById('ir-sachet-end');if(_sed)_sed.style.display='none';
   document.getElementById('ir-note').value='';
+  document.getElementById('ir-mode-onsite').checked=true;
+  document.getElementById('ir-mode-phone').checked=false;
+  irUpdateModeStyle();
   // Populate proband datalist
   document.getElementById('ir-pid-list').innerHTML=
     Object.values(P).sort((a,b)=>a.lnr.localeCompare(b.lnr)).map(p=>`<option value="${p.pid} · ${p.lnr}" data-id="${p._id}">`).join('');
@@ -4087,6 +4104,9 @@ window.openEditRecall = id => {
   document.getElementById('ir-sachets').value=r.sachets||'';
   document.getElementById('ir-sachet-start').value=r.sachetStart||'';
   document.getElementById('ir-note').value=r.note||'';
+  document.getElementById('ir-mode-phone').checked = r.mode==='phone';
+  document.getElementById('ir-mode-onsite').checked = r.mode!=='phone';
+  irUpdateModeStyle();
   setTimeout(recalcSachetEnd,0);
   document.getElementById('ir-person-list').innerHTML=
     Object.values(TEAM).sort((a,b)=>a.name.localeCompare(b.name)).map(m=>`<option value="${m.name}" data-id="${m._id}">`).join('');
@@ -4148,6 +4168,13 @@ window.irCheckAbsent = () => {
     warnEl.style.display='none';
   }
 };
+window.irUpdateModeStyle = () => {
+  const onsiteChecked = document.getElementById('ir-mode-onsite')?.checked;
+  const onsiteLbl = document.getElementById('ir-mode-onsite-lbl');
+  const phoneLbl = document.getElementById('ir-mode-phone-lbl');
+  if(onsiteLbl) { onsiteLbl.style.borderColor = onsiteChecked ? 'var(--ub)' : 'var(--g2)'; onsiteLbl.style.background = onsiteChecked ? '#EAF2FC' : '#fff'; }
+  if(phoneLbl) { phoneLbl.style.borderColor = !onsiteChecked ? 'var(--ub)' : 'var(--g2)'; phoneLbl.style.background = !onsiteChecked ? '#EAF2FC' : '#fff'; }
+};
 window.closeRecall = () => { document.getElementById('recall-modal').classList.remove('open'); recallEditId=null; };
 
 window.sachetSetNextMonday = () => {
@@ -4187,9 +4214,10 @@ window.saveRecall = async () => {
   const person=document.getElementById('ir-person').value;
   const room=document.getElementById('ir-room').value;
   const sachets=document.getElementById('ir-sachets').value;
+  const mode=document.getElementById('ir-mode-phone')?.checked ? 'phone' : 'onsite';
   if(!pid||!date){toast('Proband und Datum sind Pflicht',true);return;}
   const sachetStart=document.getElementById('ir-sachet-start').value;
-  const data={pid,date,time,note,person,room:room||null,sachets:sachets?parseInt(sachets):null,sachetStart:sachetStart||null,updated:Date.now()};
+  const data={pid,date,time,note,person,room:room||null,mode,sachets:sachets?parseInt(sachets):null,sachetStart:sachetStart||null,updated:Date.now()};
   try {
     if(recallEditId){ await updateDoc(doc(db,'recalls',recallEditId),data); }
     else { await addDoc(collection(db,'recalls'),{...data,created:Date.now()}); }
@@ -5187,7 +5215,7 @@ window.exportRecalls = () => {
 // ── VOLLSTÄNDIGES BACKUP ───────────────────────────────────────────
 const BACKUP_COLLECTIONS = [
   'probanden','recalls','team','assignments','sperren',
-  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots','tel_slot_overrides','aaa_slot_overrides',
+  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots','tel_slot_overrides','aaa_slot_overrides','recall_day_release',
   'training_logs','training_templates','recall_rooms',
   'sp_slots','sp_probands','sp_day_trainers'
 ];
@@ -6291,12 +6319,29 @@ function renderRecallHolidays() {
 // ── RECALL RASTER (Mi/Do, BIA + RBANS, 11–16 Uhr) ─────────────────────
 // Feste, wöchentlich wiederkehrende Struktur — bestehende freie Recall-Einträge
 // (ohne room-Feld) bleiben unberührt und erscheinen weiterhin nur in der Liste.
-const RECALL_GRID_DAYS  = ['Mittwoch','Donnerstag'];
+const RECALL_GRID_DAYS  = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
+const RECALL_GRID_ALWAYS_OPEN = ['Mittwoch','Donnerstag']; // immer offen, keine Freigabe nötig
 const RECALL_GRID_TIMES = ['11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00'];
 const RECALL_GRID_ROOMS = ['BIA','RBANS'];
 const RECALL_GRID_DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
+const RECALL_MODE_ICON = {phone:'📞',onsite:'📍'};
+const RECALL_MODE_LABEL = {phone:'Telefonisch',onsite:'Vor Ort'};
 window._recallView  = 'list';
 let _recallGridCW = 0;
+
+function recallDayReleaseId(week, day) { return week + '_' + day; }
+function isRecallDayReleased(week, day) {
+  if(RECALL_GRID_ALWAYS_OPEN.includes(day)) return true;
+  const src = window._RECALL_DAY_RELEASE || RECALL_DAY_RELEASE;
+  const rec = src[recallDayReleaseId(week, day)];
+  return !!(rec && rec.released);
+}
+window.toggleRecallDayRelease = async (week, day, released) => {
+  if(!(window.isTrainer && window.isTrainer())){window.toast&&toast('Keine Berechtigung',true);return;}
+  try {
+    await window.setDoc(window.doc(window.db,'recall_day_release', recallDayReleaseId(week, day)), {week, day, released: !!released, updated: Date.now()});
+  } catch(e){ window.toast&&toast('Fehler: '+e.message, true); }
+};
 
 window.setRecallView = function(view) {
   window._recallView = view;
@@ -6357,24 +6402,34 @@ window.renderRecallKalender = function() {
     var dOff = RECALL_GRID_DAYOFF[day];
     var d = wDay(_recallGridCW, dOff);
     var dStr = d.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'});
-    html += '<div style="text-align:center;font-size:12px;font-weight:700;color:var(--g5);padding:6px 0">' + day + ' <span style="font-weight:400;color:var(--g4)">' + dStr + '</span></div>';
+    var alwaysOpen = RECALL_GRID_ALWAYS_OPEN.includes(day);
+    var released = isRecallDayReleased(_recallGridCW, day);
+    var releaseToggle = alwaysOpen ? '' :
+      '<label style="display:flex;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:400;color:' + (released?'#2E7D32':'var(--g4)') + ';margin-top:2px;cursor:pointer">'
+      + '<input type="checkbox" ' + (released?'checked':'') + ' onchange="toggleRecallDayRelease(' + _recallGridCW + ',\'' + day + '\',this.checked)" style="cursor:pointer">'
+      + (released ? 'freigegeben' : 'freigeben') + '</label>';
+    html += '<div style="text-align:center;font-size:12px;font-weight:700;color:var(--g5);padding:6px 0">' + day + ' <span style="font-weight:400;color:var(--g4)">' + dStr + '</span>' + releaseToggle + '</div>';
   });
 
   RECALL_GRID_TIMES.forEach(function(time){
-    var isOfficialSlot = time.slice(-2) === '00'; // volle Stunde = offizieller, buchbarer Slot; :30 nur zur Anzeige alter Termine
+    var hour = parseInt(time,10);
+    var isOfficialSlot = time.slice(-2) === '00' && hour <= 15; // volle Stunde bis 15 Uhr = offizieller, buchbarer Slot
     html += '<div style="display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:' + (isOfficialSlot?'12px':'10px') + ';font-weight:' + (isOfficialSlot?'700':'400') + ';color:var(--g5);font-family:monospace">' + time + '</div>';
     RECALL_GRID_DAYS.forEach(function(day){
       var dOff = RECALL_GRID_DAYOFF[day];
       var dateStr = _localDate(wDay(_recallGridCW, dOff));
+      var dayReleased = isRecallDayReleased(_recallGridCW, day);
       var roomCells = !isOfficialSlot ? '' : RECALL_GRID_ROOMS.map(function(room){
         var bk = getRecallSlotBooking(dateStr, time, room);
         var p = bk ? Object.values(allP).find(function(x){ return x._id===bk.pid; }) : null;
         if(bk) {
           var teamCache = window._teamCache || {};
           var person = bk.person ? teamCache[bk.person] : null;
+          var modeIcon = RECALL_MODE_ICON[bk.mode] || '';
           return '<div style="flex:1;background:#FEF3EC;border:1px solid #F4C09A;border-radius:6px;padding:5px 7px;font-size:11px;min-width:0">'
             + '<div style="font-size:9px;font-weight:700;color:#B85010;letter-spacing:.5px">' + room + '</div>'
             + '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">'
+            + (modeIcon ? '<span title="' + (RECALL_MODE_LABEL[bk.mode]||'') + '">' + modeIcon + '</span>' : '')
             + '<span style="font-weight:700;color:#4A2A1F">' + (p?p.pid:'?') + '</span>'
             + '<span style="color:#999;font-size:10px">' + (p?p.lnr:'') + '</span>'
             + '<button onclick="openEditRecall(\'' + bk._id + '\')" style="background:none;border:none;color:#4A90D9;cursor:pointer;font-size:11px" title="Bearbeiten">✎</button>'
@@ -6383,13 +6438,18 @@ window.renderRecallKalender = function() {
             + (person ? '<div style="font-size:9.5px;color:#B85010;margin-top:2px">👤 ' + person.name + '</div>' : '<div style="font-size:9.5px;color:#D0A080;margin-top:2px;font-style:italic">keine Person zugewiesen</div>')
             + '</div>';
         }
+        if(!dayReleased) {
+          return '<div style="flex:1;background:#F5F5F5;border:1px dashed var(--g3);border-radius:6px;padding:5px 7px;font-size:10px;color:var(--g4);min-height:38px;display:flex;flex-direction:column;justify-content:center;text-align:center">'
+            + '<div style="font-size:9px;font-weight:700;letter-spacing:.5px">' + room + '</div>🔒 nicht freigegeben</div>';
+        }
         return '<button onclick="openAddRecall(\'' + dateStr + '\',\'' + time + '\',\'' + room + '\')" style="flex:1;background:#fff;border:1px dashed var(--g3);border-radius:6px;padding:5px 7px;font-size:10.5px;color:var(--g4);cursor:pointer;min-height:38px;text-align:left">'
           + '<div style="font-size:9px;font-weight:700;letter-spacing:.5px">' + room + '</div>+ Proband</button>';
       }).join('');
       var legacyHtml = getLegacyRecallsAt(dateStr, time).map(function(lr){
         var lp = Object.values(allP).find(function(x){ return x._id===lr.pid; });
+        var lModeIcon = RECALL_MODE_ICON[lr.mode] || '';
         return '<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:6px;padding:3px 7px;font-size:10px;color:#B85010;margin-top:2px;display:flex;align-items:center;gap:5px">'
-          + '⚠️ alter Eintrag ohne Raum: <strong>' + (lp?lp.pid:'?') + '</strong>'
+          + '⚠️ alter Eintrag ohne Raum: ' + (lModeIcon?lModeIcon+' ':'') + '<strong>' + (lp?lp.pid:'?') + '</strong>'
           + '<button onclick="openEditRecall(\'' + lr._id + '\')" style="margin-left:auto;background:none;border:none;color:#4A90D9;cursor:pointer;font-size:11px" title="Bearbeiten">✎</button>'
           + '</div>';
       }).join('');
