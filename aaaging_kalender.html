@@ -6327,7 +6327,14 @@ const RECALL_GRID_DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:
 const RECALL_MODE_ICON = {phone:'📞',onsite:'📍'};
 const RECALL_MODE_LABEL = {phone:'Telefonisch',onsite:'Vor Ort'};
 window._recallView  = 'list';
-let _recallGridCW = 0;
+// Initial-Woche: aktuelle KW (wie bei den anderen Kalendern), nicht KW 0 —
+// wird erst beim ersten Rendern berechnet (window.START ist beim Parsen dieses
+// Scripts evtl. noch nicht gesetzt, da das Modul-Script deferred ausgeführt wird).
+let _recallGridCW = null;
+function _recallGridDefaultWeek() {
+  const d = Math.floor((new Date() - window.START) / (7*86400000));
+  return Math.max(0, Math.min((window.N_WEEKS||96) - 1, d));
+}
 
 function recallDayReleaseId(week, day) { return week + '_' + day; }
 function isRecallDayReleased(week, day) {
@@ -6382,6 +6389,7 @@ function getLegacyRecallsAt(dateStr, time) {
 
 window.renderRecallKalender = function() {
   var wrap = document.getElementById('recall-kalender-wrap'); if(!wrap) return;
+  if(_recallGridCW===null) _recallGridCW = _recallGridDefaultWeek();
   var allP = window._P ? window._P() : {};
   var wMon = window.wMon;
   var wDay = window._wDay;
