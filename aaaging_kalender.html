@@ -674,6 +674,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div style="max-width:1500px;margin:0 auto;display:flex;align-items:center;gap:0">
       <button id="study-aaaging" class="study-btn active" onclick="switchStudy('aaaging')" style="padding:10px 20px;background:var(--ub);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid #fff">📘 AAAging-Studie</button>
       <button id="study-telomer" class="study-btn" onclick="switchStudy('telomer')" style="padding:10px 20px;background:transparent;color:rgba(255,255,255,.7);border:none;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent">🧬 Telomer-Studie</button>
+      <button id="study-brainhealth" class="study-btn" onclick="switchStudy('brainhealth')" style="padding:10px 20px;background:transparent;color:rgba(255,255,255,.7);border:none;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent">🧠 Brain-Health</button>
     </div>
   </div>
   <nav class="unav">
@@ -698,6 +699,12 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <button class="ntab"     onclick="goTab('raumplan',this)">🏠 Raumplan</button>
       <button class="ntab"     onclick="goTab('monatsübersicht',this)">📅 Monatsübersicht</button>
       <button class="ntab"     onclick="goTab('tel-fortschritt',this)">&#128202; Fortschritt</button>
+      <button class="ntab"     onclick="goTab('backup',this)">Backup &amp; Export</button>
+    </div>
+    <div class="unav-i" id="nav-brainhealth" style="display:none">
+      <button class="ntab on"  onclick="goTab('bh-kalender',this)">Kalender</button>
+      <button class="ntab"     onclick="goTab('bh-probanden',this)">Probanden</button>
+      <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
       <button class="ntab"     onclick="goTab('backup',this)">Backup &amp; Export</button>
     </div>
   </nav>
@@ -1195,6 +1202,25 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <div id="tel-fortschritt-content" style="padding:4px 0"></div>
     </div>
 
+    <!-- BRAIN-HEALTH KALENDER -->
+    <div id="tab-bh-kalender" class="panel">
+      <div class="phdr">
+        <div><div class="ptitle">🧠 Brain-Health Kalender</div><div class="psub">T0 (13.11./24.11./09.12./14.12.26) · T1 (7 Montage) · T1.2 (Di/Mi/Do)</div></div>
+      </div>
+      <div id="bh-kalender-wrap"></div>
+    </div>
+
+    <!-- BRAIN-HEALTH PROBANDEN -->
+    <div id="tab-bh-probanden" class="panel">
+      <div class="phdr">
+        <div><div class="ptitle">🧠 Brain-Health Probanden</div><div class="psub">Studien-ID S… · Laufnr. R… · Eigener Pool</div></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-p" onclick="openAddBHProband()">+ Neuer Brain-Health-Proband</button>
+        </div>
+      </div>
+      <div id="bh-proband-list" style="padding:4px 0"></div>
+    </div>
+
   </main>
 </div>
 
@@ -1216,6 +1242,47 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div class="mfoot">
       <button class="btn btn-sm" onclick="closeTelProband()">Abbrechen</button>
       <button class="btn btn-sm btn-p" onclick="saveTelProband()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- BRAIN-HEALTH PROBAND MODAL -->
+<div class="ov" id="bh-proband-modal" onclick="if(event.target===this)closeBHProband()">
+  <div class="modal">
+    <div class="mhdr" style="background:#D6C9F0;color:#3A2A5A"><span class="mtitle" id="bh-proband-title">Neuer Brain-Health-Proband</span><button class="mclose" onclick="closeBHProband()">×</button></div>
+    <div class="mbody">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="fg"><label class="fl">Studien-ID</label><input class="fi" id="bhp-pid" placeholder="S001"></div>
+        <div class="fg"><label class="fl">Laufnr.</label><input class="fi" id="bhp-lnr" placeholder="R001"></div>
+      </div>
+      <div class="fg"><label class="fl">Notiz</label><textarea class="notiz-box" id="bhp-notiz" placeholder="Besonderheiten …"></textarea></div>
+      <div class="fg" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#FFF8E1;border:1px solid #FFD54F;border-radius:var(--r)">
+        <input type="checkbox" id="bhp-aufpassen" style="width:18px;height:18px;cursor:pointer;accent-color:#E65100">
+        <label for="bhp-aufpassen" style="font-size:13px;font-weight:700;color:#E65100;cursor:pointer">⚠️ Aufpassen</label>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-sm" onclick="closeBHProband()">Abbrechen</button>
+      <button class="btn btn-sm btn-p" onclick="saveBHProband()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- BRAIN-HEALTH SLOT BUCHEN MODAL -->
+<div class="ov" id="bh-book-modal" onclick="if(event.target===this)closeBHBook()">
+  <div class="modal">
+    <div class="mhdr" style="background:#D6C9F0;color:#3A2A5A"><span class="mtitle" id="bh-book-title">Proband zuweisen</span><button class="mclose" onclick="closeBHBook()">×</button></div>
+    <div class="mbody">
+      <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="bh-book-info"></div>
+      <div class="fg"><label class="fl">Proband</label>
+        <input class="fi" id="bhb-pid-search" list="bhb-pid-list" placeholder="S-ID oder Laufnr. suchen…" autocomplete="off" oninput="bhbSyncPid()">
+        <datalist id="bhb-pid-list"></datalist>
+        <input type="hidden" id="bhb-pid">
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-sm" onclick="closeBHBook()">Abbrechen</button>
+      <button class="btn btn-sm btn-p" onclick="saveBHBook()">Speichern</button>
     </div>
   </div>
 </div>
@@ -1938,6 +2005,7 @@ const MRT_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwo
 
 // State for EEG/MRT bookings and MRT custom slots
 let EEG_BOOKINGS={}, MRT_BOOKINGS={}, MRT_SLOTS={}, TEL_EXTRA_SLOTS={}, TEL_SLOT_OVERRIDES={}, AAA_SLOT_OVERRIDES={}, RECALL_DAY_RELEASE={};
+let BH_PROBANDEN={}, BH_T0_ROOM={}, BH_T0_BOOKINGS={}, BH_T1_BOOKINGS={}, BH_T12_BOOKINGS={};
 let FAM_BOOKINGS={}, FAM_SLOTS={};
 const FAM_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
 
@@ -2183,7 +2251,7 @@ const app  = initializeApp(firebaseConfig);
 auth = getAuth(app);
 db   = getFirestore(app);
 window.db = db;
-window.doc = doc; window.setDoc = setDoc; window.addDoc = addDoc; window.updateDoc = updateDoc; window.deleteDoc = deleteDoc; window.collection = collection;
+window.doc = doc; window.setDoc = setDoc; window.addDoc = addDoc; window.updateDoc = updateDoc; window.deleteDoc = deleteDoc; window.collection = collection; window.onSnapshot = onSnapshot;
 
 onAuthStateChanged(auth, async user => {
   document.getElementById('loading-screen').style.display='none';
@@ -2273,6 +2341,21 @@ function startDB() {
   });
   onSnapshot(collection(db,'recall_day_release'), snap => {
     RECALL_DAY_RELEASE={}; snap.forEach(d=>{RECALL_DAY_RELEASE[d.id]={...d.data(),_id:d.id}}); window._RECALL_DAY_RELEASE=RECALL_DAY_RELEASE; if(window.renderRecallKalender) window.renderRecallKalender();
+  });
+  onSnapshot(collection(db,'bh_probanden'), snap => {
+    BH_PROBANDEN={}; snap.forEach(d=>{BH_PROBANDEN[d.id]={...d.data(),_id:d.id}}); window._BH_PROBANDEN=BH_PROBANDEN; if(window.renderBHProbanden) window.renderBHProbanden(); if(window.renderBHCalendar) window.renderBHCalendar();
+  });
+  onSnapshot(collection(db,'bh_t0_room'), snap => {
+    BH_T0_ROOM={}; snap.forEach(d=>{BH_T0_ROOM[d.id]={...d.data(),_id:d.id}}); window._BH_T0_ROOM=BH_T0_ROOM; if(window.renderBHCalendar) window.renderBHCalendar();
+  });
+  onSnapshot(collection(db,'bh_t0_bookings'), snap => {
+    BH_T0_BOOKINGS={}; snap.forEach(d=>{BH_T0_BOOKINGS[d.id]={...d.data(),_id:d.id}}); window._BH_T0_BOOKINGS=BH_T0_BOOKINGS; if(window.renderBHCalendar) window.renderBHCalendar();
+  });
+  onSnapshot(collection(db,'bh_t1_bookings'), snap => {
+    BH_T1_BOOKINGS={}; snap.forEach(d=>{BH_T1_BOOKINGS[d.id]={...d.data(),_id:d.id}}); window._BH_T1_BOOKINGS=BH_T1_BOOKINGS; if(window.renderBHCalendar) window.renderBHCalendar();
+  });
+  onSnapshot(collection(db,'bh_t12_bookings'), snap => {
+    BH_T12_BOOKINGS={}; snap.forEach(d=>{BH_T12_BOOKINGS[d.id]={...d.data(),_id:d.id}}); window._BH_T12_BOOKINGS=BH_T12_BOOKINGS; if(window.renderBHCalendar) window.renderBHCalendar();
   });
   onSnapshot(collection(db,'fam_bookings'), snap => {
     FAM_BOOKINGS={}; snap.forEach(d=>{FAM_BOOKINGS[d.id]={...d.data(),_id:d.id}}); renderWeek();
@@ -5217,7 +5300,8 @@ const BACKUP_COLLECTIONS = [
   'probanden','recalls','team','assignments','sperren',
   'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots','tel_slot_overrides','aaa_slot_overrides','recall_day_release',
   'training_logs','training_templates','recall_rooms',
-  'sp_slots','sp_probands','sp_day_trainers'
+  'sp_slots','sp_probands','sp_day_trainers',
+  'bh_probanden','bh_t0_room','bh_t0_bookings','bh_t1_bookings','bh_t12_bookings'
 ];
 
 window.exportFullBackup = async () => {
@@ -6474,7 +6558,7 @@ function goTab(name,btn){
   if(btn) btn.classList.add('on');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('tab-'+name).classList.add('on');
-  const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export',abwesenheit:'Abwesenheiten',raumplan:'Live Raumplan',studio:'Studio & Training'};
+  const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export',abwesenheit:'Abwesenheiten',raumplan:'Live Raumplan',studio:'Studio & Training','bh-kalender':'Brain-Health Kalender','bh-probanden':'Brain-Health Probanden'};
   document.getElementById('bcc').textContent=L[name]||name;
   if(name==='team'){tW=cW;renderTaskTab();}
   if(name==='recalls'){ renderRecallHolidays(); if(window._recallView==='kalender' && window.renderRecallKalender) window.renderRecallKalender(); }
@@ -6484,6 +6568,8 @@ function goTab(name,btn){
   if(name==='raumplan'){ _rpWeek=cW; rpRender(); }
   if(name==='fortschritt'){ if(window.spRenderFortschritt) window.spRenderFortschritt(); }
   if(name==='monatsübersicht'){ renderMonatsübersicht(); }
+  if(name==='bh-kalender'){ if(window.renderBHCalendar) window.renderBHCalendar(); }
+  if(name==='bh-probanden'){ if(window.renderBHProbanden) window.renderBHProbanden(); }
 }
 
 function setTermin(t, btn) {
@@ -6497,6 +6583,357 @@ function setTermin(t, btn) {
   if(t==='T1') loadSportStatus();
   if(window._renderWeek) window._renderWeek();
 }
+
+// ── BRAIN-HEALTH KALENDER ────────────────────────────────────────────
+// T0: 4 feste Termine (Blutabnahme 5-Min-Takt 07-10 Uhr, Einschlussunters. 30-Min-Takt 10:30-16 Uhr, Raum pro Tag wählbar)
+// T1: 7 aufeinanderfolgende Montage (Blutabnahme, 2 Räume, 15-Min-Takt 07-10 Uhr, 24 Plätze/Woche)
+// T1.2: Di/Mi/Do derselben Woche, je 8 Slots ab 10 Uhr (Isokinetik/RBANS/24h Recall — Struktur wie AAAging)
+function _bhTimeRange(startH,startM,endH,endM,stepMin){
+  var out=[], t=startH*60+startM, end=endH*60+endM;
+  while(t<=end){ out.push(String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')); t+=stepMin; }
+  return out;
+}
+const BH_T0_DATES = ['2026-11-13','2026-11-24','2026-12-09','2026-12-14'];
+const BH_T0_ROOMS_OPTIONS = ['UZA','Zieglergasse'];
+const BH_T0_BLUT_TIMES = _bhTimeRange(7,0,9,55,5);          // 36 Slots
+const BH_T0_EINSCHLUSS_TIMES = _bhTimeRange(10,30,16,0,30); // 12 Slots
+const BH_T1_ROOMS = ['Raum 1','Raum 2'];
+const BH_T1_BLUT_TIMES = _bhTimeRange(7,0,9,45,15);         // 12 Slots × 2 Räume = 24 Plätze
+const BH_T1_WEEKS = 7;
+// Anker: erster Montag ab 01.02.2027 (vorläufig — bei Bedarf hier anpassen)
+const BH_T1_ANCHOR = (function(){
+  var d = new Date('2027-02-01T12:00:00');
+  var dow = d.getDay()||7;
+  if(dow>1) d.setDate(d.getDate()+(8-dow));
+  return d;
+})();
+const BH_T12_DAYS = ['Dienstag','Mittwoch','Donnerstag'];
+const BH_T12_TEMPLATE = Array.from({length:8},function(_,i){
+  var sm = 10*60 + i*60, sH=Math.floor(sm/60), sM=sm%60;
+  var iso = String(sH).padStart(2,'0')+':'+String(sM).padStart(2,'0');
+  function addT(add){ var t=sm+add; return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0'); }
+  return { slot:i+1, blutStart: iso, measures:[
+    {label:'Isokinetik', t:iso},
+    {label:'RBANS', t:addT(60)},
+    {label:'24h Recall', t:addT(90)}
+  ]};
+});
+
+let _bhW = null;
+function _bhDefaultWeek(){
+  var d = Math.floor((new Date() - window.START) / (7*86400000));
+  return Math.max(0, Math.min((window.N_WEEKS||96)-1, d));
+}
+function bhT0DateInWeek(w){
+  var DAYLBL=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
+  for(var off=0; off<5; off++){
+    var ds = window._localDate(window._wDay(w, off));
+    if(BH_T0_DATES.indexOf(ds)!==-1) return {date: ds, dayLabel: DAYLBL[off]};
+  }
+  return null;
+}
+function bhT1WeekIndex(w){
+  var mon = window.wMon(w);
+  var diffWeeks = Math.round((mon - BH_T1_ANCHOR) / (7*86400000));
+  if(diffWeeks>=0 && diffWeeks<BH_T1_WEEKS) return diffWeeks;
+  return -1;
+}
+function bhGetT0Room(date){
+  var src = window._BH_T0_ROOM || {};
+  var rec = src[date];
+  return (rec && rec.room) || 'UZA';
+}
+window.bhSetT0Room = async function(date, room){
+  if(!(window.isTrainer && window.isTrainer())){ window.toast&&toast('Keine Berechtigung',true); return; }
+  try { await window._fbFns.setDoc(window._fbFns.doc(window.db,'bh_t0_room',date), {date:date, room:room, updated:Date.now()}); }
+  catch(e){ window.toast&&toast('Fehler: '+e.message,true); }
+};
+function bhGetT0Booking(date,time,kind){
+  var src = window._BH_T0_BOOKINGS || {};
+  var found = null;
+  Object.keys(src).forEach(function(k){ var b=src[k]; if(b.date===date && b.time===time && b.kind===kind) found=b; });
+  return found;
+}
+function bhGetT1Booking(week,room,time){
+  var src = window._BH_T1_BOOKINGS || {};
+  var found = null;
+  Object.keys(src).forEach(function(k){ var b=src[k]; if(b.week===week && b.room===room && b.time===time) found=b; });
+  return found;
+}
+function bhGetT12Booking(week,day,slot){
+  var src = window._BH_T12_BOOKINGS || {};
+  var found = null;
+  Object.keys(src).forEach(function(k){ var b=src[k]; if(b.week===week && b.day===day && Number(b.slot)===Number(slot)) found=b; });
+  return found;
+}
+function bhProbandLabel(pid){
+  var src = window._BH_PROBANDEN || {};
+  var p = src[pid];
+  return p ? {pid:p.pid||'?', lnr:p.lnr||''} : {pid:'?', lnr:''};
+}
+
+window._bhBookCtx = null;
+window.openBHBook = function(kind, a, b, c, id){
+  if(!(window.isTrainer && window.isTrainer())){ window.toast&&toast('Keine Berechtigung',true); return; }
+  var ctx = {kind:kind, id:id||null};
+  if(kind==='t0blut' || kind==='t0einschluss'){ ctx.date=a; ctx.time=b; }
+  else if(kind==='t1blut'){ ctx.week=a; ctx.room=b; ctx.time=c; }
+  else if(kind==='t12'){ ctx.week=a; ctx.day=b; ctx.slot=c; }
+  window._bhBookCtx = ctx;
+  var titleMap = {t0blut:'T0 Blutabnahme', t0einschluss:'T0 Einschlussuntersuchung', t1blut:'T1 Blutabnahme', t12:'T1.2 Termin'};
+  document.getElementById('bh-book-title').textContent = (ctx.id?'Bearbeiten — ':'') + (titleMap[kind]||'Proband zuweisen');
+  var infoParts = [];
+  if(ctx.date) infoParts.push(new Date(ctx.date+'T12:00').toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}));
+  if(ctx.week!==undefined && ctx.day) infoParts.push(ctx.day + ' (KW ' + window.kw(window.wMon(ctx.week)) + ')');
+  if(ctx.time) infoParts.push(ctx.time+' Uhr');
+  if(ctx.room) infoParts.push('Raum: '+ctx.room);
+  document.getElementById('bh-book-info').textContent = infoParts.join(' · ');
+  var BHP = window._BH_PROBANDEN || {};
+  document.getElementById('bhb-pid-list').innerHTML = Object.values(BHP).sort(function(x,y){return (x.lnr||'').localeCompare(y.lnr||'');})
+    .map(function(p){ return '<option value="'+p.pid+' · '+(p.lnr||'')+'" data-id="'+p._id+'">'; }).join('');
+  var existingPid = '';
+  if(ctx.id){
+    var collMap = {t0blut:window._BH_T0_BOOKINGS, t0einschluss:window._BH_T0_BOOKINGS, t1blut:window._BH_T1_BOOKINGS, t12:window._BH_T12_BOOKINGS};
+    var src = collMap[kind] || {};
+    var bk = src[ctx.id];
+    if(bk){ var p = BHP[bk.pid]; existingPid = p ? (p.pid+' · '+(p.lnr||'')) : ''; document.getElementById('bhb-pid').value = bk.pid; }
+  } else {
+    document.getElementById('bhb-pid').value = '';
+  }
+  document.getElementById('bhb-pid-search').value = existingPid;
+  document.getElementById('bh-book-modal').classList.add('open');
+};
+window.bhbSyncPid = function(){
+  var search = document.getElementById('bhb-pid-search').value;
+  var BHP = window._BH_PROBANDEN || {};
+  var p = Object.values(BHP).find(function(p){ return (p.pid+' · '+(p.lnr||''))===search || p.pid===search || p.lnr===search; });
+  if(p) document.getElementById('bhb-pid').value = p._id;
+};
+window.closeBHBook = function(){ document.getElementById('bh-book-modal').classList.remove('open'); window._bhBookCtx=null; };
+window.saveBHBook = async function(){
+  bhbSyncPid();
+  var pid = document.getElementById('bhb-pid').value;
+  var ctx = window._bhBookCtx;
+  if(!pid || !ctx){ window.toast&&toast('Proband ist Pflicht',true); return; }
+  try {
+    var fns = window._fbFns;
+    if(ctx.kind==='t0blut' || ctx.kind==='t0einschluss'){
+      var data0 = {pid:pid, date:ctx.date, time:ctx.time, kind: ctx.kind==='t0blut'?'blut':'einschluss', updated:Date.now()};
+      if(ctx.id) await fns.updateDoc(fns.doc(window.db,'bh_t0_bookings',ctx.id), data0);
+      else await fns.addDoc(fns.collection(window.db,'bh_t0_bookings'), Object.assign({created:Date.now()},data0));
+    } else if(ctx.kind==='t1blut'){
+      var data1 = {pid:pid, week:ctx.week, room:ctx.room, time:ctx.time, updated:Date.now()};
+      if(ctx.id) await fns.updateDoc(fns.doc(window.db,'bh_t1_bookings',ctx.id), data1);
+      else await fns.addDoc(fns.collection(window.db,'bh_t1_bookings'), Object.assign({created:Date.now()},data1));
+    } else if(ctx.kind==='t12'){
+      var data2 = {pid:pid, week:ctx.week, day:ctx.day, slot:ctx.slot, updated:Date.now()};
+      if(ctx.id) await fns.updateDoc(fns.doc(window.db,'bh_t12_bookings',ctx.id), data2);
+      else await fns.addDoc(fns.collection(window.db,'bh_t12_bookings'), Object.assign({created:Date.now()},data2));
+    }
+    closeBHBook();
+    window.toast&&toast('Gespeichert ✓');
+  } catch(e){ window.toast&&toast('Fehler: '+e.message,true); }
+};
+window.delBHBooking = async function(kind, id){
+  if(!confirm('Termin wirklich löschen?')) return;
+  var collName = kind==='t1blut'?'bh_t1_bookings':kind==='t12'?'bh_t12_bookings':'bh_t0_bookings';
+  try { await window._fbFns.deleteDoc(window._fbFns.doc(window.db,collName,id)); window.toast&&toast('Gelöscht ✓'); }
+  catch(e){ window.toast&&toast('Fehler: '+e.message,true); }
+};
+
+window.bhWeekNav = function(dir){ if(_bhW===null) _bhW=_bhDefaultWeek(); _bhW += dir; renderBHCalendar(); };
+window.bhWeekToday = function(){ _bhW = _bhDefaultWeek(); renderBHCalendar(); };
+
+window.renderBHCalendar = function(){
+  var wrap = document.getElementById('bh-kalender-wrap'); if(!wrap) return;
+  if(_bhW===null) _bhW = _bhDefaultWeek();
+  var mon = window.wMon(_bhW);
+  var kwNum = window.kw(mon);
+  var html = '<div class="month-nav">'
+    + '<div style="display:flex;gap:3px"><button class="arr" onclick="bhWeekNav(-1)">&#8592;</button><button class="arr" onclick="bhWeekNav(1)">&#8594;</button></div>'
+    + '<span class="month-badge" style="background:#5E35B1">KW ' + kwNum + ' / ' + mon.getFullYear() + '</span>'
+    + '<button class="btn btn-sm" onclick="bhWeekToday()" style="margin-left:4px">Aktuelle Woche</button>'
+    + '</div>';
+
+  var t0 = bhT0DateInWeek(_bhW);
+  var t1wi = bhT1WeekIndex(_bhW);
+
+  if(!t0 && t1wi<0){
+    html += '<div style="text-align:center;padding:40px;color:var(--g4);font-style:italic">Keine Brain-Health-Termine in dieser Woche.</div>';
+    wrap.innerHTML = html;
+    return;
+  }
+
+  if(t0){
+    var room = bhGetT0Room(t0.date);
+    var dStr = new Date(t0.date+'T12:00').toLocaleDateString('de-AT',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
+    html += '<div style="margin-bottom:20px;background:#F3EEFB;border:1px solid #D6C9F0;border-radius:var(--r);padding:14px">';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">';
+    html += '<div style="font-weight:700;color:#3A2A5A">🧠 T0 — Voruntersuchung — ' + dStr + '</div>';
+    html += '<div style="display:flex;align-items:center;gap:6px;font-size:12px">Raum: <select onchange="bhSetT0Room(\'' + t0.date + '\',this.value)" style="padding:3px 6px;border:1px solid var(--g3);border-radius:4px">'
+      + BH_T0_ROOMS_OPTIONS.map(function(r){ return '<option value="'+r+'"'+(r===room?' selected':'')+'>'+r+'</option>'; }).join('')
+      + '</select></div>';
+    html += '</div>';
+
+    html += '<div style="font-size:11px;font-weight:700;color:#5E35B1;margin-bottom:6px">Blutabnahme (5-Min-Takt, 07:00–09:55)</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:16px">';
+    BH_T0_BLUT_TIMES.forEach(function(time){
+      var bk = bhGetT0Booking(t0.date, time, 'blut');
+      if(bk){
+        var p = bhProbandLabel(bk.pid);
+        html += '<div style="background:#EDE4FB;border:1px solid #C7B3EE;border-radius:6px;padding:3px 6px;font-size:10px;display:flex;align-items:center;gap:3px;min-width:70px">'
+          + '<span style="font-family:monospace;color:#5E35B1">'+time+'</span><span style="font-weight:700">'+p.pid+'</span>'
+          + '<button onclick="openBHBook(\'t0blut\',\''+t0.date+'\',\''+time+'\',null,\''+bk._id+'\')" style="margin-left:auto;background:none;border:none;color:#4A90D9;cursor:pointer;font-size:10px">✎</button>'
+          + '<button onclick="delBHBooking(\'t0blut\',\''+bk._id+'\')" style="background:none;border:none;color:#C8102E;cursor:pointer;font-size:10px">✕</button></div>';
+      } else {
+        html += '<button onclick="openBHBook(\'t0blut\',\''+t0.date+'\',\''+time+'\')" style="min-width:56px;background:#fff;border:1px dashed var(--g3);border-radius:6px;padding:3px 6px;font-size:10px;color:var(--g4);cursor:pointer">'+time+'</button>';
+      }
+    });
+    html += '</div>';
+
+    html += '<div style="font-size:11px;font-weight:700;color:#5E35B1;margin-bottom:6px">Einschlussuntersuchung (30-Min-Takt, 10:30–16:00)</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+    BH_T0_EINSCHLUSS_TIMES.forEach(function(time){
+      var bk2 = bhGetT0Booking(t0.date, time, 'einschluss');
+      if(bk2){
+        var p2 = bhProbandLabel(bk2.pid);
+        html += '<div style="background:#EDE4FB;border:1px solid #C7B3EE;border-radius:6px;padding:3px 6px;font-size:10px;display:flex;align-items:center;gap:3px;min-width:70px">'
+          + '<span style="font-family:monospace;color:#5E35B1">'+time+'</span><span style="font-weight:700">'+p2.pid+'</span>'
+          + '<button onclick="openBHBook(\'t0einschluss\',\''+t0.date+'\',\''+time+'\',null,\''+bk2._id+'\')" style="margin-left:auto;background:none;border:none;color:#4A90D9;cursor:pointer;font-size:10px">✎</button>'
+          + '<button onclick="delBHBooking(\'t0einschluss\',\''+bk2._id+'\')" style="background:none;border:none;color:#C8102E;cursor:pointer;font-size:10px">✕</button></div>';
+      } else {
+        html += '<button onclick="openBHBook(\'t0einschluss\',\''+t0.date+'\',\''+time+'\')" style="min-width:56px;background:#fff;border:1px dashed var(--g3);border-radius:6px;padding:3px 6px;font-size:10px;color:var(--g4);cursor:pointer">'+time+'</button>';
+      }
+    });
+    html += '</div></div>';
+  }
+
+  if(t1wi>=0){
+    html += '<div style="margin-bottom:20px;background:#EAF2FC;border:1px solid #A9C6EE;border-radius:var(--r);padding:14px">';
+    html += '<div style="font-weight:700;color:#1A4B8C;margin-bottom:12px">🧠 T1 — Blutabnahme — Montag (Woche ' + (t1wi+1) + ' / ' + BH_T1_WEEKS + ')</div>';
+    html += '<div style="display:grid;grid-template-columns:70px repeat(' + BH_T1_ROOMS.length + ',1fr);gap:2px">';
+    html += '<div></div>';
+    BH_T1_ROOMS.forEach(function(room){ html += '<div style="text-align:center;font-size:11px;font-weight:700;color:#1A4B8C;padding:4px 0">'+room+'</div>'; });
+    BH_T1_BLUT_TIMES.forEach(function(time){
+      html += '<div style="display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:11px;font-family:monospace;color:var(--g5)">'+time+'</div>';
+      BH_T1_ROOMS.forEach(function(room){
+        var bk3 = bhGetT1Booking(t1wi, room, time);
+        if(bk3){
+          var p3 = bhProbandLabel(bk3.pid);
+          html += '<div style="background:#DCEAFB;border:1px solid #A9C6EE;border-radius:6px;padding:3px 6px;font-size:10px;display:flex;align-items:center;gap:3px">'
+            + '<span style="font-weight:700">'+p3.pid+'</span><span style="color:#999">'+p3.lnr+'</span>'
+            + '<button onclick="openBHBook(\'t1blut\','+t1wi+',\''+room+'\',\''+time+'\',\''+bk3._id+'\')" style="margin-left:auto;background:none;border:none;color:#4A90D9;cursor:pointer;font-size:10px">✎</button>'
+            + '<button onclick="delBHBooking(\'t1blut\',\''+bk3._id+'\')" style="background:none;border:none;color:#C8102E;cursor:pointer;font-size:10px">✕</button></div>';
+        } else {
+          html += '<button onclick="openBHBook(\'t1blut\','+t1wi+',\''+room+'\',\''+time+'\')" style="width:100%;background:#fff;border:1px dashed var(--g3);border-radius:6px;padding:3px 6px;font-size:10px;color:var(--g4);cursor:pointer">+ Proband</button>';
+        }
+      });
+    });
+    html += '</div></div>';
+
+    html += '<div style="background:#FFF3E0;border:1px solid #FFCC80;border-radius:var(--r);padding:14px">';
+    html += '<div style="font-weight:700;color:#B85010;margin-bottom:12px">🧠 T1.2 — Untersuchungen (ab 10 Uhr)</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(' + BH_T12_DAYS.length + ',1fr);gap:10px">';
+    BH_T12_DAYS.forEach(function(day){
+      html += '<div><div style="text-align:center;font-size:12px;font-weight:700;color:#B85010;margin-bottom:6px">'+day+'</div>';
+      BH_T12_TEMPLATE.forEach(function(s){
+        var bk4 = bhGetT12Booking(t1wi, day, s.slot);
+        html += '<div style="background:#fff;border:1px solid #FFCC80;border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:10.5px">';
+        html += '<div style="font-family:monospace;font-weight:700;color:#B85010">'+s.blutStart+' Uhr</div>';
+        html += s.measures.map(function(m){ return '<div style="color:var(--g5)">'+m.label+' · '+m.t+'</div>'; }).join('');
+        if(bk4){
+          var p4 = bhProbandLabel(bk4.pid);
+          html += '<div style="display:flex;align-items:center;gap:4px;margin-top:4px">'
+            + '<span style="font-weight:700">'+p4.pid+'</span><span style="color:#999">'+p4.lnr+'</span>'
+            + '<button onclick="openBHBook(\'t12\','+t1wi+',\''+day+'\','+s.slot+',\''+bk4._id+'\')" style="margin-left:auto;background:none;border:none;color:#4A90D9;cursor:pointer">✎</button>'
+            + '<button onclick="delBHBooking(\'t12\',\''+bk4._id+'\')" style="background:none;border:none;color:#C8102E;cursor:pointer">✕</button></div>';
+        } else {
+          html += '<button onclick="openBHBook(\'t12\','+t1wi+',\''+day+'\','+s.slot+')" style="margin-top:4px;width:100%;background:#fff;border:1px dashed var(--g3);border-radius:4px;padding:3px;font-size:10px;color:var(--g4);cursor:pointer">+ Proband</button>';
+        }
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  wrap.innerHTML = html;
+};
+
+// ── BRAIN-HEALTH PROBANDENVERWALTUNG ─────────────────────────────────
+let _bhProbandEditId = null;
+window.openAddBHProband = function(){
+  if(!(window.isAdmin && window.isAdmin())){ window.toast&&toast('Keine Berechtigung',true); return; }
+  _bhProbandEditId = null;
+  document.getElementById('bh-proband-title').textContent = 'Neuer Brain-Health-Proband';
+  var existing = Object.values(window._BH_PROBANDEN||{}).map(function(p){ return parseInt((p.pid||'').replace(/\D/g,''))||0; });
+  var next = existing.length ? Math.max.apply(null, existing)+1 : 1;
+  document.getElementById('bhp-pid').value = 'S' + String(next).padStart(3,'0');
+  document.getElementById('bhp-lnr').value = 'R' + String(next).padStart(3,'0');
+  document.getElementById('bhp-notiz').value = '';
+  document.getElementById('bhp-aufpassen').checked = false;
+  document.getElementById('bh-proband-modal').classList.add('open');
+};
+window.openEditBHProband = function(id){
+  var p = window._BH_PROBANDEN ? window._BH_PROBANDEN[id] : null; if(!p) return;
+  _bhProbandEditId = id;
+  document.getElementById('bh-proband-title').textContent = 'Brain-Health-Proband bearbeiten';
+  document.getElementById('bhp-pid').value = p.pid||'';
+  document.getElementById('bhp-lnr').value = p.lnr||'';
+  document.getElementById('bhp-notiz').value = p.notiz||'';
+  document.getElementById('bhp-aufpassen').checked = p.aufpassen||false;
+  document.getElementById('bh-proband-modal').classList.add('open');
+};
+window.closeBHProband = function(){ document.getElementById('bh-proband-modal').classList.remove('open'); };
+window.saveBHProband = async function(){
+  var pid = document.getElementById('bhp-pid').value.trim();
+  var lnr = document.getElementById('bhp-lnr').value.trim();
+  var notiz = document.getElementById('bhp-notiz').value.trim();
+  var aufpassen = document.getElementById('bhp-aufpassen').checked;
+  if(!pid){ toast('Studien-ID ist Pflicht', true); return; }
+  var pidLower = pid.toLowerCase();
+  var dup = Object.values(window._BH_PROBANDEN||{}).find(function(p){ return p._id!==_bhProbandEditId && (p.pid||'').trim().toLowerCase()===pidLower; });
+  if(dup){ toast('❌ Studien-ID "'+pid+'" ist bereits vergeben!', true); return; }
+  var data = {pid:pid, lnr:lnr, notiz:notiz, aufpassen:aufpassen, updated:Date.now()};
+  try {
+    var fns = window._fbFns;
+    if(_bhProbandEditId) await fns.updateDoc(fns.doc(window.db,'bh_probanden',_bhProbandEditId), data);
+    else await fns.addDoc(fns.collection(window.db,'bh_probanden'), Object.assign({created:Date.now()},data));
+    closeBHProband(); toast('Gespeichert ✓');
+  } catch(e){ toast('Fehler: '+e.message, true); }
+};
+window.delBHProband = async function(id){
+  if(!confirm('Brain-Health-Proband endgültig löschen?')) return;
+  try { var fns = window._fbFns; await fns.deleteDoc(fns.doc(window.db,'bh_probanden',id)); toast('Gelöscht ✓'); }
+  catch(e){ toast('Fehler: '+e.message, true); }
+};
+window.renderBHProbanden = function(){
+  var el = document.getElementById('bh-proband-list'); if(!el) return;
+  var ps = Object.values(window._BH_PROBANDEN||{}).sort(function(a,b){
+    return (parseInt((a.pid||'').replace(/\D/g,''))||0) - (parseInt((b.pid||'').replace(/\D/g,''))||0);
+  });
+  if(!ps.length){
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:#888;font-style:italic">Noch keine Brain-Health-Probanden angelegt.</div>';
+    return;
+  }
+  var html = '<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)">'
+    + '<thead><tr style="background:#5E35B1;color:#fff">'
+    + '<th style="padding:10px;text-align:left;font-size:11px">Studien-ID</th>'
+    + '<th style="padding:10px;text-align:left;font-size:11px">Laufnr.</th>'
+    + '<th style="padding:10px;text-align:left;font-size:11px">Notiz</th>'
+    + '<th style="padding:10px;text-align:left;font-size:11px">Aktionen</th></tr></thead><tbody>';
+  ps.forEach(function(p){
+    html += '<tr style="border-top:1px solid var(--g2)'+(p.aufpassen?';background:#FFF8E1':'')+'">'
+      + '<td style="padding:8px 10px;font-weight:700">'+(p.aufpassen?'⚠️ ':'')+p.pid+'</td>'
+      + '<td style="padding:8px 10px">'+(p.lnr||'—')+'</td>'
+      + '<td style="padding:8px 10px;font-size:12px;color:var(--g5)">'+(p.notiz||'')+'</td>'
+      + '<td style="padding:8px 10px">'
+      + (window.isAdmin && window.isAdmin() ? '<button class="btn btn-xs" onclick="openEditBHProband(\''+p._id+'\')">Bearbeiten</button> <button class="btn btn-xs btn-d" onclick="delBHProband(\''+p._id+'\')">Löschen</button>' : '')
+      + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+};
 </script>
 
 <!-- ═══════════════════════════════════════════
@@ -8793,18 +9230,26 @@ var _telCW = 0;
 window.switchStudy = function(s) {
   var aa = document.getElementById('nav-aaaging');
   var tel = document.getElementById('nav-telomer');
+  var bh  = document.getElementById('nav-brainhealth');
   var btnAa = document.getElementById('study-aaaging');
   var btnTel = document.getElementById('study-telomer');
+  var btnBh  = document.getElementById('study-brainhealth');
   if(!aa||!tel) return;
+  aa.style.display='none'; tel.style.display='none'; if(bh) bh.style.display='none';
+  btnAa.style.background='transparent'; btnAa.style.color='rgba(255,255,255,.7)'; btnAa.style.borderBottomColor='transparent';
+  btnTel.style.background='transparent'; btnTel.style.color='rgba(255,255,255,.7)'; btnTel.style.borderBottomColor='transparent';
+  if(btnBh) { btnBh.style.background='transparent'; btnBh.style.color='rgba(255,255,255,.7)'; btnBh.style.borderBottomColor='transparent'; }
   if(s==='telomer') {
-    aa.style.display='none'; tel.style.display='flex';
-    btnAa.style.background='transparent'; btnAa.style.color='rgba(255,255,255,.7)'; btnAa.style.borderBottomColor='transparent';
+    tel.style.display='flex';
     btnTel.style.background='#EAD4CB'; btnTel.style.color='#4A2A1F'; btnTel.style.borderBottomColor='#fff';
     goTab('tel-kalender', document.querySelector('#nav-telomer .ntab'));
+  } else if(s==='brainhealth') {
+    if(bh) bh.style.display='flex';
+    if(btnBh) { btnBh.style.background='#D6C9F0'; btnBh.style.color='#3A2A5A'; btnBh.style.borderBottomColor='#fff'; }
+    goTab('bh-kalender', document.querySelector('#nav-brainhealth .ntab'));
   } else {
-    aa.style.display='flex'; tel.style.display='none';
+    aa.style.display='flex';
     btnAa.style.background='var(--ub)'; btnAa.style.color='#fff'; btnAa.style.borderBottomColor='#fff';
-    btnTel.style.background='transparent'; btnTel.style.color='rgba(255,255,255,.7)'; btnTel.style.borderBottomColor='transparent';
     goTab('kalender', document.querySelector('#nav-aaaging .ntab'));
   }
 };
