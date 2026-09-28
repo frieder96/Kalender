@@ -6613,9 +6613,9 @@ const BH_T12_TEMPLATE = Array.from({length:8},function(_,i){
   var iso = String(sH).padStart(2,'0')+':'+String(sM).padStart(2,'0');
   function addT(add){ var t=sm+add; return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0'); }
   return { slot:i+1, blutStart: iso, measures:[
-    {label:'Isokinetik', t:iso},
-    {label:'RBANS', t:addT(60)},
-    {label:'24h Recall', t:addT(90)}
+    {label:'Isokinetik', cls:'ciso', t:iso},
+    {label:'RBANS', cls:'crbans', t:addT(60)},
+    {label:'24h Recall', cls:'crecall', t:addT(90)}
   ]};
 });
 
@@ -6743,6 +6743,17 @@ window.delBHBooking = async function(kind, id){
 
 window.bhWeekNav = function(dir){ if(_bhW===null) _bhW=_bhDefaultWeek(); _bhW += dir; renderBHCalendar(); };
 window.bhWeekToday = function(){ _bhW = _bhDefaultWeek(); renderBHCalendar(); };
+window.bhJumpNextT1 = function(){
+  var today = new Date(); today.setHours(12,0,0,0);
+  var chosenMon = null;
+  for(var i=0;i<BH_T1_WEEKS;i++){
+    var mon = new Date(BH_T1_ANCHOR); mon.setDate(mon.getDate()+i*7);
+    if(mon >= today){ chosenMon = mon; break; }
+  }
+  if(!chosenMon){ chosenMon = new Date(BH_T1_ANCHOR); chosenMon.setDate(chosenMon.getDate()+(BH_T1_WEEKS-1)*7); }
+  _bhW = Math.round((chosenMon - window.START) / (7*86400000));
+  renderBHCalendar();
+};
 
 window.renderBHCalendar = function(){
   var wrap = document.getElementById('bh-kalender-wrap'); if(!wrap) return;
@@ -6753,6 +6764,7 @@ window.renderBHCalendar = function(){
     + '<div style="display:flex;gap:3px"><button class="arr" onclick="bhWeekNav(-1)">&#8592;</button><button class="arr" onclick="bhWeekNav(1)">&#8594;</button></div>'
     + '<span class="month-badge" style="background:#5E35B1">KW ' + kwNum + ' / ' + mon.getFullYear() + '</span>'
     + '<button class="btn btn-sm" onclick="bhWeekToday()" style="margin-left:4px">Aktuelle Woche</button>'
+    + '<button class="btn btn-sm" onclick="bhJumpNextT1()" style="margin-left:4px">→ Nächstes T1</button>'
     + '</div>';
 
   var t0 = bhT0DateInWeek(_bhW);
@@ -6838,9 +6850,20 @@ window.renderBHCalendar = function(){
       html += '<div><div style="text-align:center;font-size:12px;font-weight:700;color:#B85010;margin-bottom:6px">'+day+'</div>';
       BH_T12_TEMPLATE.forEach(function(s){
         var bk4 = bhGetT12Booking(t1wi, day, s.slot);
+        var _bhSlotDate = window._localDate(window._wDay(t1wi, {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4}[day]));
         html += '<div style="background:#fff;border:1px solid #FFCC80;border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:10.5px">';
-        html += '<div style="font-family:monospace;font-weight:700;color:#B85010">'+s.blutStart+' Uhr</div>';
-        html += s.measures.map(function(m){ return '<div style="color:var(--g5)">'+m.label+' · '+m.t+'</div>'; }).join('');
+        html += '<div style="font-family:monospace;font-weight:700;color:#B85010;margin-bottom:3px">'+s.blutStart+' Uhr</div>';
+        html += s.measures.map(function(m){
+          var aKey = ('BH_T12_'+t1wi+'_'+day+'_'+s.slot+'_'+m.label).replace(/[^a-zA-Z0-9_]/g,'_');
+          var a = (window._ASSIGN||{})[aKey];
+          var pName = a && a.person ? ((window._teamCache||{})[a.person]||{}).name || a.person : null;
+          var aRoom = a && a.room ? a.room : '';
+          return '<div class="meas-row" style="border-bottom:1px solid var(--g2);padding:3px 0">'
+            + '<span class="chip '+(m.cls||'')+'" style="min-width:0;flex-shrink:0">'+m.label+' <span class="ct">'+m.t+'</span></span>'
+            + '<span style="flex:1">'+(aRoom?('<span style="font-size:10px;color:var(--ub);margin-left:4px">📍 '+aRoom+'</span>'):'')+'</span>'
+            + (window.isAdmin&&window.isAdmin() ? ('<button class="assign-btn" onclick="openAssignModal(\''+aKey+'\',\''+m.label+'\',\''+day+' '+s.blutStart+' Uhr (BH T1.2)\',\''+_bhSlotDate+'\',\''+m.t+'\')">'+(pName?('<span class="team-chip">'+pName+'</span>'):'+ Person')+'</button>') : (pName?('<span class="team-chip">'+pName+'</span>'):''))
+            + '</div>';
+        }).join('');
         if(bk4){
           var p4 = bhProbandLabel(bk4.pid);
           html += '<div style="display:flex;align-items:center;gap:4px;margin-top:4px">'
