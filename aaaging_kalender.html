@@ -2048,6 +2048,9 @@ window._fbFns = null; // set after import
 window._fbFns = {addDoc, deleteDoc, setDoc, getDoc, getDocs, doc, collection, updateDoc};
 const isAdmin   = () => userRole==='admin';
 const isTrainer = () => userRole==='trainer' || userRole==='admin';
+// Recalls: jeder angemeldete Nutzer darf eintragen/ändern/löschen
+const canRecall = () => !!currentUser; // alle angemeldeten Nutzer dürfen Recalls verwalten (keine Rollenzuordnung nötig)
+window.canRecall = canRecall;
 window.isAdmin   = isAdmin;
 window.isTrainer = isTrainer;
 window.curTermin = 'T0';
@@ -2268,9 +2271,10 @@ onAuthStateChanged(auth, async user => {
     const badge=document.getElementById('role-badge');
     if (userRole==='admin') { badge.textContent='Admin'; badge.className='role-badge admin'; document.getElementById('readonly-banner').classList.remove('show'); }
     else if (userRole==='trainer') { badge.textContent='Trainer'; badge.className='role-badge trainer'; document.getElementById('readonly-banner').classList.remove('show'); }
+    else if (userRole==='recall') { badge.textContent='Recall'; badge.className='role-badge trainer'; document.getElementById('readonly-banner').classList.remove('show'); }
     else { badge.textContent='Nur Lesen'; badge.className='role-badge readonly'; document.getElementById('readonly-banner').classList.add('show'); }
     document.getElementById('add-proband-btn').style.display = isAdmin()?'':'none';
-    document.getElementById('add-recall-btn').style.display  = isAdmin()?'':'none';
+    document.getElementById('add-recall-btn').style.display  = canRecall()?'':'none';
     const tmplBtn = document.getElementById('sp-tmpl-btn');
     if(tmplBtn) tmplBtn.style.display = isAdmin()?'':'none';
     startDB();
@@ -2827,13 +2831,13 @@ function renderWeek() {
           <div class="prow" style="flex-wrap:wrap">
             ${rp?`<span class="pbadge" style="font-size:10px">${rp.pid}</span><span class="lbadge" style="font-size:10px">${rp.lnr}</span>`:'<span class="nop" style="font-size:10px">Proband nicht gefunden</span>'}
             ${rm?`<span class="team-chip" style="font-size:10px">${rm.name}</span>`:''}
-            ${isTrainer()?`<button class="btn btn-xs" onclick="openEditRecall('${r._id}')">✎</button><button class="btn btn-xs btn-d" onclick="delRecall('${r._id}')">✕</button>`:''}
+            ${canRecall()?`<button class="btn btn-xs" onclick="openEditRecall('${r._id}')">✎</button><button class="btn btn-xs btn-d" onclick="delRecall('${r._id}')">✕</button>`:''}
           </div>
           ${r.note?`<div style="font-size:9.5px;color:var(--g5);font-style:italic;margin-top:3px">📝 ${r.note}</div>`:''}
         </div>
       </div>`};
     }) : [];
-    const recallAddBtn = curTermin==='T1' && isTrainer()
+    const recallAddBtn = curTermin==='T1' && canRecall()
       ? `<button class="btn btn-xs" style="margin-top:6px;width:100%;font-size:9.5px" onclick="openAddRecall('${_dayDateStr}')">+ Recall hinzufügen</button>` : '';
 
     const allCards = [...cards, ...famCards, ...recallCards].sort((a,b)=> a.time<b.time?-1:a.time>b.time?1:0);
@@ -3530,7 +3534,7 @@ function renderRecalls() {
           ${r.person?(()=>{const m=TEAM[r.person]||Object.values(TEAM).find(t=>t.name===r.person||t.email===r.person);return m?`<span style="font-size:11px;font-weight:600;color:var(--ub);background:var(--ubl);border:1px solid var(--t1bd);border-radius:99px;padding:1px 8px">${m.name}</span>`:'';})():''}
           ${r.note?`<span style="font-size:12px;color:var(--g5);font-style:italic">· ${r.note}</span>`:''}
         </div>
-        ${isTrainer()?`<div style="display:flex;gap:5px"><button class="btn btn-xs" onclick="openEditRecall('${r._id}')">Bearbeiten</button><button class="btn btn-xs btn-d" onclick="delRecall('${r._id}')">Löschen</button></div>`:''}
+        ${canRecall()?`<div style="display:flex;gap:5px"><button class="btn btn-xs" onclick="openEditRecall('${r._id}')">Bearbeiten</button><button class="btn btn-xs btn-d" onclick="delRecall('${r._id}')">Löschen</button></div>`:''}
       </div>
       ${absentWarn}
     </div>`;
@@ -4144,7 +4148,7 @@ window.deleteRoom = async (id) => {
 };
 
 window.openAddRecall = (presetDate, presetTime, presetRoom) => {
-  if(!isTrainer()){toast('Keine Berechtigung',true);return;}
+  if(!canRecall()){toast('Keine Berechtigung',true);return;}
   recallEditId=null;
   document.getElementById('recall-modal-title').textContent = presetRoom ? `24h Recall eintragen — Raum ${presetRoom}` : '24h Recall eintragen';
   document.getElementById('ir-date').value=presetDate||'';
@@ -6428,7 +6432,7 @@ function isRecallDayReleased(week, day) {
   return !!(rec && rec.released);
 }
 window.toggleRecallDayRelease = async (week, day, released) => {
-  if(!(window.isTrainer && window.isTrainer())){window.toast&&toast('Keine Berechtigung',true);return;}
+  if(!(window.canRecall && window.canRecall())){window.toast&&toast('Keine Berechtigung',true);return;}
   try {
     await window.setDoc(window.doc(window.db,'recall_day_release', recallDayReleaseId(week, day)), {week, day, released: !!released, updated: Date.now()});
   } catch(e){ window.toast&&toast('Fehler: '+e.message, true); }
