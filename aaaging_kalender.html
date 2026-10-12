@@ -6470,6 +6470,20 @@ function getRecallSlotBooking(dateStr, time, room) {
 }
 // Alte Recall-Einträge ohne Raum-Feld, die trotzdem auf diesen Tag/diese Zeit fallen —
 // werden separat angezeigt, damit man sie beim Belegen der Raum-Slots sieht (Doppelbuchungs-Schutz).
+// Recalls, die im Raster sonst nicht erscheinen würden (z.B. vor 11 Uhr, nach 16 Uhr, ohne Uhrzeit,
+// Raum-Termine außerhalb der buchbaren Slots) — werden in einer extra Zeile "Sonstige Zeiten" angezeigt.
+function getRecallsOutsideGrid(dateStr) {
+  const RECALLS = window._RECALLS || {};
+  return Object.values(RECALLS).filter(function(r){
+    if(r.date!==dateStr) return false;
+    const t = r.time || '';
+    if(RECALL_GRID_TIMES.indexOf(t)===-1) return true;            // Zeit nicht im Raster (z.B. 09:00, leer)
+    if(!r.room) return false;                                      // Altbestand im Raster: wird dort schon gezeigt
+    const hour = parseInt(t,10);
+    const official = t.slice(-2)==='00' && hour<=15;
+    return !official || RECALL_GRID_ROOMS.indexOf(r.room)===-1;    // Raumtermin auf inoffizieller Zeit / unbekanntem Raum
+  }).sort(function(a,b){ return (a.time||'').localeCompare(b.time||''); });
+}
 function getLegacyRecallsAt(dateStr, time) {
   const RECALLS = window._RECALLS || {};
   return Object.values(RECALLS).filter(r => r.date===dateStr && r.time===time && !r.room);
@@ -6506,6 +6520,31 @@ window.renderRecallKalender = function() {
       + (released ? 'freigegeben' : 'freigeben') + '</label>';
     html += '<div style="text-align:center;font-size:12px;font-weight:700;color:var(--g5);padding:6px 0">' + day + ' <span style="font-weight:400;color:var(--g4)">' + dStr + '</span>' + releaseToggle + '</div>';
   });
+
+  // Zusatzzeile: Termine außerhalb des Rasters (vor 11 Uhr etc.), damit sie nicht untergehen
+  (function(){
+    var cells = RECALL_GRID_DAYS.map(function(day){
+      var dateStr = _localDate(wDay(_recallGridCW, RECALL_GRID_DAYOFF[day]));
+      var items = getRecallsOutsideGrid(dateStr).map(function(r){
+        var rp = Object.values(allP).find(function(x){ return x._id===r.pid; });
+        var teamCache = window._teamCache || {};
+        var person = r.person ? teamCache[r.person] : null;
+        var mIcon = RECALL_MODE_ICON[r.mode] || '';
+        return '<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:6px;padding:3px 7px;font-size:10px;color:#B85010;margin-bottom:2px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">'
+          + '<strong style="font-family:monospace">' + (r.time||'ohne Zeit') + '</strong>'
+          + (mIcon ? mIcon + ' ' : '') + '<strong>' + (rp?rp.pid:'?') + '</strong>'
+          + (r.room ? '<span style="color:#999">' + r.room + '</span>' : '')
+          + (person ? '<span>👤 ' + person.name + '</span>' : '')
+          + (canRecall() ? '<button onclick="openEditRecall(\'' + r._id + '\')" style="margin-left:auto;background:none;border:none;color:#4A90D9;cursor:pointer;font-size:11px" title="Bearbeiten">✎</button>'
+            + '<button onclick="delRecall(\'' + r._id + '\')" style="background:none;border:none;color:#C8102E;cursor:pointer;font-size:11px" title="Entfernen">✕</button>' : '')
+          + '</div>';
+      }).join('');
+      return '<div>' + items + '</div>';
+    });
+    if(cells.some(function(c){ return c !== '<div></div>'; })) {
+      html += '<div style="display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:10px;color:#B85010;font-weight:700;text-align:right">Sonstige Zeiten</div>' + cells.join('');
+    }
+  })();
 
   RECALL_GRID_TIMES.forEach(function(time){
     var hour = parseInt(time,10);
