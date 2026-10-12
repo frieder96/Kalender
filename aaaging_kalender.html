@@ -10164,7 +10164,7 @@ window.renderTelErinnerungen = function() {
     var _targetISO = '';
     if(targetVal) {
       var _dow = targetVal.getDay()||7;
-      var _anchor = new Date('2026-03-30T12:00:00');
+      var _anchor = new Date(window.START);
       var _monday = new Date(targetVal); _monday.setDate(targetVal.getDate()-_dow+1); _monday.setHours(12,0,0,0);
       var _targetWeek = Math.round((_monday-_anchor)/(7*86400000));
       jumpBtnHtml = '<button type="button" onclick="telErinJumpToWeek('+_targetWeek+')" style="padding:2px 8px;border-radius:6px;border:1px solid #8B5A4A;background:#fff;color:#8B5A4A;font-size:10px;font-weight:600;cursor:pointer;margin-left:6px">→ Zielwoche im Kalender</button>';
@@ -10265,7 +10265,7 @@ window.telErinDateChanged = function(formId) {
     return;
   }
   var dayLabel = DAYNAMES[dow];
-  var anchor = new Date('2026-03-30T12:00:00');
+  var anchor = new Date(window.START);
   var monday = new Date(d); monday.setDate(d.getDate()-dow+1); monday.setHours(12,0,0,0);
   var week = Math.round((monday-anchor)/(7*86400000));
   var kwNum = window.kw ? window.kw(monday) : '?';
@@ -10320,7 +10320,7 @@ window.telErinBook = async function(probandId, termin) {
   var DAYNAMES = {1:'Montag',2:'Dienstag',3:'Mittwoch',4:'Donnerstag',5:'Freitag'};
   if(dow>5){ toast('Bitte einen Wochentag Mo–Fr wählen',true); return; }
   var dayLabel = DAYNAMES[dow];
-  var anchor = new Date('2026-03-30T12:00:00');
+  var anchor = new Date(window.START);
   var monday = new Date(d); monday.setDate(d.getDate()-dow+1); monday.setHours(12,0,0,0);
   var week = Math.round((monday-anchor)/(7*86400000));
 
