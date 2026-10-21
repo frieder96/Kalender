@@ -9952,7 +9952,15 @@ window.renderTelKalender = function() {
               + _telClockBtn
               + (isAdmin ? '<button style="background:none;border:none;color:#888;cursor:pointer;font-size:11px;margin-left:auto" onclick="' + _removeFn + '" title="Buchung entfernen">✕</button>' : '')
               + '</div>'
-              + (telP._customStart ? '<div style="font-size:9.5px;color:#E65100;font-style:italic;margin-bottom:4px">⏰ Manuelle Startzeit: ' + telP._customStart + '</div>' : '');
+              + (telP._customStart ? '<div style="font-size:9.5px;color:#E65100;font-style:italic;margin-bottom:4px">⏰ Manuelle Startzeit: ' + telP._customStart + '</div>' : '')
+              + (function(){
+                  var esc=function(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+                  var notes=[];
+                  if(telP.notiz && String(telP.notiz).trim()) notes.push(esc(String(telP.notiz).trim()));
+                  var _er = window._TEL_ERINNERUNGEN || {};
+                  ['T0','T1','T2'].forEach(function(ph){ var e=_er[telP._id+'_'+ph]; if(e && e.anmerkung && String(e.anmerkung).trim()) notes.push('<span style="color:#8B5A4A">'+ph+'-Erinnerung:</span> '+esc(String(e.anmerkung).trim())); });
+                  return notes.length ? '<div style="font-size:10px;color:#555;background:#FFFBEA;border:1px solid #F1E3A6;border-radius:4px;padding:3px 6px;margin-bottom:5px;white-space:pre-wrap">📝 ' + notes.join('<br>📝 ') + '</div>' : '';
+                })();
           } else if(aaBlocks) {
             html += '<div style="font-size:10.5px;color:#C62828;padding:4px 0;margin-bottom:4px">🔒 AAAging: ' + aaP + '</div>';
           } else {
