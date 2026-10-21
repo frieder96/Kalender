@@ -675,6 +675,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <button id="study-aaaging" class="study-btn active" onclick="switchStudy('aaaging')" style="padding:10px 20px;background:var(--ub);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid #fff">📘 AAAging-Studie</button>
       <button id="study-telomer" class="study-btn" onclick="switchStudy('telomer')" style="padding:10px 20px;background:transparent;color:rgba(255,255,255,.7);border:none;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent">🧬 Telomer-Studie</button>
       <button id="study-brainhealth" class="study-btn" onclick="switchStudy('brainhealth')" style="padding:10px 20px;background:transparent;color:rgba(255,255,255,.7);border:none;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent">🧠 Brain-Health</button>
+      <button id="study-glp" class="study-btn" onclick="switchStudy('glp')" style="padding:10px 20px;background:transparent;color:rgba(255,255,255,.7);border:none;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent">💉 GLP-1-Studie</button>
     </div>
   </div>
   <nav class="unav">
@@ -701,7 +702,18 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <button class="ntab"     onclick="goTab('tel-fortschritt',this)">&#128202; Fortschritt</button>
       <button class="ntab"     onclick="goTab('backup',this)">Backup &amp; Export</button>
     </div>
-    <div class="unav-i" id="nav-brainhealth" style="display:none">
+    <div class="unav-i" id="nav-glp" style="display:none">
+      <button class="ntab on"  onclick="goTab('glp-kalender',this)">Kalender</button>
+      <button class="ntab"     onclick="goTab('glp-erinnerungen',this)">🔔 Erinnerungen</button>
+      <button class="ntab"     onclick="goTab('glp-probanden',this)">Probanden</button>
+      <button class="ntab"     onclick="goTab('team',this)">Team &amp; Aufgaben</button>
+      <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
+      <button class="ntab"     onclick="goTab('raumplan',this)">🏠 Raumplan</button>
+      <button class="ntab"     onclick="goTab('monatsübersicht',this)">📅 Monatsübersicht</button>
+      <button class="ntab"     onclick="goTab('glp-fortschritt',this)">&#128202; Fortschritt</button>
+      <button class="ntab"     onclick="goTab('backup',this)">Backup &amp; Export</button>
+    </div>
+        <div class="unav-i" id="nav-brainhealth" style="display:none">
       <button class="ntab on"  onclick="goTab('bh-kalender',this)">Kalender</button>
       <button class="ntab"     onclick="goTab('bh-probanden',this)">Probanden</button>
       <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
@@ -1202,7 +1214,52 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <div id="tel-fortschritt-content" style="padding:4px 0"></div>
     </div>
 
-    <!-- BRAIN-HEALTH KALENDER -->
+    <!-- GLP-1 KALENDER -->
+    <div id="tab-glp-kalender" class="panel">
+      <div class="phdr">
+        <div><div class="ptitle">💉 GLP-1-Kalender</div><div class="psub">T0 · T1 (+12 Wo) · T2 (+24 Wo) · Mo–Fr · 4 Slots/Tag · ab Jan 2027</div></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn btn-sm" onclick="glpWNav(-1)">←</button>
+          <span id="glp-week-label" style="font-size:13px;font-weight:700;color:var(--ub);min-width:120px;text-align:center"></span>
+          <button class="btn btn-sm" onclick="glpWNav(1)">→</button>
+          <button class="btn btn-sm" onclick="glpWToday()" style="font-size:11px">Heute</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin:10px 0 14px;border-bottom:1px solid var(--g2)">
+        <div style="padding:8px 16px;font-weight:700;color:#0F4A46;font-size:14px;border-bottom:3px solid var(--ub)">T0/1/2 — GLP-1 Kalender</div>
+      </div>
+      <div id="glp-calendar-content"></div>
+    </div>
+
+    <!-- GLP-1 ERINNERUNGSKALENDER -->
+    <div id="tab-glp-erinnerungen" class="panel">
+      <div class="phdr">
+        <div>
+          <div class="ptitle">🔔 GLP-1 Erinnerungskalender</div>
+          <div class="psub">Interventionsstart: Mo nach T0 · T1: 12 Wochen · T2: 24 Wochen (vorläufig)</div>
+        </div>
+      </div>
+      <div id="glp-erinnerungen-content"></div>
+    </div>
+
+    <!-- GLP-1 PROBANDEN -->
+    <div id="tab-glp-probanden" class="panel">
+      <div class="phdr">
+        <div><div class="ptitle">💉 GLP-1-Probanden</div><div class="psub">GLP001, GLP002 &hellip; · Eigener Pool, eigener Export</div></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-p" id="glp-add-btn" onclick="openAddGlpProband()">+ Neuer GLP-1-Proband</button>
+          <button class="btn btn-sm" onclick="exportGlpProbanden()" style="background:#2A2A4A;color:#fff;border-color:#2A2A4A">⬇️ Export (Excel)</button>
+        </div>
+      </div>
+      <div id="glp-proband-list" style="padding:4px 0"></div>
+    </div>
+
+    <div id="tab-glp-fortschritt" class="panel">
+      <div class="phdr"><div><div class="ptitle">💉 GLP-1 Fortschritt &amp; Motivation</div><div class="psub">Studienziel · Probanden-Pipeline · Funfact des Tages</div></div></div>
+      <div id="glp-fortschritt-content" style="padding:4px 0"></div>
+    </div>
+
+        <!-- BRAIN-HEALTH KALENDER -->
     <div id="tab-bh-kalender" class="panel">
       <div class="phdr">
         <div><div class="ptitle">🧠 Brain-Health Kalender</div><div class="psub">Blutabnahme (T0) · Einführungsgespräch (Mo–Do) · T1 / T2 in Wellen</div></div>
@@ -1245,6 +1302,72 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     </div>
   </div>
 </div>
+
+<!-- GLP-1 PROBAND MODAL -->
+<div class="ov" id="glp-proband-modal" onclick="if(event.target===this)closeGlpProband()">
+  <div class="modal">
+    <div class="mhdr" style="background:#CDEBE8;color:#0F4A46"><span class="mtitle" id="glp-proband-title">Neuer GLP-1-Proband</span><button class="mclose" onclick="closeGlpProband()">×</button></div>
+    <div class="mbody">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="fg"><label class="fl">GLP-ID</label><input class="fi" id="glpp-tid" placeholder="GLP001"></div>
+        <div class="fg"><label class="fl">Laufnr.</label><input class="fi" id="glpp-lnr" placeholder="optional"></div>
+      </div>
+      <div class="fg"><label class="fl">Notiz</label><textarea class="notiz-box" id="glpp-notiz" placeholder="Besonderheiten …"></textarea></div>
+      <div class="fg" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#FFF8E1;border:1px solid #FFD54F;border-radius:var(--r)">
+        <input type="checkbox" id="glpp-aufpassen" style="width:18px;height:18px;cursor:pointer;accent-color:#E65100">
+        <label for="glpp-aufpassen" style="font-size:13px;font-weight:700;color:#E65100;cursor:pointer">⚠️ Aufpassen</label>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-sm" onclick="closeGlpProband()">Abbrechen</button>
+      <button class="btn btn-sm btn-p" onclick="saveGlpProband()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- GLP-1 SLOT ZUWEISEN MODAL -->
+<div class="ov" id="glp-assign-modal" onclick="if(event.target===this)closeGlpAssign()">
+  <div class="modal">
+    <div class="mhdr" style="background:#CDEBE8;color:#0F4A46"><span class="mtitle" id="glp-assign-title">Slot belegen</span><button class="mclose" onclick="closeGlpAssign()">×</button></div>
+    <div class="mbody">
+      <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="glp-assign-info"></div>
+      <div class="fg"><label class="fl">Termin-Typ</label>
+        <select class="fi" id="glp-assign-ttype">
+          <option value="T0">T0 — Voruntersuchung</option>
+          <option value="T1">T1 — +12 Wochen</option>
+          <option value="T2">T2 — +24 Wochen</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Bestehenden GLP-1-Proband zuweisen</label>
+        <select class="fi" id="glp-assign-pid"></select>
+      </div>
+      <div style="border-top:1px solid var(--g2);margin:14px 0 10px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--g4)">oder</span>
+        <button class="btn btn-sm" onclick="glpSlotAssignOpenNew()" style="font-size:11px">+ Neuen GLP-1-Proband anlegen</button>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-sm" onclick="closeGlpAssign()">Abbrechen</button>
+      <button class="btn btn-sm btn-p" onclick="saveGlpAssign()">Zuweisen</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- GLP-1 ZUSATZ-SLOT MODAL -->
+<div class="ov" id="glp-slot-modal" style="display:none" onclick="if(event.target===this)closeGlpSlotModal()">
+  <div class="modal">
+    <div class="mhdr" style="background:#7B1FA2"><span class="mtitle">GLP-1-Slot hinzufügen</span><button class="mclose" onclick="closeGlpSlotModal()">×</button></div>
+    <div class="mbody">
+      <div style="font-size:12px;color:var(--g5);margin-bottom:12px" id="glp-slot-info"></div>
+      <div class="fg"><label class="fl">Startzeit</label><input class="fi" type="time" id="glp-slot-time"></div>
+      <div style="font-size:11px;color:var(--g4)">Der neue Slot bekommt den vollen GLP-1-Messablauf (Vorbesprechung, BIA/Blutabnahme, Mikrokern, Beinpresse, Kognitive Testbatterie, Fragebogen) beginnend zur gewählten Uhrzeit.</div>
+    </div>
+    <div class="mftr"><button class="btn btn-sm" onclick="closeGlpSlotModal()">Abbrechen</button><button class="btn btn-sm btn-p" onclick="saveGlpSlotTime()">Hinzufügen</button></div>
+  </div>
+</div>
+
 
 <!-- BRAIN-HEALTH PROBAND MODAL -->
 <div class="ov" id="bh-proband-modal" onclick="if(event.target===this)closeBHProband()">
@@ -1659,6 +1782,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
           <option value="EEG">EEG</option>
           <option value="MRT">MRT</option>
           <option value="TEL">🧬 Telomer (T0/T1/T2)</option>
+          <option value="GLP">💉 GLP-1 (T0/T1/T2)</option>
         </select>
       </div>
     </div>
@@ -1971,6 +2095,56 @@ const TEL_T2 = _buildTelSlots(true);   // T2 mit Blutabnahme
 window._TEL_T0 = TEL_T0; window._TEL_T1 = TEL_T1; window._TEL_T2 = TEL_T2;
 window._TEL_DAYS = TEL_DAYS;
 
+// ── GLP-1-STUDIE (Kopie der Telomer-Struktur, Messungen hier anpassbar) ─────────────────────────────────────────
+// 4 slots pro Tag (Mo-Fr), gleiche Startzeiten wie T1 Slots 1-4 (8:00, 8:00, 8:15, 8:15)
+// Teilt sich Slots mit AAAging T1.1 (Mo/Di Slots 1-4) - gemeinsame Belegung!
+// T0 und T2: MIT Blutabnahme, T1: OHNE Blutabnahme
+const GLP_STARTS = ['08:00','08:00','08:30','08:30'];
+const GLP_DAYS = [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
+
+function _buildOneGlpSlot(slotNum, bs, withBlood) {
+  const [bH,bM]=bs.split(':').map(Number);
+  const isOdd = slotNum%2===1;
+  const inviteTime = am(bH,bM,-15);
+  const measures = [];
+  measures.push({label:'Vorbesprechung',cls:'cfrueh',t:inviteTime});
+  if(withBlood) {
+    if(isOdd) {
+      measures.push({label:'Blutabnahme',cls:'cblut',t:bs,persons:2});
+      measures.push({label:'BIA',cls:'cbia',t:am(bH,bM,15)});
+    } else {
+      measures.push({label:'BIA',cls:'cbia',t:bs});
+      measures.push({label:'Blutabnahme',cls:'cblut',t:am(bH,bM,15),persons:2});
+    }
+    measures.push({label:'Mikrokern',cls:'cmikro',t:am(bH,bM,30),persons:3});
+  } else {
+    measures.push({label:'BIA',cls:'cbia',t:bs});
+    measures.push({label:'Mikrokern',cls:'cmikro',t:am(bH,bM,15),persons:3});
+  }
+  const splitOffset = withBlood ? 45 : 30;
+  if(isOdd) {
+    measures.push({label:'Beinpresse',cls:'ciso',t:am(bH,bM, splitOffset)});
+    measures.push({label:'Kognitive Testbatterie',cls:'crbans',t:am(bH,bM, splitOffset+60)});
+    measures.push({label:'Fragebogen',cls:'cfb',t:am(bH,bM, splitOffset+105)});
+  } else {
+    measures.push({label:'Kognitive Testbatterie',cls:'crbans',t:am(bH,bM, splitOffset)});
+    measures.push({label:'Fragebogen',cls:'cfb',t:am(bH,bM, splitOffset+45)});
+    measures.push({label:'Beinpresse',cls:'ciso',t:am(bH,bM, splitOffset+60)});
+  }
+  return { slot:slotNum, blutStart:bs, inviteTime, measures };
+}
+window._buildOneGlpSlot = _buildOneGlpSlot;
+
+function _buildGlpSlots(withBlood) {
+  return GLP_STARTS.map((bs,i) => _buildOneGlpSlot(i+1, bs, withBlood));
+}
+const GLP_T0 = _buildGlpSlots(true);   // T0 mit Blutabnahme
+const GLP_T1 = _buildGlpSlots(false);  // T1 ohne Blutabnahme
+const GLP_T2 = _buildGlpSlots(true);   // T2 mit Blutabnahme
+
+window._GLP_T0 = GLP_T0; window._GLP_T1 = GLP_T1; window._GLP_T2 = GLP_T2;
+window._GLP_DAYS = GLP_DAYS;
+
 // EEG: Di/Mi/Do/Fr, 3 fixed 2.5h slots
 const EEG_STARTS = ['09:00','11:30','15:00'];
 const EEG_ENDS   = ['11:30','14:00','17:30'];
@@ -2048,6 +2222,7 @@ window._isT0ExtraFriWeek = isT0ExtraFriWeek;
 
 // ── STATE ─────────────────────────
 let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={}, ROOMS={}, ROOM_BLOCKS={}, TELP={}, TEL_ERINNERUNGEN={}, KW27_BOOKINGS={}, SONDERTAGE={}, T_BOOKINGS={}, TEL_BOOKINGS={}, DAY_LAYOUTS={};
+let GLPP={}, GLP_ERINNERUNGEN={}, GLP_BOOKINGS={}, GLP_EXTRA_SLOTS={}, GLP_SLOT_OVERRIDES={};
 window._P = () => P;
 // Initial-Woche: aktuelle KW (relativ zum Studien-Start), nicht KW 0
 let cW = (() => {
@@ -2249,6 +2424,21 @@ function getTelSlotOverridesForDay(w, day) {
   return stored?.overrides || {};
 }
 window.getTelSlotOverridesForDay = getTelSlotOverridesForDay;
+
+// Zusätzliche (manuell hinzugefügte) GLP-1-Slots für eine bestimmte Woche+Tag
+function getGlpExtraSlotsForDay(w, day) {
+  const src = window._GLP_EXTRA_SLOTS || GLP_EXTRA_SLOTS;
+  const stored = Object.values(src).find(s=>s.week===w&&s.day===day);
+  return stored?.times || [];
+}
+window.getGlpExtraSlotsForDay = getGlpExtraSlotsForDay;
+// Manuelle Zeit-Überschreibungen der 4 Standard-Slots für eine bestimmte Woche+Tag → {slotNum: 'HH:MM'}
+function getGlpSlotOverridesForDay(w, day) {
+  const src = window._GLP_SLOT_OVERRIDES || GLP_SLOT_OVERRIDES;
+  const stored = Object.values(src).find(s=>s.week===w&&s.day===day);
+  return stored?.overrides || {};
+}
+window.getGlpSlotOverridesForDay = getGlpSlotOverridesForDay;
 // FAM: Lookup by time string (new), fällt zurück auf slotIdx (alte Daten)
 const byFAM = (w, day, time) => {
   let bk = Object.values(FAM_BOOKINGS).find(b=>b.week===w&&b.day===day&&b.time===time);
@@ -2418,6 +2608,32 @@ function startDB() {
     if(window.renderTelErinnerungen) window.renderTelErinnerungen();
     if(window.renderTelFortschritt) window.renderTelFortschritt();
     if(window.renderTelProbanden) window.renderTelProbanden();
+  });
+  onSnapshot(collection(db,'glp_probanden'), snap => {
+    GLPP={}; snap.forEach(d=>{GLPP[d.id]={...d.data(),_id:d.id}}); window._GLPP=GLPP;
+    if(window.renderGlpProbanden) window.renderGlpProbanden();
+    if(window.renderGlpKalender) window.renderGlpKalender();
+    if(window.renderGlpErinnerungen) window.renderGlpErinnerungen();
+    if(window.renderGlpFortschritt) window.renderGlpFortschritt();
+  });
+  onSnapshot(collection(db,'glp_erinnerungen'), snap => {
+    GLP_ERINNERUNGEN={}; snap.forEach(d=>{GLP_ERINNERUNGEN[d.id]={...d.data(),_id:d.id}});
+    window._GLP_ERINNERUNGEN = GLP_ERINNERUNGEN;
+    if(window.renderGlpErinnerungen) window.renderGlpErinnerungen();
+  });
+  onSnapshot(collection(db,'glp_extra_slots'), snap => {
+    GLP_EXTRA_SLOTS={}; snap.forEach(d=>{GLP_EXTRA_SLOTS[d.id]={...d.data(),_id:d.id}}); window._GLP_EXTRA_SLOTS=GLP_EXTRA_SLOTS; if(window.renderGlpKalender) window.renderGlpKalender();
+  });
+  onSnapshot(collection(db,'glp_slot_overrides'), snap => {
+    GLP_SLOT_OVERRIDES={}; snap.forEach(d=>{GLP_SLOT_OVERRIDES[d.id]={...d.data(),_id:d.id}}); window._GLP_SLOT_OVERRIDES=GLP_SLOT_OVERRIDES; if(window.renderGlpKalender) window.renderGlpKalender();
+  });
+  onSnapshot(collection(db,'glp_bookings'), snap => {
+    GLP_BOOKINGS={}; snap.forEach(d=>{GLP_BOOKINGS[d.id]={...d.data(),_id:d.id}});
+    window._GLP_BOOKINGS = GLP_BOOKINGS;
+    if(window.renderGlpKalender) window.renderGlpKalender();
+    if(window.renderGlpErinnerungen) window.renderGlpErinnerungen();
+    if(window.renderGlpFortschritt) window.renderGlpFortschritt();
+    if(window.renderGlpProbanden) window.renderGlpProbanden();
   });
   onSnapshot(collection(db,'day_layouts'), snap => {
     DAY_LAYOUTS={}; snap.forEach(d=>{DAY_LAYOUTS[d.id]={...d.data(),_id:d.id}});
@@ -3950,6 +4166,30 @@ window.setTelCustomStartTime = async (bookingId, defaultTime) => {
   } catch(e){toast('Fehler: '+e.message,true);}
 };
 
+// Manuelle Startzeit für eine GLP-1-Buchung
+window.setGlpCustomStartTime = async (bookingId, defaultTime) => {
+  if(!isAdmin()){toast('Keine Berechtigung',true);return;}
+  const bk = GLP_BOOKINGS[bookingId]; if(!bk){toast('Buchung nicht gefunden',true);return;}
+  const current = bk.customStartTime || defaultTime;
+  const input = prompt(`Neue Startzeit (Format HH:MM)\nAktuell: ${current}${bk.customStartTime?' (manuell)':' (Slot-Default)'}\n\nLeer lassen oder "x" um manuelle Zeit zu entfernen.`, current);
+  if(input === null) return;
+  const trimmed = input.trim();
+  if(trimmed === '' || trimmed.toLowerCase() === 'x') {
+    try {
+      await updateDoc(doc(db,'glp_bookings',bookingId),{customStartTime:null, updated:Date.now()});
+      toast('Manuelle Startzeit entfernt ✓');
+    } catch(e){toast('Fehler: '+e.message,true);}
+    return;
+  }
+  if(!/^([01]?\d|2[0-3]):[0-5]\d$/.test(trimmed)){toast('Ungültige Zeit (z.B. 08:30)',true);return;}
+  const [hh, mm] = trimmed.split(':');
+  const norm = `${String(parseInt(hh)).padStart(2,'0')}:${mm}`;
+  try {
+    await updateDoc(doc(db,'glp_bookings',bookingId),{customStartTime:norm, updated:Date.now()});
+    toast(`Startzeit auf ${norm} gesetzt ✓`);
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+
 window.slotAssignOpenNew = () => {
   closeSlotAssign();
   const ctx = window._slotCtx;
@@ -5331,7 +5571,7 @@ window.exportRecalls = () => {
 // ── VOLLSTÄNDIGES BACKUP ───────────────────────────────────────────
 const BACKUP_COLLECTIONS = [
   'probanden','recalls','team','assignments','sperren',
-  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots','tel_slot_overrides','aaa_slot_overrides','recall_day_release',
+  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots','tel_slot_overrides','glp_probanden','glp_erinnerungen','glp_bookings','glp_extra_slots','glp_slot_overrides','aaa_slot_overrides','recall_day_release',
   'training_logs','training_templates','recall_rooms',
   'sp_slots','sp_probands','sp_day_trainers',
   'bh_probanden','bh_t0_room','bh_t0_bookings','bh_t1_bookings','bh_t12_bookings','bh_weeks','bh_t0_dates','bh_intro_bookings','bh_intro_slots'
@@ -5827,6 +6067,89 @@ window.editTelSlotTime = async (w, day, oldTime) => {
   } catch(e){toast('Fehler: '+e.message,true);}
 };
 
+// ── GLP-1: zusätzliche Slots (analog zu MRT) ──────────────────────
+let _glpSlotCtx = null;
+window.openAddGlpSlot = (w, day) => {
+  _glpSlotCtx = {w, day};
+  document.getElementById('glp-slot-info').textContent = `${day} · KW ${kw(wMon(w))}`;
+  document.getElementById('glp-slot-time').value = '';
+  document.getElementById('glp-slot-modal').style.display='flex';
+};
+window.closeGlpSlotModal = () => { document.getElementById('glp-slot-modal').style.display='none'; };
+window.saveGlpSlotTime = async () => {
+  if(!_glpSlotCtx) return;
+  const {w,day} = _glpSlotCtx;
+  const t = document.getElementById('glp-slot-time').value;
+  if(!t){toast('Bitte Uhrzeit eingeben',true);return;}
+  try {
+    const src = window._GLP_EXTRA_SLOTS || GLP_EXTRA_SLOTS;
+    const existing = Object.values(src).find(s=>s.week===w&&s.day===day);
+    if(existing){
+      if((existing.times||[]).includes(t)){toast('Diese Uhrzeit ist bereits vorhanden',true);return;}
+      const times = [...(existing.times||[]),t].sort();
+      await setDoc(doc(db,'glp_extra_slots',existing._id),{week:w,day,times});
+    } else {
+      await addDoc(collection(db,'glp_extra_slots'),{week:w,day,times:[t]});
+    }
+    toast('Slot hinzugefügt ✓'); closeGlpSlotModal();
+    if(window.renderGlpKalender) window.renderGlpKalender();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+window.delGlpSlotTime = async (w, day, time) => {
+  const src = window._GLP_EXTRA_SLOTS || GLP_EXTRA_SLOTS;
+  const existing = Object.values(src).find(s=>s.week===w&&s.day===day);
+  if(!existing) return;
+  if(!confirm(`Zusatz-Slot ${time} Uhr wirklich entfernen?\n\nHinweis: Bereits zugewiesene Mitarbeiter*innen für diesen Slot bleiben in den Buchungsdaten stehen, werden aber nicht mehr angezeigt.`)) return;
+  try {
+    const times = (existing.times||[]).filter(t=>t!==time);
+    await setDoc(doc(db,'glp_extra_slots',existing._id),{week:w,day,times});
+    toast('Zusatz-Slot entfernt ✓');
+    if(window.renderGlpKalender) window.renderGlpKalender();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+
+// Startzeit eines der 4 Standard-Slots für eine bestimmte Woche+Tag ändern —
+// wirkt nur für diesen einen Tag (nicht dauerhaft für alle Wochen), Reihenfolge passt sich automatisch an.
+window.editGlpBaseSlotTime = async (w, day, slotNum, oldTime) => {
+  const input = prompt(`Neue Startzeit für Slot ${slotNum} an diesem Tag (Format HH:MM)\nAktuell: ${oldTime}\n\nGilt nur für diesen einen Termin/Tag. Bereits zugewiesene Mitarbeiter*innen bleiben in den Buchungsdaten stehen, werden aber ggf. nicht mehr an der erwarteten Messung angezeigt, falls sich Zeiten verschieben.`, oldTime);
+  if(input===null) return;
+  const t = input.trim();
+  if(!/^\d{1,2}:\d{2}$/.test(t)){toast('Ungültiges Format, bitte HH:MM',true);return;}
+  const norm = t.split(':').map((x,i)=>i===0?x.padStart(2,'0'):x).join(':');
+  if(norm===oldTime) return;
+  try {
+    const src = window._GLP_SLOT_OVERRIDES || GLP_SLOT_OVERRIDES;
+    const existing = Object.values(src).find(s=>s.week===w&&s.day===day);
+    const overrides = {...(existing?.overrides||{}), [slotNum]: norm};
+    if(existing){
+      await setDoc(doc(db,'glp_slot_overrides',existing._id),{week:w,day,overrides});
+    } else {
+      await addDoc(collection(db,'glp_slot_overrides'),{week:w,day,overrides});
+    }
+    toast('Startzeit geändert ✓');
+    if(window.renderGlpKalender) window.renderGlpKalender();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+// (die Anzeige sortiert bei jedem Rendern chronologisch nach Startzeit).
+window.editGlpSlotTime = async (w, day, oldTime) => {
+  const src = window._GLP_EXTRA_SLOTS || GLP_EXTRA_SLOTS;
+  const existing = Object.values(src).find(s=>s.week===w&&s.day===day);
+  if(!existing) return;
+  const input = prompt(`Neue Uhrzeit für den Zusatz-Slot (Format HH:MM)\nAktuell: ${oldTime}\n\nHinweis: Bereits zugewiesene Mitarbeiter*innen für diesen Slot bleiben in den Buchungsdaten stehen, werden aber nicht mehr angezeigt.`, oldTime);
+  if(input===null) return;
+  const t = input.trim();
+  if(!/^\d{1,2}:\d{2}$/.test(t)){toast('Ungültiges Format, bitte HH:MM',true);return;}
+  const norm = t.split(':').map((x,i)=>i===0?x.padStart(2,'0'):x).join(':');
+  if(norm===oldTime) return;
+  if((existing.times||[]).includes(norm)){toast('Diese Uhrzeit ist bereits vorhanden',true);return;}
+  try {
+    const times = (existing.times||[]).filter(x=>x!==oldTime).concat([norm]).sort();
+    await setDoc(doc(db,'glp_extra_slots',existing._id),{week:w,day,times});
+    toast('Uhrzeit geändert ✓');
+    if(window.renderGlpKalender) window.renderGlpKalender();
+  } catch(e){toast('Fehler: '+e.message,true);}
+};
+
 // ── FAMILIARISIERUNG ──────────────
 let _famBookCtx = null, _famSlotCtx = null;
 window.openFAMBookModal = (w, day, time) => {
@@ -6312,6 +6635,17 @@ function renderMonatsübersicht() {
     }
   });
 
+  // GLP-1 events
+  var GLPP_M = window._GLPP || {};
+  var GLP_TIMES = ['08:00','08:00','08:30','08:30'];
+  Object.values(window._GLP_BOOKINGS || {}).forEach(function(bk) {
+    if(bk.week === undefined || !bk.day || !bk.slot) return;
+    var gp = GLPP_M[bk.probandId] || {};
+    var gt = bk.termin || 'T0';
+    var gtime = bk.customStartTime || (bk.slot < 5000 ? (GLP_TIMES[bk.slot-1]||'') : String(Math.floor((bk.slot-5000)/100)).padStart(2,'0')+':'+String((bk.slot-5000)%100).padStart(2,'0'));
+    addEv(wDay(bk.week, DAYOFF[bk.day]||0), bk.tid||gp.tid, bk.lnr||gp.lnr, 'GLP '+gt, gtime, gp.aufpassen);
+  });
+
   var TYPE_COLOR = {
     'T0':     {bg:'#E3F0FF', border:'#7BAEE0', color:'#1A4A8A', label:'T0'},
     'T1.1':   {bg:'#E0EBFF', border:'#A7BFEC', color:'#1E3F9C', label:'T1.1'},
@@ -6326,6 +6660,9 @@ function renderMonatsübersicht() {
     'TEL T0': {bg:'#FFEFD8', border:'#FFC380', color:'#A65300', label:'🧬 T0'},
     'TEL T1': {bg:'#FCE2D6', border:'#F0A88F', color:'#9F3D17', label:'🧬 T1'},
     'TEL T2': {bg:'#E8D5C4', border:'#B8916F', color:'#5C3416', label:'🧬 T2'},
+    'GLP T0': {bg:'#DDF3F0', border:'#7FC4BE', color:'#0F4A46', label:'💉 T0'},
+    'GLP T1': {bg:'#C8EBE6', border:'#5BB0A9', color:'#0B3F3B', label:'💉 T1'},
+    'GLP T2': {bg:'#B3E1DB', border:'#2A8C85', color:'#08332F', label:'💉 T2'},
     'RECALL': {bg:'#FFF8E1', border:'#FFD54F', color:'#8B6F00', label:'📋 Recall'},
   };
 
@@ -6630,7 +6967,7 @@ function goTab(name,btn){
   if(btn) btn.classList.add('on');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('tab-'+name).classList.add('on');
-  const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export',abwesenheit:'Abwesenheiten',raumplan:'Live Raumplan',studio:'Studio & Training','bh-kalender':'Brain-Health Kalender','bh-probanden':'Brain-Health Probanden'};
+  const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export',abwesenheit:'Abwesenheiten',raumplan:'Live Raumplan',studio:'Studio & Training','glp-kalender':'GLP-1 Kalender','glp-erinnerungen':'GLP-1 Erinnerungen','glp-probanden':'GLP-1 Probanden','glp-fortschritt':'GLP-1 Fortschritt','bh-kalender':'Brain-Health Kalender','bh-probanden':'Brain-Health Probanden'};
   document.getElementById('bcc').textContent=L[name]||name;
   if(name==='team'){tW=cW;renderTaskTab();}
   if(name==='recalls'){ renderRecallHolidays(); if(window._recallView==='kalender' && window.renderRecallKalender) window.renderRecallKalender(); }
@@ -9621,30 +9958,19 @@ var _telCurTermin = 'T0';
 var _telCW = 0;
 
 window.switchStudy = function(s) {
-  var aa = document.getElementById('nav-aaaging');
-  var tel = document.getElementById('nav-telomer');
-  var bh  = document.getElementById('nav-brainhealth');
-  var btnAa = document.getElementById('study-aaaging');
-  var btnTel = document.getElementById('study-telomer');
-  var btnBh  = document.getElementById('study-brainhealth');
-  if(!aa||!tel) return;
-  aa.style.display='none'; tel.style.display='none'; if(bh) bh.style.display='none';
-  btnAa.style.background='transparent'; btnAa.style.color='rgba(255,255,255,.7)'; btnAa.style.borderBottomColor='transparent';
-  btnTel.style.background='transparent'; btnTel.style.color='rgba(255,255,255,.7)'; btnTel.style.borderBottomColor='transparent';
-  if(btnBh) { btnBh.style.background='transparent'; btnBh.style.color='rgba(255,255,255,.7)'; btnBh.style.borderBottomColor='transparent'; }
-  if(s==='telomer') {
-    tel.style.display='flex';
-    btnTel.style.background='#EAD4CB'; btnTel.style.color='#4A2A1F'; btnTel.style.borderBottomColor='#fff';
-    goTab('tel-kalender', document.querySelector('#nav-telomer .ntab'));
-  } else if(s==='brainhealth') {
-    if(bh) bh.style.display='flex';
-    if(btnBh) { btnBh.style.background='#D6C9F0'; btnBh.style.color='#3A2A5A'; btnBh.style.borderBottomColor='#fff'; }
-    goTab('bh-kalender', document.querySelector('#nav-brainhealth .ntab'));
-  } else {
-    aa.style.display='flex';
-    btnAa.style.background='var(--ub)'; btnAa.style.color='#fff'; btnAa.style.borderBottomColor='#fff';
-    goTab('kalender', document.querySelector('#nav-aaaging .ntab'));
-  }
+  var navs = {aaaging:'nav-aaaging', telomer:'nav-telomer', glp:'nav-glp', brainhealth:'nav-brainhealth'};
+  var btns = {aaaging:'study-aaaging', telomer:'study-telomer', glp:'study-glp', brainhealth:'study-brainhealth'};
+  var act = {aaaging:['var(--ub)','#fff','kalender','#nav-aaaging'], telomer:['#EAD4CB','#4A2A1F','tel-kalender','#nav-telomer'], glp:['#CDEBE8','#0F4A46','glp-kalender','#nav-glp'], brainhealth:['#D6C9F0','#3A2A5A','bh-kalender','#nav-brainhealth']};
+  if(!act[s]) s='aaaging';
+  Object.keys(navs).forEach(function(k){
+    var n=document.getElementById(navs[k]), b=document.getElementById(btns[k]);
+    if(n) n.style.display='none';
+    if(b){ b.style.background='transparent'; b.style.color='rgba(255,255,255,.7)'; b.style.borderBottomColor='transparent'; }
+  });
+  var nav=document.getElementById(navs[s]), btn=document.getElementById(btns[s]);
+  if(nav) nav.style.display='flex';
+  if(btn){ btn.style.background=act[s][0]; btn.style.color=act[s][1]; btn.style.borderBottomColor='#fff'; }
+  goTab(act[s][2], document.querySelector(act[s][3]+' .ntab'));
 };
 
 window.setTelTermin = function(t, btn) {
@@ -10915,6 +11241,1203 @@ window.renderTelFortschritt = function() {
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
     + '<div style="background:linear-gradient(135deg,#5E2A1F,#8B5A4A);border-radius:var(--rl);padding:24px;box-shadow:var(--sh)">'
     + '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.7);letter-spacing:.1em;margin-bottom:12px">🧬 FUNFACT DES TAGES</div>'
+    + '<div style="font-size:14px;color:#fff;line-height:1.6">' + funfact + '</div>'
+    + '</div>'
+    + '<div style="' + milestoneStyle + ';border-radius:var(--rl);padding:24px;box-shadow:var(--sh)">'
+    + milestoneContent
+    + '</div></div>';
+};
+var _glpCurTermin = 'T0';
+var _glpCW = null;
+var GLP_START_ISO = '2027-01-04';   // erster Montag 2027 — GLP-1-Kalender beginnt hier
+function _glpStartWeek(){ return Math.max(0, Math.floor((new Date(GLP_START_ISO+'T12:00:00') - window.START) / (7*86400000))); }
+function _glpNowWeek(){ var now = new Date(); now.setHours(12,0,0,0); var day = now.getDay()||7; var thisMon = new Date(now); thisMon.setDate(now.getDate()-day+1); return Math.round((thisMon - window.START)/(7*86400000)); }
+function _glpDefaultWeek(){ return Math.max(_glpStartWeek(), _glpNowWeek()); }
+
+window.setGlpTermin = function(t, btn) {
+  _glpCurTermin = t;
+  document.querySelectorAll('#tab-glp-kalender .ttab').forEach(function(b){ b.classList.remove('on'); b.style.borderBottomColor='transparent'; b.style.fontWeight='600'; b.style.color='#888'; });
+  if(btn){ btn.classList.add('on'); btn.style.borderBottomColor='var(--ub)'; btn.style.fontWeight='700'; btn.style.color=''; }
+  renderGlpKalender();
+};
+
+window.glpWNav = function(dir) {
+  if(_glpCW===null) _glpCW = _glpDefaultWeek();
+  var newCW = _glpCW + dir;
+  if(window.N_WEEKS) newCW = Math.max(_glpStartWeek(), Math.min(window.N_WEEKS - 1, newCW));
+  else newCW = Math.max(_glpStartWeek(), newCW);
+  if(newCW === _glpCW) {
+    if(window.toast) window.toast('Erreichte Grenze ('+(_glpCW<=_glpStartWeek()?'Studienanfang (Jan 2027)':'Studienende')+')',true);
+    return;
+  }
+  _glpCW = newCW;
+  window._glpManualNav = true;
+  try {
+    renderGlpKalender();
+  } catch(err) {
+    console.error('renderGlpKalender Fehler:', err);
+    if(window.toast) window.toast('Render-Fehler: '+(err.message||err),true);
+    var el = document.getElementById('glp-calendar-content');
+    if(el) el.innerHTML = '<div style="padding:20px;color:#C8102E;font-family:monospace;font-size:11px;background:#FFF3F3;border:1px solid #FFCDD2;border-radius:6px">⚠️ Render-Fehler in KW '+_glpCW+':<br>'+(err.message||err)+'<br><br>'+(err.stack||'').replace(/</g,'&lt;').slice(0,500)+'</div>';
+  }
+};
+window.glpWToday = function() {
+  _glpCW = _glpDefaultWeek();
+  window._glpManualNav = false;
+  renderGlpKalender();
+};
+
+window.renderGlpKalender = function() {
+  var el = document.getElementById('glp-calendar-content'); if(!el) return;
+  if(_glpCW===null) _glpCW = _glpDefaultWeek();
+  var wDay = window._wDay;
+  var localDate = window._localDate;
+  var wMon = window.wMon || function(w){ var d=new Date(window.START); d.setDate(d.getDate()+w*7); return d; };
+  var kwFn = window.kw;
+  if(!wDay||!localDate){ el.innerHTML='<div style="padding:20px;color:#888">Wird geladen…</div>'; return; }
+
+  var slots = window._GLP_T0; // einheitliche Slot-Struktur für T0/T1/T2 (kombinierte Ansicht)
+  var GLP_DAYS = window._GLP_DAYS || [{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3},{label:'Freitag',off:4}];
+
+  var lbl = document.getElementById('glp-week-label');
+  var mo = wMon(_glpCW);
+  if(lbl && kwFn) lbl.textContent = 'KW ' + kwFn(mo) + ' / ' + mo.getFullYear();
+
+  // GLP-1 ist unabhängig von AAAging (keine gemeinsame Slot-Belegung)
+  var aaOccupiedByTime = {};
+  function _glpAaT12Conflict(){ return null; }
+  function _glpAaT0Conflict(){ return null; }
+
+  var glpAssigned = {};
+  // 1) Neue glp_bookings collection (alle 3 Termin-Typen)
+  Object.values(window._GLP_BOOKINGS||{}).forEach(function(bk) {
+    if(bk.week===_glpCW && bk.day && bk.slot) {
+      var tp = Object.values(window._GLPP||{}).find(function(x){ return x._id===bk.probandId; });
+      if(tp) {
+        var copy = Object.assign({}, tp, {_glpTermin: bk.termin||'T0', _glpBookingId: bk._id, _customStart: bk.customStartTime||null});
+        glpAssigned[bk.day + '_' + bk.slot] = copy;
+      }
+    }
+  });
+  // 2) Legacy: bestehende T0/T1/T2 Einträge in GLPP-Feldern
+  Object.values(window._GLPP||{}).forEach(function(tp) {
+    ['T0','T1','T2'].forEach(function(termin) {
+      var wField = termin==='T0' ? tp.t0week : termin==='T1' ? tp.t1week : tp.t2week;
+      var dField = termin==='T0' ? tp.t0day  : termin==='T1' ? tp.t1day  : tp.t2day;
+      var sField = termin==='T0' ? tp.t0slot : termin==='T1' ? tp.t1slot : tp.t2slot;
+      if(wField===_glpCW && dField && sField) {
+        var key = dField + '_' + sField;
+        if(!glpAssigned[key]) {
+          glpAssigned[key] = Object.assign({}, tp, {_glpTermin: termin});
+        }
+      }
+    });
+  });
+
+  var fD = function(d){ return d.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'}); };
+  var isHoliday = window._isAustrianHoliday;
+  var ASSIGN = window._ASSIGN || {};
+  var TEAM = window._teamCache || {};
+  var SPERREN = window._SPERREN || {};
+  var GLP_SPERRE_MATCH = function(t) {
+    if(!t) return false;
+    return t==='GLP' || t==='ALL' || t==='GLP_ALL' || t==='GLP_T0' || t==='GLP_T1' || t==='GLP_T2';
+  };
+  var isAdmin = window.isAdmin && window.isAdmin();
+  var glpTerminKey = 'GLP'; // unified — alle GLP-1-Termine teilen sich eine Sperre
+
+  var html = '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">';
+  GLP_DAYS.forEach(function(d) {
+    var date = wDay(_glpCW, d.off);
+    var dateStr = localDate(date);
+    var hd = isHoliday ? isHoliday(date) : null;
+
+    // Day-level sperre check
+    var daySperre = Object.values(SPERREN).find(function(sp) {
+      return sp.week===_glpCW && sp.day===d.label && (sp.slot===null||sp.slot===undefined) &&
+        GLP_SPERRE_MATCH(sp.termin);
+    });
+
+    // Zusätzliche (manuell hinzugefügte) Slots für diesen Tag — wie bei MRT
+    var extraTimes = window.getGlpExtraSlotsForDay ? window.getGlpExtraSlotsForDay(_glpCW, d.label) : [];
+    var slotOverrides = window.getGlpSlotOverridesForDay ? window.getGlpSlotOverridesForDay(_glpCW, d.label) : {};
+    var daySlots = slots.map(function(baseSlot){
+      var ov = slotOverrides[baseSlot.slot];
+      return ov ? window._buildOneGlpSlot(baseSlot.slot, ov, true) : baseSlot;
+    });
+    extraTimes.forEach(function(t){
+      var hh = parseInt(t.split(':')[0],10), mm = parseInt(t.split(':')[1],10);
+      var slotNum = 5000 + hh*100 + mm;
+      var built = window._buildOneGlpSlot(slotNum, t, true);
+      built.extra = true; built.extraTime = t;
+      daySlots.push(built);
+    });
+    // Für die Sortierung die tatsächliche (effektive) Startzeit ermitteln: bei T1-Buchungen zählt die
+    // transformierte Zeit (Vorbesprechung/Blut/Mikrokern entfällt, spätere Startzeit), bei manueller
+    // Startzeit diese, sonst die im Header angezeigte Einladungszeit (Vorbesprechung).
+    daySlots.forEach(function(sl){
+      var glpP = glpAssigned[d.label + '_' + sl.slot];
+      var effSlot = (glpP && glpP._glpTermin === 'T1' && window.applyTelT1) ? window.applyTelT1(sl) : sl;
+      sl._sortTime = (glpP && glpP._customStart) ? glpP._customStart : (effSlot.inviteTime || effSlot.blutStart);
+    });
+    // Chronologisch nach effektiver Startzeit sortieren, damit Zusatz-Slots UND manuell verschobene
+    // Termine an der richtigen Stelle erscheinen
+    daySlots.sort(function(a,b){ return a._sortTime < b._sortTime ? -1 : a._sortTime > b._sortTime ? 1 : 0; });
+
+    var headerBg = hd ? '#5A3A00' : daySperre ? '#7A1A1A' : '#CDEBE8';
+    var dayLockBtn = isAdmin && !hd ? '<button style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 6px;color:' + (daySperre?'#fff':'rgba(0,0,0,.4)') + '" onclick="openSperrenDay(' + _glpCW + ',\'' + glpTerminKey + '\',\'' + d.label + '\')" title="' + (daySperre?'Tag-Sperre aufheben':'Tag sperren') + '">🔒</button>' : '';
+
+    // Absent team members for this day
+    var ABSENT = window._ABSENT || {};
+    var _absEntries = Object.values(ABSENT).filter(function(ab){
+      return dateStr >= ab.from && dateStr <= (ab.to||ab.from);
+    });
+    var _absNames = _absEntries.map(function(ab){
+      var n = ab.name || (ab.email ? ab.email.split('@')[0] : '') || '';
+      return ab.timeFrom ? n + ' (' + ab.timeFrom + '–' + ab.timeTo + ')' : n;
+    }).filter(Boolean);
+    var absentNote = _absNames.length
+      ? '<div style="font-size:9.5px;color:' + (hd||daySperre?'rgba(255,220,160,.95)':'#7A4530') + ';margin-top:3px">🏖️ Abwesend: ' + _absNames.join(', ') + '</div>'
+      : '';
+
+    html += '<div>'
+      + '<div style="background:' + headerBg + ';border-radius:var(--r) var(--r) 0 0;padding:9px 12px;display:flex;justify-content:space-between;align-items:flex-start">'
+      + '<div>'
+      + '<div style="font-size:14px;font-weight:600;color:' + (hd||daySperre?'#fff':'#0F4A46') + '">' + d.label + '</div>'
+      + '<div style="font-size:10.5px;color:' + (hd||daySperre?'rgba(255,255,255,.7)':'#3F7A75') + ';margin-top:2px">' + fD(date)
+      + (hd ? ' · 🎉 ' + hd.name : daySperre ? ' · 🔒 ' + (daySperre.grund||'gesperrt') : '')
+      + '</div>'
+      + absentNote
+      + '</div>'
+      + dayLockBtn
+      + '</div>'
+      + '<div style="background:#fff;border:1px solid var(--g2);border-top:none;border-radius:0 0 var(--r) var(--r);padding:6px;min-height:200px">';
+
+    if(hd) {
+      html += '<div style="padding:20px 10px;text-align:center;color:#888;font-size:11px;font-style:italic">Feiertag — nicht buchbar</div>';
+    } else if(daySperre) {
+      html += '<div style="padding:20px 10px;text-align:center;color:#C62828;font-size:11px;font-style:italic">🔒 Tag gesperrt' + (daySperre.grund?' · '+daySperre.grund:'') + '</div>';
+    } else {
+      daySlots.forEach(function(sOrig) {
+        var key = d.label + '_' + sOrig.slot;
+        var glpP = glpAssigned[key];
+        // Bei T1-Buchungen Slot-Layout transformieren (ohne Vorbesprechung/Blut/Mikrokern, spätere Startzeit)
+        var sStep1 = (glpP && glpP._glpTermin === 'T1' && window.applyTelT1) ? window.applyTelT1(sOrig) : sOrig;
+        // Manuelle Startzeit (vom Nutzer überschrieben): den gesamten Slot verschieben
+        var s = (glpP && glpP._customStart && window.applyCustomStart) ? window.applyCustomStart(sStep1, glpP._customStart) : sStep1;
+        // Slot-level sperre
+        var slotSperre = Object.values(SPERREN).find(function(sp) {
+          return sp.week===_glpCW && sp.day===d.label && Number(sp.slot)===Number(sOrig.slot) &&
+            GLP_SPERRE_MATCH(sp.termin);
+        });
+        // AAAging conflicts
+        var aaConflict = (d.label==='Montag'||d.label==='Dienstag')
+          ? aaOccupiedByTime[d.label + '_' + s.blutStart]
+          : null;
+        var aaT12 = _glpAaT12Conflict(d.label, s.blutStart);
+        var aaT0 = _glpAaT0Conflict(d.label, s.blutStart);
+        var aaP = null;
+        var isBooked = !!glpP;
+        // Slot-card Cross-Konflikte entfernt — Konflikte werden nur noch raum-spezifisch im Assign-Modal angezeigt
+        var hasAaWarn = false;
+        var aaBlocks = false;
+        var isBlocked = !!slotSperre;
+
+        // Farbcode pro Termin-Typ (T0 blau, T1 lila, T2 grün)
+        var _glpTermin = glpP && glpP._glpTermin ? glpP._glpTermin : 'T0';
+        var _glpColors = {
+          T0: {bg:'#E0EBFF', bdr:'#A7BFEC', leftBar:'#2C56C2', badgeBg:'#E8F0FF', badgeBdr:'#B5C8F5', badgeFg:'#1E3F9C'},
+          T1: {bg:'#F2E3F8', bdr:'#D2A8E2', leftBar:'#7B1FA2', badgeBg:'#F3E5F5', badgeBdr:'#CE93D8', badgeFg:'#5B167A'},
+          T2: {bg:'#CDEFD9', bdr:'#6DBC8C', leftBar:'#1F7041', badgeBg:'#E8F5E9', badgeBdr:'#A5D6A7', badgeFg:'#155532'}
+        };
+        var col = _glpColors[_glpTermin] || _glpColors.T0;
+
+        var bgColor = isBooked ? col.bg : isBlocked ? '#FFE0E0' : '#fff';
+        var border  = isBooked ? col.bdr : isBlocked ? '#E57373' : '#E0DDD8';
+        var leftBar = isBooked ? ('border-left:3px solid ' + col.leftBar + ';') : '';
+
+        var slotLockBtn = isAdmin ? '<button style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;color:' + (slotSperre?'#C8102E':'rgba(0,0,0,.3)') + '" onclick="openSperrenSlot(' + _glpCW + ',\'' + glpTerminKey + '\',\'' + d.label + '\',' + s.slot + ')" title="' + (slotSperre?'Slot-Sperre aufheben':'Slot sperren') + '">🔒</button>' : '';
+        var extraEditBtn = (isAdmin && sOrig.extra) ? '<button style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;color:#7B1FA2" onclick="editGlpSlotTime(' + _glpCW + ',\'' + d.label + '\',\'' + sOrig.extraTime + '\')" title="Zusatz-Slot-Uhrzeit ändern">✏️</button>' : '';
+        var baseEditBtn = (isAdmin && !sOrig.extra) ? '<button style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;color:#7B1FA2" onclick="editGlpBaseSlotTime(' + _glpCW + ',\'' + d.label + '\',' + s.slot + ',\'' + s.blutStart + '\')" title="Slot-Startzeit ändern (Reihenfolge passt sich automatisch an)">✏️</button>' : '';
+        var extraDelBtn = (isAdmin && sOrig.extra) ? '<button style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;color:#C8102E" onclick="delGlpSlotTime(' + _glpCW + ',\'' + d.label + '\',\'' + sOrig.extraTime + '\')" title="Zusatz-Slot entfernen">✕</button>' : '';
+        var extraBadge = sOrig.extra ? '<span style="background:#F3E5F5;color:#7B1FA2;border:1px solid #CE93D8;padding:0 5px;border-radius:99px;font-size:8.5px;font-weight:700;margin-left:4px">ZUSATZ</span>' : '';
+
+        html += '<div style="background:' + bgColor + ';border:1px solid ' + border + ';' + leftBar + 'border-radius:8px;padding:8px;margin-bottom:6px">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding-bottom:5px;border-bottom:1px solid ' + border + '">'
+          + '<strong style="font-size:12px">' + (sOrig.extra ? 'Slot' : ('Slot ' + s.slot)) + '</strong>' + extraBadge
+          + '<span style="display:flex;align-items:center;gap:4px"><span style="color:#888;font-family:monospace;font-size:11px" title="Einladung: ' + (s.inviteTime||s.blutStart) + ' · Start: ' + s.blutStart + '">' + (s.inviteTime||s.blutStart) + '</span>' + slotLockBtn + extraEditBtn + baseEditBtn + extraDelBtn + '</span>'
+          + '</div>';
+
+        if(slotSperre) {
+          html += '<div style="font-size:10.5px;color:#C62828;padding:4px 0">🔒 Gesperrt' + (slotSperre.grund?' · '+slotSperre.grund:'') + '</div>';
+        } else if(hasAaWarn) {
+          html += '<div style="font-size:9.5px;color:#8A4500;background:#FFF3E0;border:1px solid #FFCC80;border-radius:4px;padding:3px 6px;margin-bottom:5px">⚠️ AAAging parallel: ' + aaP + '</div>';
+        }
+
+        // Proband row (or empty) — skip if slotSperre
+        if(!slotSperre) {
+          if(isBooked) {
+            var _termBadge = '<span style="background:' + col.badgeBg + ';color:' + col.badgeFg + ';border:1px solid ' + col.badgeBdr + ';padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700">' + _glpTermin + '</span>';
+            var _removeFn = glpP._glpBookingId
+              ? 'removeGlpBooking(\'' + glpP._glpBookingId + '\')'
+              : 'removeGlpAssignLegacy(\'' + glpP._id + '\',\'' + _glpTermin + '\')';
+            var _glpClockBtn = (isAdmin && glpP._glpBookingId)
+              ? '<button style="background:' + (glpP._customStart?'#FFF3E0':'none') + ';border:1px solid ' + (glpP._customStart?'#FFB74D':'transparent') + ';color:' + (glpP._customStart?'#E65100':'#888') + ';cursor:pointer;font-size:11px;padding:1px 5px;border-radius:4px" onclick="setGlpCustomStartTime(\'' + glpP._glpBookingId + '\',\'' + s.blutStart + '\')" title="' + (glpP._customStart?'Aktuell: '+glpP._customStart+' (manuell)':'Startzeit individuell anpassen') + '">⏰</button>'
+              : '';
+            html += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;flex-wrap:wrap">'
+              + '<span style="background:#CDEBE8;color:#0F4A46;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;border:1px solid #7FC4BE">' + glpP.tid + (glpP.aufpassen?' ⚠️':'') + '</span>'
+              + (glpP.lnr ? '<span style="background:var(--ubl);color:var(--ub);padding:1px 6px;border-radius:99px;font-size:10px">' + glpP.lnr + '</span>' : '')
+              + _termBadge
+              + _glpClockBtn
+              + (isAdmin ? '<button style="background:none;border:none;color:#888;cursor:pointer;font-size:11px;margin-left:auto" onclick="' + _removeFn + '" title="Buchung entfernen">✕</button>' : '')
+              + '</div>'
+              + (glpP._customStart ? '<div style="font-size:9.5px;color:#E65100;font-style:italic;margin-bottom:4px">⏰ Manuelle Startzeit: ' + glpP._customStart + '</div>' : '')
+              + (function(){
+                  var esc=function(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+                  var notes=[];
+                  if(glpP.notiz && String(glpP.notiz).trim()) notes.push(esc(String(glpP.notiz).trim()));
+                  var _er = window._GLP_ERINNERUNGEN || {};
+                  ['T0','T1','T2'].forEach(function(ph){ var e=_er[glpP._id+'_'+ph]; if(e && e.anmerkung && String(e.anmerkung).trim()) notes.push('<span style="color:#2A8C85">'+ph+'-Erinnerung:</span> '+esc(String(e.anmerkung).trim())); });
+                  return notes.length ? '<div style="font-size:10px;color:#555;background:#FFFBEA;border:1px solid #F1E3A6;border-radius:4px;padding:3px 6px;margin-bottom:5px;white-space:pre-wrap">📝 ' + notes.join('<br>📝 ') + '</div>' : '';
+                })();
+          } else if(aaBlocks) {
+            html += '<div style="font-size:10.5px;color:#C62828;padding:4px 0;margin-bottom:4px">🔒 AAAging: ' + aaP + '</div>';
+          } else {
+            if(isAdmin) {
+              html += '<div style="margin-bottom:5px"><button style="background:#CDEBE8;color:#0F4A46;border:1px solid #7FC4BE;border-radius:4px;padding:3px 10px;font-size:10.5px;cursor:pointer" onclick="openGlpAssign(' + _glpCW + ',\'' + d.label + '\',' + s.slot + ')">+ Proband</button></div>';
+            }
+          }
+
+          // Measure rows — visible unless blocked
+          if(!isBlocked) {
+            s.measures.forEach(function(m) {
+            var aKey = ('GLP_' + _glpCW + '_' + _glpCurTermin + '_' + d.label + '_' + s.slot + '_' + m.label).replace(/[^a-zA-Z0-9_]/g,'_');
+            var a = ASSIGN[aKey];
+            var pName = a && a.person ? (TEAM[a.person] && TEAM[a.person].name) || a.person : null;
+            var aRoom = a && a.room ? a.room : null;
+            var nPersons = m.persons || 1;
+
+            var cls = m.cls || 'cbia';
+            html += '<div style="display:flex;align-items:center;gap:4px;margin:3px 0;font-size:10.5px;flex-wrap:wrap">'
+              + '<span class="chip ' + cls + '" style="flex-shrink:0">' + m.label + ' <span class="ct">' + m.t + '</span></span>'
+              + (aRoom ? '<span style="font-size:9.5px;color:var(--ub);margin-left:3px">📍 ' + aRoom + '</span>' : '')
+              + '<span style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:2px">';
+
+            // Multi-person support
+            for(var pi = 0; pi < nPersons; pi++) {
+              var pKey = pi === 0 ? aKey : (aKey + '_' + (pi+1));
+              var pa = ASSIGN[pKey];
+              var ppName = pa && pa.person ? (TEAM[pa.person] && TEAM[pa.person].name) || pa.person : null;
+              if(isAdmin) {
+                html += '<button class="assign-btn" style="font-size:10px" onclick="openAssignModal(\'' + pKey + '\',\'' + m.label.replace(/'/g,"\\'") + (nPersons>1?' (' + (pi+1) + ')':'') + '\',\'GLP-1 ' + _glpCurTermin + ' ' + d.label + ' Slot ' + s.slot + '\',\'' + dateStr + '\',\'' + m.t + '\')">'
+                  + (ppName ? '<span class="team-chip">' + ppName + '</span>' : '+ P' + (pi+1))
+                  + '</button>';
+              } else if(ppName) {
+                html += '<span class="team-chip">' + ppName + '</span>';
+              }
+            }
+            html += '</span></div>';
+          });
+        }
+        }
+        html += '</div>';
+      });
+      if(isAdmin) {
+        html += '<button style="margin:6px 0 4px;width:100%;padding:5px;border-radius:6px;border:1px dashed #7FC4BE;background:#fff;color:#7B1FA2;font-size:10.5px;cursor:pointer" onclick="openAddGlpSlot(' + _glpCW + ',\'' + d.label + '\')">+ Slot hinzufügen</button>';
+      }
+    }
+    html += '</div></div>';
+  });
+  html += '</div>';
+
+  html += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;padding:10px 14px;background:#fff;border:1px solid var(--g2);border-radius:var(--r);font-size:11.5px">'
+    + '<span><span style="display:inline-block;width:12px;height:12px;background:#CDEBE8;border:1px solid #2A8C85;border-radius:3px;vertical-align:middle;margin-right:4px"></span>GLP-1 belegt</span>'
+    + ''
+    + '<span><span style="display:inline-block;width:12px;height:12px;background:#fff;border:1px solid #E0DDD8;border-radius:3px;vertical-align:middle;margin-right:4px"></span>Frei</span>'
+    + '</div>';
+
+  el.innerHTML = html;
+};
+
+window.openGlpAssign = function(w, day, slot) {
+  if(!window.isAdmin || !window.isAdmin()){ window.toast && toast('Keine Berechtigung',true); return; }
+  window._glpAssignCtx = {w, day, slot};
+  document.getElementById('glp-assign-title').textContent = 'GLP-1 T0/1/2 — Slot belegen';
+  document.getElementById('glp-assign-info').textContent = day + ' · KW ' + (window.kw?window.kw(wMon(w)):'?') + ' · Slot ' + slot;
+  document.getElementById('glp-assign-ttype').value = 'T0';
+
+  // Alle GLP-1-Probanden anbieten (keine Vorab-Filterung mehr,
+  // da ein Proband T0, T1 und T2 unabhängig haben kann)
+  var opts = Object.values(window._GLPP||{})
+    .sort(function(a,b){ return (parseInt((a.tid||'').replace(/\D/g,''))||0) - (parseInt((b.tid||'').replace(/\D/g,''))||0); })
+    .map(function(tp) {
+      return '<option value="' + tp._id + '">' + (tp.tid||'—') + (tp.lnr?' · '+tp.lnr:'') + '</option>';
+    }).join('');
+  document.getElementById('glp-assign-pid').innerHTML = '<option value="">— Proband wählen —</option>' + opts;
+  document.getElementById('glp-assign-modal').classList.add('open');
+};
+window.closeGlpAssign = function(){ document.getElementById('glp-assign-modal').classList.remove('open'); };
+
+window.saveGlpAssign = async function() {
+  var ctx = window._glpAssignCtx; if(!ctx) return;
+  var glppId = document.getElementById('glp-assign-pid').value;
+  if(!glppId){ toast('Bitte Proband auswählen', true); return; }
+  var termin = document.getElementById('glp-assign-ttype').value || 'T0';
+  var tp = window._GLPP ? window._GLPP[glppId] : null;
+  try {
+    var fns = window._fbFns;
+    // Prüfen ob in diesem Slot schon eine glp_bookings-Buchung existiert
+    var existing = Object.values(window._GLP_BOOKINGS||{}).find(function(bk){
+      return bk.week===ctx.w && bk.day===ctx.day && Number(bk.slot)===Number(ctx.slot);
+    });
+    if(existing) { toast('Slot ist bereits belegt',true); return; }
+    await fns.addDoc(fns.collection(window.db,'glp_bookings'),{
+      termin: termin,
+      week: ctx.w, day: ctx.day, slot: Number(ctx.slot),
+      probandId: glppId,
+      tid: tp ? (tp.tid||'') : '',
+      lnr: tp ? (tp.lnr||'') : '',
+      created: Date.now()
+    });
+    closeGlpAssign(); toast(termin + ' Slot belegt ✓');
+  } catch(e){ toast('Fehler: ' + e.message, true); }
+};
+
+// Eine glp_bookings-Buchung entfernen (neues System)
+window.removeGlpBooking = async function(bookingId) {
+  if(!confirm('GLP-1-Buchung wirklich entfernen?')) return;
+  try {
+    var fns = window._fbFns;
+    await fns.deleteDoc(fns.doc(window.db,'glp_bookings',bookingId));
+    toast('Buchung entfernt ✓');
+  } catch(e){ toast('Fehler: ' + e.message, true); }
+};
+
+// Legacy: alten GLPP-Eintrag (t0/t1/t2 Felder) entfernen
+window.removeGlpAssignLegacy = async function(glppId, termin) {
+  if(!confirm('GLP-1-Termin (' + termin + ') wirklich entfernen?')) return;
+  var update = {};
+  if(termin==='T0'){ update = {t0week:null, t0day:null, t0slot:null}; }
+  else if(termin==='T1'){ update = {t1week:null, t1day:null, t1slot:null}; }
+  else if(termin==='T2'){ update = {t2week:null, t2day:null, t2slot:null}; }
+  update.updated = Date.now();
+  try {
+    var fns = window._fbFns;
+    await fns.updateDoc(fns.doc(window.db,'glp_probanden',glppId), update);
+    toast('Termin entfernt ✓');
+  } catch(e){ toast('Fehler: ' + e.message, true); }
+};
+// Alte Funktion bleibt als Kompatibilitäts-Alias erhalten
+window.removeGlpAssign = window.removeGlpAssignLegacy;
+
+// ── GLP-1 PROBANDEN LIST ────────────────────────────────────────
+var _glpEditId = null;
+
+window.glpSlotAssignOpenNew = function() {
+  // Save slot context so saveGlpProband can auto-assign after creating
+  window._glpPendingSlot = window._glpAssignCtx;
+  closeGlpAssign();
+  openAddGlpProband();
+};
+
+window.openAddGlpProband = function() {
+  if(!window.isAdmin || !window.isAdmin()){ toast('Keine Berechtigung',true); return; }
+  _glpEditId = null;
+  document.getElementById('glp-proband-title').textContent = 'Neuer GLP-1-Proband';
+  // Suggest next GLP-ID
+  var existing = Object.values(window._GLPP||{}).map(function(tp){ return parseInt((tp.tid||'').replace(/\D/g,''))||0; });
+  var next = existing.length ? Math.max.apply(null, existing)+1 : 1;
+  document.getElementById('glpp-tid').value = 'GLP' + String(next).padStart(3,'0');
+  document.getElementById('glpp-lnr').value = '';
+  document.getElementById('glpp-notiz').value = '';
+  document.getElementById('glpp-aufpassen').checked = false;
+  document.getElementById('glp-proband-modal').classList.add('open');
+};
+
+window.openEditGlpProband = function(id) {
+  var tp = window._GLPP ? window._GLPP[id] : null; if(!tp) return;
+  _glpEditId = id;
+  document.getElementById('glp-proband-title').textContent = 'GLP-1-Proband bearbeiten';
+  document.getElementById('glpp-tid').value = tp.tid||'';
+  document.getElementById('glpp-lnr').value = tp.lnr||'';
+  document.getElementById('glpp-notiz').value = tp.notiz||'';
+  document.getElementById('glpp-aufpassen').checked = tp.aufpassen||false;
+  document.getElementById('glp-proband-modal').classList.add('open');
+};
+
+window.closeGlpProband = function(){ document.getElementById('glp-proband-modal').classList.remove('open'); window._glpPendingSlot = null; };
+
+window.saveGlpProband = async function() {
+  var tid = document.getElementById('glpp-tid').value.trim();
+  var lnr = document.getElementById('glpp-lnr').value.trim();
+  var notiz = document.getElementById('glpp-notiz').value.trim();
+  var aufpassen = document.getElementById('glpp-aufpassen').checked;
+  if(!tid){ toast('GLP-ID ist Pflicht', true); return; }
+
+  // Duplikat-Check: TID darf pro Studie nur einmal vorkommen (case-insensitive)
+  var tidLower = tid.toLowerCase();
+  var duplicate = Object.values(window._GLPP||{}).find(function(tp) {
+    return tp._id !== _glpEditId && (tp.tid||'').trim().toLowerCase() === tidLower;
+  });
+  if(duplicate) {
+    toast('❌ GLP-ID "' + tid + '" ist bereits an einen anderen Probanden vergeben!', true);
+    return;
+  }
+
+  // Duplikat-Check LNR (falls gesetzt) — Laufnummer sollte ebenfalls eindeutig sein
+  if(lnr) {
+    var lnrLower = lnr.toLowerCase();
+    var dupLnr = Object.values(window._GLPP||{}).find(function(tp) {
+      return tp._id !== _glpEditId && (tp.lnr||'').trim().toLowerCase() === lnrLower;
+    });
+    if(dupLnr) {
+      if(!confirm('⚠️ Laufnummer "' + lnr + '" wird bereits von einem anderen GLP-1-Probanden verwendet (' + (dupLnr.tid||'?') + '). Trotzdem speichern?')) return;
+    }
+  }
+
+  var data = {tid, lnr, notiz, aufpassen, updated:Date.now()};
+
+  // If pending slot context, add the assignment to data before saving
+  var pending = window._glpPendingSlot;
+  if(pending && !_glpEditId) {
+    if(pending.termin==='T0'){ data.t0week=pending.w; data.t0day=pending.day; data.t0slot=pending.slot; }
+    else if(pending.termin==='T1'){ data.t1week=pending.w; data.t1day=pending.day; data.t1slot=pending.slot; }
+    else if(pending.termin==='T2'){ data.t2week=pending.w; data.t2day=pending.day; data.t2slot=pending.slot; }
+  }
+
+  try {
+    var fns = window._fbFns;
+    if(_glpEditId){
+      await fns.updateDoc(fns.doc(window.db,'glp_probanden',_glpEditId), data);
+    } else {
+      await fns.addDoc(fns.collection(window.db,'glp_probanden'), Object.assign({created:Date.now()}, data));
+    }
+    closeGlpProband();
+    window._glpPendingSlot = null;
+    toast(pending ? 'Proband angelegt & zugewiesen ✓' : 'Gespeichert ✓');
+  } catch(e){ toast('Fehler: ' + e.message, true); }
+};
+
+// Diagnose: findet alle GLP-1-Probanden mit derselben TID oder Laufnummer
+// Aufruf in Console: findGlpDuplicates()
+window.findGlpDuplicates = function() {
+  var GLPP = window._GLPP || {};
+  var byTid = {}, byLnr = {};
+  Object.values(GLPP).forEach(function(tp) {
+    var t = (tp.tid||'').trim().toLowerCase();
+    var l = (tp.lnr||'').trim().toLowerCase();
+    if(t) { byTid[t] = byTid[t]||[]; byTid[t].push(tp); }
+    if(l) { byLnr[l] = byLnr[l]||[]; byLnr[l].push(tp); }
+  });
+  var tidDups = Object.entries(byTid).filter(function(x){ return x[1].length > 1; });
+  var lnrDups = Object.entries(byLnr).filter(function(x){ return x[1].length > 1; });
+  console.group('🔍 GLP-1-Duplikat-Prüfung');
+  if(tidDups.length) {
+    console.log('❌ Doppelt vergebene GLP-IDs:');
+    tidDups.forEach(function(x) {
+      console.log('  TID "' + x[0] + '" bei ' + x[1].length + ' Probanden:', x[1].map(function(tp){ return {id:tp._id, tid:tp.tid, lnr:tp.lnr, notiz:tp.notiz}; }));
+    });
+  } else console.log('✓ Alle GLP-IDs eindeutig');
+  if(lnrDups.length) {
+    console.log('⚠️ Doppelt vergebene Laufnummern:');
+    lnrDups.forEach(function(x) {
+      console.log('  LNR "' + x[0] + '" bei ' + x[1].length + ' Probanden:', x[1].map(function(tp){ return {id:tp._id, tid:tp.tid, lnr:tp.lnr}; }));
+    });
+  } else console.log('✓ Alle Laufnummern eindeutig');
+  console.groupEnd();
+  if(window.toast) window.toast(tidDups.length ? '❌ ' + tidDups.length + ' TID-Duplikate gefunden — siehe Console' : '✓ Keine TID-Duplikate', tidDups.length > 0);
+  return {tidDups: tidDups, lnrDups: lnrDups};
+};
+
+window.delGlpProband = async function(id) {
+  if(!confirm('GLP-1-Proband endgültig löschen? Alle Termine werden entfernt.')) return;
+  try {
+    var fns = window._fbFns;
+    await fns.deleteDoc(fns.doc(window.db,'glp_probanden',id));
+    toast('Gelöscht ✓');
+  } catch(e){ toast('Fehler: ' + e.message, true); }
+};
+
+window.renderGlpProbanden = function() {
+  var el = document.getElementById('glp-proband-list'); if(!el) return;
+  var tps = Object.values(window._GLPP||{}).sort(function(a,b){
+    return (parseInt((a.tid||'').replace(/\D/g,''))||0) - (parseInt((b.tid||'').replace(/\D/g,''))||0);
+  });
+  if(!tps.length){
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:#888;font-style:italic">Noch keine GLP-1-Probanden angelegt.</div>';
+    return;
+  }
+  var wDay = window._wDay;
+  var fmtD = function(w,day){
+    if(w===undefined||w===null||!day) return '—';
+    var DAYOFF={Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
+    var d = wDay(w, DAYOFF[day]||0);
+    return d.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'2-digit'});
+  };
+
+  var html = '<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)">'
+    + '<thead><tr style="background:#5E35B1;color:#fff">'
+    + '<th style="padding:10px;text-align:left;font-size:11px">GLP-ID</th>'
+    + '<th style="padding:10px;text-align:left;font-size:11px">Laufnr.</th>'
+    + '<th style="padding:10px;text-align:left;font-size:11px">T0</th>'
+    + '<th style="padding:10px;text-align:left;font-size:11px">T1 (+12 Wo)</th>'
+    + '<th style="padding:10px;text-align:left;font-size:11px">T2 (+24 Wo)</th>'
+    + '<th style="padding:10px;text-align:left;font-size:11px">Notiz</th>'
+    + '<th style="padding:10px;text-align:left;font-size:11px">Aktionen</th>'
+    + '</tr></thead><tbody>';
+
+  tps.forEach(function(tp, i) {
+    // Helper: ermittelt {day, week} für T0/T1/T2 — entweder aus glp_bookings oder Legacy-Feldern
+    function getTermin(termin) {
+      var TB = window._GLP_BOOKINGS || {};
+      var bk = Object.values(TB).find(function(b){ return b.probandId===tp._id && b.termin===termin; });
+      if(bk) return {day:bk.day, week:bk.week};
+      var wField = termin==='T0' ? tp.t0week : termin==='T1' ? tp.t1week : tp.t2week;
+      var dField = termin==='T0' ? tp.t0day  : termin==='T1' ? tp.t1day  : tp.t2day;
+      if(wField !== undefined && wField !== null && dField) return {day:dField, week:wField};
+      return null;
+    }
+    var t0info = getTermin('T0');
+    var t1info = getTermin('T1');
+    var t2info = getTermin('T2');
+
+    html += '<tr style="border-bottom:1px solid var(--g2);background:' + (i%2?'var(--g1)':'#fff') + '">'
+      + '<td style="padding:8px;font-weight:700;color:#5E35B1">' + (tp.tid||'—') + (tp.aufpassen?' <span style="color:#E65100">⚠️</span>':'') + '</td>'
+      + '<td style="padding:8px;font-size:12px">' + (tp.lnr||'—') + '</td>'
+      + '<td style="padding:8px;font-size:11px">' + (t0info?t0info.day.slice(0,2)+' '+fmtD(t0info.week,t0info.day):'—') + '</td>'
+      + '<td style="padding:8px;font-size:11px">' + (t1info?t1info.day.slice(0,2)+' '+fmtD(t1info.week,t1info.day):'—') + '</td>'
+      + '<td style="padding:8px;font-size:11px">' + (t2info?t2info.day.slice(0,2)+' '+fmtD(t2info.week,t2info.day):'—') + '</td>'
+      + '<td style="padding:8px;font-size:11px;color:#666">' + (tp.notiz||'') + '</td>'
+      + '<td style="padding:8px">'
+      + (window.isAdmin && window.isAdmin() ? '<button class="btn btn-xs" onclick="openEditGlpProband(\'' + tp._id + '\')">Bearbeiten</button> <button class="btn btn-xs btn-d" onclick="delGlpProband(\'' + tp._id + '\')">Löschen</button>' : '')
+      + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+};
+
+window.exportGlpProbanden = function() {
+  var tps = Object.values(window._GLPP||{}).sort(function(a,b){
+    return (parseInt((a.tid||'').replace(/\D/g,''))||0) - (parseInt((b.tid||'').replace(/\D/g,''))||0);
+  });
+  if(!tps.length){ toast('Keine GLP-1-Probanden', true); return; }
+  var wDay = window._wDay;
+  var kwFn = window.kw;
+  var wMon = window.wMon;
+  var DAYOFF={Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
+  var GLP_BK = window._GLP_BOOKINGS || {};
+  var GLP_ERIN = window._GLP_ERINNERUNGEN || {};
+
+  // GLP-Slot Zeiten Standard (aus _GLP_T0): Slot 1&2 = 08:00, Slot 3&4 = 08:30
+  var GLP_SLOT_TIME = ['08:00','08:00','08:30','08:30'];
+
+  // Helper: liefert {week, day, slot, customStartTime, termin} für einen Termin
+  function getTerminData(tp, termin) {
+    var bk = Object.values(GLP_BK).find(function(b){ return b.probandId===tp._id && b.termin===termin; });
+    if(bk && bk.week !== undefined && bk.day) return {week:bk.week, day:bk.day, slot:bk.slot, customStart:bk.customStartTime||null, source:'neu'};
+    var w = termin==='T0' ? tp.t0week : termin==='T1' ? tp.t1week : tp.t2week;
+    var d = termin==='T0' ? tp.t0day  : termin==='T1' ? tp.t1day  : tp.t2day;
+    var s = termin==='T0' ? tp.t0slot : termin==='T1' ? tp.t1slot : tp.t2slot;
+    if(w !== undefined && w !== null && d) return {week:w, day:d, slot:s, customStart:null, source:'legacy'};
+    return null;
+  }
+
+  var fmtD = function(w,day){
+    if(w===undefined||w===null||!day) return '';
+    var d = wDay(w, DAYOFF[day]||0);
+    return d.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'});
+  };
+  var fmtDate = function(dt){
+    return dt.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'});
+  };
+  var kwOf = function(w){
+    if(w===undefined||w===null) return '';
+    return kwFn ? kwFn(wMon(w)) : '';
+  };
+  var timeOf = function(termin, slot, customStart) {
+    if(customStart) return customStart + ' ⏰';
+    if(!slot) return '';
+    // T1 Sessions haben keine Vorbesprechung → startet bei blutStart, sonst 15 Min früher
+    var base = GLP_SLOT_TIME[Number(slot)-1] || '';
+    if(termin === 'T1') return base; // T1 startet direkt
+    // T0/T2: Einladung 15 Min vor blutStart
+    if(!base) return '';
+    var parts = base.split(':').map(Number);
+    var total = parts[0]*60 + parts[1] - 15;
+    var h = Math.floor(total/60), m = total%60;
+    return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+  };
+
+  var rows = [[
+    'GLP-ID', 'Laufnr.', 'Aufpassen',
+    // T0 Block
+    'T0 KW', 'T0 Datum', 'T0 Tag', 'T0 Slot', 'T0 Startzeit', 'T0 Quelle',
+    'Supplement-Start (Mo nach T0)',
+    // T1 Zielwoche (berechnet) + Erinnerung T0→T1
+    'T1 Zielwoche (berechnet)', 'T1→ Erinnerung: erledigt?', 'T1→ Kontakt-Art', 'T1→ Kürzel', 'T1→ Anmerkung',
+    // T1 Block (gebucht)
+    'T1 KW', 'T1 Datum', 'T1 Tag', 'T1 Slot', 'T1 Startzeit', 'T1 Quelle',
+    // T2 Zielwoche (berechnet) + Erinnerung T1→T2
+    'T2 Zielwoche (berechnet)', 'T2→ Erinnerung: erledigt?', 'T2→ Kontakt-Art', 'T2→ Kürzel', 'T2→ Anmerkung',
+    // T2 Block (gebucht)
+    'T2 KW', 'T2 Datum', 'T2 Tag', 'T2 Slot', 'T2 Startzeit', 'T2 Quelle',
+    // Meta
+    'Notiz', 'Angelegt am', 'Zuletzt geändert'
+  ]];
+
+  tps.forEach(function(tp) {
+    var t0 = getTerminData(tp,'T0');
+    var t1 = getTerminData(tp,'T1');
+    var t2 = getTerminData(tp,'T2');
+
+    // Supplement-Start berechnen (Mo nach T0)
+    var supplementStart = '';
+    var t1TargetKW = '';
+    if(t0) {
+      var t0Date = wDay(t0.week, DAYOFF[t0.day]||0); t0Date.setHours(0,0,0,0);
+      var dayOfWeek = t0Date.getDay();
+      var daysToNextMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);
+      var ss = new Date(t0Date); ss.setDate(t0Date.getDate() + daysToNextMonday);
+      supplementStart = fmtDate(ss);
+      // T1 Zielwoche: Supplement-Start + 12 Wochen → KW
+      var tgt = new Date(ss); tgt.setDate(ss.getDate() + 84);
+      t1TargetKW = kwFn ? 'KW ' + kwFn(tgt) + ' / ' + tgt.getFullYear() : '';
+    }
+
+    // T2 Zielwoche (12 Wochen nach T1)
+    var t2TargetKW = '';
+    if(t1) {
+      var t1Date = wDay(t1.week, DAYOFF[t1.day]||0); t1Date.setHours(0,0,0,0);
+      var tgt2 = new Date(t1Date); tgt2.setDate(t1Date.getDate() + 84);
+      t2TargetKW = kwFn ? 'KW ' + kwFn(tgt2) + ' / ' + tgt2.getFullYear() : '';
+    }
+
+    // Erinnerungen (T0→T1 und T1→T2) aus glp_erinnerungen
+    var erin0 = GLP_ERIN[tp._id+'_T0'] || GLP_ERIN[tp._id] || {};
+    var erin1 = GLP_ERIN[tp._id+'_T1'] || {};
+
+    var t1KontaktLabel = erin0.kontakt === 'mail' ? 'E-Mail' : erin0.kontakt === 'telefon' ? 'Telefon' : '';
+    var t2KontaktLabel = erin1.kontakt === 'mail' ? 'E-Mail' : erin1.kontakt === 'telefon' ? 'Telefon' : '';
+
+    var createdStr = tp.created ? fmtDate(new Date(tp.created)) : '';
+    var updatedStr = tp.updated ? fmtDate(new Date(tp.updated)) : '';
+
+    rows.push([
+      tp.tid||'', tp.lnr||'', tp.aufpassen ? 'JA ⚠️' : 'nein',
+      // T0
+      kwOf(t0 && t0.week), t0?fmtD(t0.week,t0.day):'', t0?t0.day:'', t0&&t0.slot?t0.slot:'', t0?timeOf('T0',t0.slot,t0.customStart):'', t0?t0.source:'',
+      supplementStart,
+      // T1 Ziel & Erinnerung
+      t1TargetKW, t1 ? '✅ (T1 gebucht)' : (erin0.erledigt ? 'ja' : 'nein'), t1KontaktLabel, erin0.kuerzel||'', erin0.anmerkung||'',
+      // T1
+      kwOf(t1 && t1.week), t1?fmtD(t1.week,t1.day):'', t1?t1.day:'', t1&&t1.slot?t1.slot:'', t1?timeOf('T1',t1.slot,t1.customStart):'', t1?t1.source:'',
+      // T2 Ziel & Erinnerung
+      t2TargetKW, t2 ? '✅ (T2 gebucht)' : (erin1.erledigt ? 'ja' : 'nein'), t2KontaktLabel, erin1.kuerzel||'', erin1.anmerkung||'',
+      // T2
+      kwOf(t2 && t2.week), t2?fmtD(t2.week,t2.day):'', t2?t2.day:'', t2&&t2.slot?t2.slot:'', t2?timeOf('T2',t2.slot,t2.customStart):'', t2?t2.source:'',
+      // Meta
+      tp.notiz||'', createdStr, updatedStr
+    ]);
+  });
+
+  // Use SheetJS if available
+  if(typeof XLSX !== 'undefined') {
+    var ws = XLSX.utils.aoa_to_sheet(rows);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'GLP-1-Probanden');
+    XLSX.writeFile(wb, 'glp_probanden_' + new Date().toISOString().slice(0,10) + '.xlsx');
+  } else {
+    // Fallback CSV
+    var csv = rows.map(function(r){ return r.map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(';'); }).join('\n');
+    var blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href=url; a.download='glp_probanden.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+  toast('Export erstellt ✓ (' + tps.length + ' Probanden)');
+};
+
+
+// ── GLP-1 ERINNERUNGSKALENDER ──────────────────────────────────
+// Ein Feld pro Person (nicht mehr zwei Karten pro Phase), mit Suche/Sortierung
+// und der Möglichkeit, T0/T1/T2-Zieltermine direkt einzutragen — landet als echte
+// Buchung im GLP-1-Kalender (glp_bookings), nicht nur als Erinnerungsnotiz.
+window.renderGlpErinnerungen = function() {
+  var el = document.getElementById('glp-erinnerungen-content'); if(!el) return;
+  var wDay = window._wDay;
+  var localDate = window._localDate;
+  if(!wDay || !localDate) { el.innerHTML='<div style="padding:20px;color:#888">Wird geladen…</div>'; return; }
+
+  var DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
+  var today  = new Date(); today.setHours(0,0,0,0);
+  var GLP_BK = window._GLP_BOOKINGS || {};
+  var isAdm  = window.isAdmin && window.isAdmin();
+  var isTr   = window.isTrainer && window.isTrainer();
+  var ERINNERUNGEN = window._GLP_ERINNERUNGEN || {};
+  var TEAM = window._teamCache || {};
+  var teamOptHtml = Object.values(TEAM).map(function(m2) {
+    var kz = m2.kuerzel || m2.name.slice(0,2).toUpperCase();
+    return '<option value="'+kz+'">'+m2.name+(m2.kuerzel?' ('+m2.kuerzel+')':'')+'</option>';
+  }).join('');
+
+  function getGlpBookingTime(bk) {
+    if(!bk) return '';
+    if(bk.customStartTime) return bk.customStartTime;
+    var slot = Number(bk.slot);
+    if(!slot) return '';
+    var isT1 = bk.termin === 'T1'; // T1 hat keine Blutabnahme → kein 15-Min-Vorlauf, Start = Blutabnahme-Zeit direkt
+    if(slot >= 5000) {
+      var hh = Math.floor((slot-5000)/100), mm = (slot-5000)%100;
+      if(isT1) return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+      var dt = new Date(2000,0,1,hh,mm); dt.setMinutes(dt.getMinutes()-15);
+      return String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
+    }
+    var pool = window._GLP_T0 || [];
+    var def = pool.find(function(s){ return s.slot===slot; });
+    if(!def) return '';
+    return isT1 ? def.blutStart : def.inviteTime;
+  }
+
+  function getTerminInfo(tp, termin) {
+    var bk = Object.values(GLP_BK).find(function(b){ return b.probandId===tp._id && b.termin===termin; });
+    if(bk && bk.week !== undefined && bk.day) return {week:bk.week, day:bk.day, time:getGlpBookingTime(bk)};
+    var w = termin==='T0' ? tp.t0week : termin==='T1' ? tp.t1week : tp.t2week;
+    var d = termin==='T0' ? tp.t0day  : termin==='T1' ? tp.t1day  : tp.t2day;
+    if(w !== undefined && w !== null && d) return {week:w, day:d, time:''};
+    return null;
+  }
+
+  var tps = Object.values(window._GLPP || {});
+  if(!tps.length) {
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:#888;font-style:italic">Noch keine GLP-1-Probanden vorhanden.</div>';
+    return;
+  }
+
+  var q = (window._glpErinSearch||'').trim().toLowerCase();
+  var sortMode = window._glpErinSort || 'due';
+
+  var rows = tps.map(function(tp){
+    var t0 = getTerminInfo(tp,'T0'), t1 = getTerminInfo(tp,'T1'), t2 = getTerminInfo(tp,'T2');
+    var t0Date = t0 ? wDay(t0.week, DAYOFF[t0.day]||0) : null; if(t0Date) t0Date.setHours(0,0,0,0);
+    var t1Date = t1 ? wDay(t1.week, DAYOFF[t1.day]||0) : null; if(t1Date) t1Date.setHours(0,0,0,0);
+    var t2Date = t2 ? wDay(t2.week, DAYOFF[t2.day]||0) : null; if(t2Date) t2Date.setHours(0,0,0,0);
+    var t1Target = null, t2Target = null, interventionStart = null;
+    if(t0Date) {
+      var dow = t0Date.getDay();
+      interventionStart = new Date(t0Date); interventionStart.setDate(t0Date.getDate() + (dow===0?1:(8-dow)));
+      t1Target = new Date(interventionStart); t1Target.setDate(interventionStart.getDate() + 84);  // 12 Wochen nach Interventionsstart
+      t2Target = new Date(interventionStart); t2Target.setDate(interventionStart.getDate() + 168); // 24 Wochen nach Interventionsstart — IMMER ab T0, nie ab T1 (auch wenn T1 zeitlich abgewichen ist)
+    }
+
+    var isDrop = !!(ERINNERUNGEN[tp._id+'_DROPOUT'] && ERINNERUNGEN[tp._id+'_DROPOUT'].dropout);
+    var nextDue = isDrop ? null : ((!t1 && t1Target) ? t1Target : (!t2 && t2Target) ? t2Target : null);
+    return {drop:isDrop, tp:tp, t0Date:t0Date, t1Date:t1Date, t2Date:t2Date, t0Time:t0?t0.time:'', t1Time:t1?t1.time:'', t2Time:t2?t2.time:'', t1Target:t1Target, t2Target:t2Target, nextDue:nextDue};
+  });
+
+  if(q) {
+    rows = rows.filter(function(r){
+      return (r.tp.tid||'').toLowerCase().indexOf(q)>=0 || (r.tp.lnr||'').toLowerCase().indexOf(q)>=0;
+    });
+  }
+
+  rows.sort(function(a,b){
+    if(sortMode==='alpha') return (a.tp.tid||'').localeCompare(b.tp.tid||'', undefined, {numeric:true});
+    if(a.drop!==b.drop) return a.drop?1:-1;
+    var av = a.nextDue ? a.nextDue.getTime() : Infinity;
+    var bv = b.nextDue ? b.nextDue.getTime() : Infinity;
+    return av-bv;
+  });
+
+  var overdueN = rows.filter(function(r){ return r.nextDue && r.nextDue < today; }).length;
+  var soonN    = rows.filter(function(r){ return r.nextDue && r.nextDue >= today && (r.nextDue-today)/86400000 <= 14; }).length;
+  var dropN    = rows.filter(function(r){ return r.drop; }).length;
+  var doneN    = rows.filter(function(r){ return !r.nextDue && !r.drop; }).length;
+
+  var statsHtml = '<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">'
+    + (overdueN ? '<div style="background:#FDF2F4;border:1px solid #E8BFBF;border-left:4px solid #C8102E;border-radius:var(--r);padding:8px 13px;font-size:12.5px;color:#C8102E;font-weight:700">🔴 '+overdueN+' überfällig</div>' : '')
+    + (soonN    ? '<div style="background:#FFF8E0;border:1px solid #FFCC80;border-left:4px solid #E87127;border-radius:var(--r);padding:8px 13px;font-size:12.5px;color:#C8870A;font-weight:700">🟡 '+soonN+' in &lt;2 Wochen fällig</div>' : '')
+    + '<div style="background:#F2FAF5;border:1px solid #A5D6A7;border-left:4px solid #2E8B57;border-radius:var(--r);padding:8px 13px;font-size:12.5px;color:#2E8B57;font-weight:700">✅ '+doneN+' / '+(rows.length-dropN)+' vollständig gebucht</div>'
+    + (dropN ? '<div style="background:#F3F3F3;border:1px solid #CCC;border-left:4px solid #888;border-radius:var(--r);padding:8px 13px;font-size:12.5px;color:#777;font-weight:700">🚪 '+dropN+' Dropout</div>' : '')
+    + '</div>';
+
+  var searchBarHtml = '<div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">'
+    + '<input type="text" placeholder="🔍 Proband suchen (TID oder Laufnr.)…" value="'+(q?q.replace(/"/g,'&quot;'):'')+'" oninput="glpErinSetSearch(this.value)" style="flex:1;min-width:220px;padding:9px 14px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">'
+    + '<button onclick="glpErinSetSort(\'due\')" style="padding:8px 14px;border-radius:8px;border:1px solid '+(sortMode==='due'?'#2A8C85':'#DDD')+';background:'+(sortMode==='due'?'#CDEBE8':'#fff')+';color:'+(sortMode==='due'?'#0F4A46':'#888')+';font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">📅 Nach Termin</button>'
+    + '<button onclick="glpErinSetSort(\'alpha\')" style="padding:8px 14px;border-radius:8px;border:1px solid '+(sortMode==='alpha'?'#2A8C85':'#DDD')+';background:'+(sortMode==='alpha'?'#CDEBE8':'#fff')+';color:'+(sortMode==='alpha'?'#0F4A46':'#888')+';font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">🔤 Alphabetisch</button>'
+    + '</div>';
+
+  var fmtD = function(d){ return d ? d.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}) : ''; };
+
+  function terminCell(tp, key, dateVal, timeVal, targetVal, label, erin, drop) {
+    var head = '<div style="font-size:10px;font-weight:700;color:#999;letter-spacing:.5px;margin-bottom:4px">'+label+'</div>';
+    if(dateVal) {
+      return '<div style="flex:1;min-width:150px">'+head+'<div style="font-size:13px;font-weight:700;color:#2E8B57">✅ '+fmtD(dateVal)+(timeVal?' <span style="font-weight:600;color:#4A9B6E">· '+timeVal+' Uhr</span>':'')+'</div></div>';
+    }
+    if(drop) {
+      return '<div style="flex:1;min-width:150px">'+head+'<div style="font-size:12px;color:#999;font-style:italic">🚪 Dropout – keine Erinnerung</div></div>';
+    }
+    var dU = targetVal ? Math.round((targetVal-today)/86400000) : null;
+    var statusColor = dU===null ? '#999' : dU<0 ? '#C8102E' : dU<=14 ? '#E87127' : '#999';
+    var statusText  = dU===null ? '' : dU<0 ? 'überfällig ('+Math.abs(dU)+' T.)' : dU===0 ? 'heute fällig' : 'in '+dU+' T.';
+    var targetKW = targetVal && window.kw ? window.kw(targetVal) : null;
+    var targetKwLabel = targetKW ? ('KW '+targetKW+' / '+targetVal.getFullYear()) : (targetVal ? fmtD(targetVal) : '');
+    var jumpBtnHtml = '';
+    var _targetISO = '';
+    if(targetVal) {
+      var _dow = targetVal.getDay()||7;
+      var _anchor = new Date(window.START);
+      var _monday = new Date(targetVal); _monday.setDate(targetVal.getDate()-_dow+1); _monday.setHours(12,0,0,0);
+      var _targetWeek = Math.round((_monday-_anchor)/(7*86400000));
+      jumpBtnHtml = '<button type="button" onclick="glpErinJumpToWeek('+_targetWeek+')" style="padding:4px 10px;border-radius:6px;border:1px solid #2A8C85;background:#CDEBE8;color:#0F4A46;font-size:11px;font-weight:700;cursor:pointer;margin-left:6px">→ Zielwoche im Kalender</button>';
+      var _p2 = function(x){ return String(x).padStart(2,'0'); };
+      _targetISO = targetVal.getFullYear()+'-'+_p2(targetVal.getMonth()+1)+'-'+_p2(targetVal.getDate());
+    }
+    var formId = tp._id+'_'+key;
+    erin = erin || {};
+    var kontakt = erin.kontakt || '';
+    var kuerzel = erin.kuerzel || '';
+    var anmerkung = erin.anmerkung || '';
+    var erledigtChecked = erin.erledigt ? 'checked' : '';
+
+    var kontaktFormHtml = isAdm ? (
+      '<div style="border-top:1px dashed #EAE7E2;margin-top:8px;padding-top:8px">'
+      + '<input type="hidden" id="erin-kontakt-'+formId+'" value="'+kontakt+'">'
+      + '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px">'
+      + '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:700;color:#0F4A46">'
+      + '<input type="checkbox" id="erin-done-'+formId+'" '+erledigtChecked+' style="width:14px;height:14px;accent-color:#2A8C85;cursor:pointer"> Kontakt erfolgt</label>'
+      + '<button id="erin-mail-'+formId+'" type="button" onclick="glpErinToggleKontakt(\''+formId+'\',\'mail\')"'
+      + ' style="padding:3px 9px;border-radius:99px;border:1px solid '+(kontakt==='mail'?'#4A90D9':'#DDD')+';background:'+(kontakt==='mail'?'#EEF5FC':'#fff')+';color:'+(kontakt==='mail'?'#4A90D9':'#888')+';font-size:10px;font-weight:700;cursor:pointer">📧</button>'
+      + '<button id="erin-glp-'+formId+'" type="button" onclick="glpErinToggleKontakt(\''+formId+'\',\'telefon\')"'
+      + ' style="padding:3px 9px;border-radius:99px;border:1px solid '+(kontakt==='telefon'?'#4A90D9':'#DDD')+';background:'+(kontakt==='telefon'?'#EEF5FC':'#fff')+';color:'+(kontakt==='telefon'?'#4A90D9':'#888')+';font-size:10px;font-weight:700;cursor:pointer">📞</button>'
+      + '<input id="erin-kuerzel-'+formId+'" list="erin-kuerzel-list-'+formId+'" value="'+kuerzel+'" placeholder="Wer?" maxlength="10"'
+      + ' style="width:60px;padding:3px 6px;border:1px solid #DDD;border-radius:6px;font-size:10px;font-family:monospace;outline:none">'
+      + '<datalist id="erin-kuerzel-list-'+formId+'">'+teamOptHtml+'</datalist>'
+      + '</div>'
+      + '<textarea id="erin-anmerkung-'+formId+'" rows="1" placeholder="Kommentar / offene Fragen…"'
+      + ' style="width:100%;padding:5px 8px;border:1px solid #DDD;border-radius:6px;font-size:11px;resize:vertical;outline:none;font-family:\'Source Sans 3\',sans-serif;color:#414141;margin-bottom:5px">'
+      + anmerkung.replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      + '</textarea>'
+      + '<button type="button" onclick="saveGlpErinnerung(\''+formId+'\')"'
+      + ' style="padding:4px 12px;background:#2A8C85;color:#fff;border:none;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer">💾 Notiz speichern</button>'
+      + '</div>'
+    ) : (
+      (erin.erledigt || erin.kontakt || erin.anmerkung) ? (
+        '<div style="border-top:1px dashed #EAE7E2;margin-top:8px;padding-top:8px;font-size:11px;color:#4A90D9">'
+        + (erin.kontakt ? (erin.kontakt==='mail'?'📧 Mail':'📞 Telefon') : 'Kontakt erfolgt')
+        + (erin.kuerzel ? ' · von '+erin.kuerzel : '')
+        + (erin.anmerkung ? '<div style="margin-top:3px;color:#555">📝 '+erin.anmerkung+'</div>' : '')
+        + '</div>'
+      ) : ''
+    );
+
+    return '<div style="flex:1;min-width:220px">'+head
+      + (targetVal ? '<div style="font-size:11.5px;color:#777;margin-bottom:5px">Zielwoche: <strong style="color:#0F4A46">'+targetKwLabel+'</strong>'+(statusText?' · <span style="color:'+statusColor+';font-weight:700">'+statusText+'</span>':'')+jumpBtnHtml+'</div>' : '<div style="font-size:11.5px;color:#BBB;margin-bottom:5px">kein Anker-Termin</div>')
+      + kontaktFormHtml
+      + '</div>';
+  }
+
+  var rowsHtml = rows.map(function(r){
+    var tp = r.tp;
+    return '<div style="background:#fff;border:1px solid #E0DDD8;border-radius:var(--rl);padding:14px 18px;margin-bottom:10px;box-shadow:var(--sh)">'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:11px;flex-wrap:wrap">'
+      + '<span style="font-family:monospace;font-size:14px;font-weight:800;color:#0F4A46;background:#CDEBE8;padding:3px 12px;border-radius:99px;border:1px solid #7FC4BE">'+tp.tid+(tp.aufpassen?' ⚠️':'')+'</span>'
+      + (tp.lnr ? '<span style="font-size:12px;color:var(--g5)">'+tp.lnr+'</span>' : '')
+      + (r.drop ? '<span style="font-size:11px;font-weight:700;color:#777;background:#EEE;border-radius:99px;padding:2px 10px">🚪 Dropout</span>' : '')
+      + (isTr ? '<button type="button" onclick="glpErinToggleDropout(\''+tp._id+'\','+(r.drop?'false':'true')+')" style="margin-left:auto;padding:3px 10px;border-radius:6px;border:1px solid #BBB;background:#fff;color:#666;font-size:10.5px;font-weight:600;cursor:pointer">'+(r.drop?'Dropout aufheben':'Dropout markieren')+'</button>' : '')
+      + '</div>'
+      + '<div style="display:flex;gap:18px;flex-wrap:wrap">'
+      + terminCell(tp, 'T0', r.t0Date, r.t0Time, null, 'T0', ERINNERUNGEN[tp._id+'_T0'])
+      + terminCell(tp, 'T1', r.t1Date, r.t1Time, r.t1Target, 'T1', ERINNERUNGEN[tp._id+'_T1'], r.drop)
+      + terminCell(tp, 'T2', r.t2Date, r.t2Time, r.t2Target, 'T2', ERINNERUNGEN[tp._id+'_T2'], r.drop)
+      + '</div></div>';
+  }).join('');
+
+  el.innerHTML = statsHtml + searchBarHtml + (rowsHtml || '<div style="padding:40px;text-align:center;color:#888;font-style:italic">Keine Probanden gefunden.</div>');
+
+};
+
+window.glpErinSetSearch = function(v){ window._glpErinSearch = v; window.renderGlpErinnerungen(); };
+window.glpErinSetSort = function(v){ window._glpErinSort = v; window.renderGlpErinnerungen(); };
+
+// Zeigt live KW + freie/belegte Slots an, sobald ein Datum im Buchungsformular gewählt wird.
+window.glpErinDateChanged = function(formId) {
+  var dateVal = document.getElementById('terin-date-'+formId)?.value;
+  var kwEl = document.getElementById('terin-kw-'+formId);
+  var slotsEl = document.getElementById('terin-slots-'+formId);
+  if(!dateVal){ if(kwEl) kwEl.textContent=''; if(slotsEl) slotsEl.innerHTML=''; return; }
+
+  var d = new Date(dateVal+'T12:00');
+  var dow = d.getDay()||7;
+  var DAYNAMES = {1:'Montag',2:'Dienstag',3:'Mittwoch',4:'Donnerstag',5:'Freitag'};
+  if(dow>5){
+    if(kwEl) kwEl.innerHTML = '<span style="color:#C8102E">kein Werktag</span>';
+    if(slotsEl) slotsEl.innerHTML = '';
+    return;
+  }
+  var dayLabel = DAYNAMES[dow];
+  var anchor = new Date(window.START);
+  var monday = new Date(d); monday.setDate(d.getDate()-dow+1); monday.setHours(12,0,0,0);
+  var week = Math.round((monday-anchor)/(7*86400000));
+  var kwNum = window.kw ? window.kw(monday) : '?';
+  if(kwEl) kwEl.textContent = 'KW '+kwNum+' / '+monday.getFullYear()+' · '+dayLabel;
+
+  // Standard-Slots (aus der einheitlichen GLP-1-Slot-Struktur) + evtl. Zusatz-Slots dieses Tages
+  var pool = window._GLP_T0 || [];
+  var slotList = pool.map(function(s){ return {slot:s.slot, time:s.blutStart, extra:false}; });
+  var extraSrc = window._GLP_EXTRA_SLOTS || {};
+  var existingExtra = Object.values(extraSrc).find(function(s){ return s.week===week && s.day===dayLabel; });
+  if(existingExtra) (existingExtra.times||[]).forEach(function(t){
+    var hh=parseInt(t.split(':')[0],10), mm=parseInt(t.split(':')[1],10);
+    slotList.push({slot:5000+hh*100+mm, time:t, extra:true});
+  });
+  slotList.sort(function(a,b){ return a.time<b.time?-1:a.time>b.time?1:0; });
+
+  var bookings = Object.values(window._GLP_BOOKINGS||{}).filter(function(bk){ return bk.week===week && bk.day===dayLabel; });
+  var chipsHtml = slotList.map(function(sl){
+    var bk = bookings.find(function(b){ return Number(b.slot)===sl.slot; });
+    var free = !bk;
+    var label = sl.time + (sl.extra?' ✦':'') + (free?'':' · belegt');
+    return '<button type="button" '+(free?('onclick="glpErinPickSlot(\''+formId+'\',\''+sl.time+'\')"'):'disabled')
+      + ' style="padding:4px 9px;border-radius:6px;border:1px solid '+(free?'#2A8C85':'#DDD')+';background:'+(free?'#fff':'#F5F5F5')+';color:'+(free?'#0F4A46':'#BBB')+';font-size:10.5px;font-weight:600;cursor:'+(free?'pointer':'not-allowed')+'">'+label+'</button>';
+  }).join('') + '<button type="button" onclick="glpErinPickSlot(\''+formId+'\',\'\');document.getElementById(\'terin-time-'+formId+'\').focus()" style="padding:4px 9px;border-radius:6px;border:1px dashed #7B1FA2;background:#F8F1FB;color:#7B1FA2;font-size:10.5px;font-weight:600;cursor:pointer" title="Freie Uhrzeit eintragen — wird automatisch als neuer Zusatz-Slot angelegt">+ Sondertermin</button>';
+  if(slotsEl) slotsEl.innerHTML = '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">'+chipsHtml+'</div>';
+};
+
+window.glpErinPickSlot = function(formId, time) {
+  var timeInput = document.getElementById('terin-time-'+formId);
+  if(timeInput) timeInput.value = time;
+};
+
+// Springt im GLP-1-Kalender direkt zur angegebenen Zielwoche (z.B. von der Erinnerungsansicht aus)
+window.glpErinJumpToWeek = function(week) {
+  _glpCW = week;
+  window._glpManualNav = true;
+  goTab('glp-kalender', document.querySelector('#nav-glp .ntab'));
+  renderGlpKalender();
+};
+
+// Trägt einen T0/T1/T2-Termin direkt aus der Erinnerungsansicht ein — landet als echte
+// Buchung im GLP-1-Kalender (glp_bookings). Zeit außerhalb der 4 Standard-Slots
+// wird automatisch als Zusatz-Slot angelegt (analog "+ Slot hinzufügen" im Kalender).
+window.glpErinBook = async function(probandId, termin) {
+  var formId = probandId+'_'+termin;
+  var dateVal = document.getElementById('terin-date-'+formId)?.value;
+  var timeVal = document.getElementById('terin-time-'+formId)?.value || '08:00';
+  if(!dateVal){ toast('Bitte Datum wählen',true); return; }
+
+  var d = new Date(dateVal+'T12:00');
+  var dow = d.getDay()||7; // 1=Mo..7=So
+  var DAYNAMES = {1:'Montag',2:'Dienstag',3:'Mittwoch',4:'Donnerstag',5:'Freitag'};
+  if(dow>5){ toast('Bitte einen Wochentag Mo–Fr wählen',true); return; }
+  var dayLabel = DAYNAMES[dow];
+  var anchor = new Date(window.START);
+  var monday = new Date(d); monday.setDate(d.getDate()-dow+1); monday.setHours(12,0,0,0);
+  var week = Math.round((monday-anchor)/(7*86400000));
+
+  var tp = window._GLPP ? window._GLPP[probandId] : null;
+  try {
+    var fns = window._fbFns;
+    var GLP_STARTS_DEFAULT = ['08:00','08:00','08:30','08:30'];
+    var stdIdx = GLP_STARTS_DEFAULT.indexOf(timeVal);
+    var slotNum;
+    if(stdIdx >= 0) {
+      slotNum = stdIdx+1;
+    } else {
+      var hh = parseInt(timeVal.split(':')[0],10), mm = parseInt(timeVal.split(':')[1],10);
+      slotNum = 5000 + hh*100 + mm;
+      var extraSrc = window._GLP_EXTRA_SLOTS || {};
+      var existingExtra = Object.values(extraSrc).find(function(s){ return s.week===week && s.day===dayLabel; });
+      var times = existingExtra ? (existingExtra.times||[]).slice() : [];
+      if(times.indexOf(timeVal)<0) {
+        times.push(timeVal); times.sort();
+        if(existingExtra) await fns.setDoc(fns.doc(window.db,'glp_extra_slots',existingExtra._id),{week:week,day:dayLabel,times:times});
+        else await fns.addDoc(fns.collection(window.db,'glp_extra_slots'),{week:week,day:dayLabel,times:times});
+      }
+    }
+    var existing = Object.values(window._GLP_BOOKINGS||{}).find(function(bk){
+      return bk.week===week && bk.day===dayLabel && Number(bk.slot)===Number(slotNum);
+    });
+    if(existing){ toast('Dieser Termin ist bereits belegt',true); return; }
+
+    await fns.addDoc(fns.collection(window.db,'glp_bookings'),{
+      termin: termin, week: week, day: dayLabel, slot: Number(slotNum),
+      probandId: probandId, tid: tp?(tp.tid||''):'', lnr: tp?(tp.lnr||''):'',
+      created: Date.now()
+    });
+    toast(termin+'-Termin gebucht ✓ (erscheint im GLP-1-Kalender)');
+  } catch(e){ toast('Fehler: '+e.message, true); }
+};
+
+window.glpErinToggleDropout = async function(probandId, makeDrop) {
+  if(!(window.isTrainer && window.isTrainer())){ toast('Keine Berechtigung',true); return; }
+  var tp = window._GLPP ? window._GLPP[probandId] : null;
+  if(makeDrop && !confirm('Proband '+(tp?tp.tid:'')+' als Dropout markieren? Die Erinnerungen für T1/T2 werden dann ausgeblendet.')) return;
+  try {
+    var fns = window._fbFns;
+    await fns.setDoc(fns.doc(window.db,'glp_erinnerungen',probandId+'_DROPOUT'), {glppId:probandId, tid:tp?(tp.tid||''):'', phase:'DROPOUT', dropout:!!makeDrop, updated:Date.now()});
+    toast(makeDrop?'Als Dropout markiert ✓':'Dropout aufgehoben ✓');
+  } catch(e){ toast('Fehler: '+e.message,true); }
+};
+
+window.glpErinToggleKontakt = function(id, type) {
+  var hidden = document.getElementById('erin-kontakt-'+id); if(!hidden) return;
+  var newVal = hidden.value === type ? '' : type;
+  hidden.value = newVal;
+  ['mail','telefon'].forEach(function(t) {
+    var btn = document.getElementById('erin-'+(t==='mail'?'mail':'glp')+'-'+id); if(!btn) return;
+    var active = newVal === t;
+    btn.style.borderColor = active?'#4A90D9':'#DDD';
+    btn.style.background  = active?'#EEF5FC':'#fff';
+    btn.style.color       = active?'#4A90D9':'#888';
+  });
+};
+
+window.saveGlpErinnerung = async function(erinId) {
+  // erinId hat das Format "<probandId>_T0" oder "<probandId>_T1"; falls Legacy (ohne Suffix) → als T0 behandeln
+  var match = erinId.match(/^(.+)_(T[012])$/);
+  var probandId = match ? match[1] : erinId;
+  var phase     = match ? match[2] : 'T0';
+  var firebaseDocId = match ? erinId : (probandId + '_T0'); // immer mit Suffix speichern
+  var tp = window._GLPP ? window._GLPP[probandId] : null; if(!tp) { if(window.toast) window.toast('Proband nicht gefunden',true); return; }
+  var doneEl    = document.getElementById('erin-done-'+erinId);
+  var kontaktEl = document.getElementById('erin-kontakt-'+erinId);
+  var kuerzelEl = document.getElementById('erin-kuerzel-'+erinId);
+  var anmEl     = document.getElementById('erin-anmerkung-'+erinId);
+  var data = {
+    glppId:    probandId,
+    tid:       tp.tid || '',
+    phase:     phase,
+    erledigt:  doneEl    ? doneEl.checked        : false,
+    kontakt:   kontaktEl ? kontaktEl.value        : '',
+    kuerzel:   kuerzelEl ? kuerzelEl.value.trim() : '',
+    anmerkung: anmEl     ? anmEl.value.trim()     : '',
+    updated:   Date.now()
+  };
+  try {
+    var fns = window._fbFns;
+    await fns.setDoc(fns.doc(window.db, 'glp_erinnerungen', firebaseDocId), data);
+    toast('Erinnerung gespeichert ✓');
+  } catch(e) { toast('Fehler: '+e.message, true); }
+};
+
+// Hook into goTab for GLP-1 tabs
+(function(){
+  var origGoTab = window.goTab;
+  if(!origGoTab) return;
+  window.goTab = function(name, btn){
+    origGoTab(name, btn);
+    if(name==='glp-kalender'){
+      if(!window._glpManualNav && window.START) { _glpCW = _glpDefaultWeek(); }
+      renderGlpKalender();
+    }
+    if(name==='glp-erinnerungen'){ renderGlpErinnerungen(); }
+    if(name==='glp-probanden'){ renderGlpProbanden(); }
+    if(name==='glp-fortschritt'){ renderGlpFortschritt(); }
+  };
+})();
+
+// ── GLP-1 FORTSCHRITT ─────────────────────────────────────────
+var GLP_FUNFACTS = [
+  "Jede saubere Messung zählt — gute Daten sind das Fundament jeder Studie.",
+  "Pünktlichkeit bei den Terminen spart dem ganzen Team Zeit.",
+  "Ein gut vorbereiteter Slot ist ein halber Erfolg.",
+  "Standardisierte Abläufe machen Ergebnisse vergleichbar.",
+  "Auch kleine Dokumentationsnotizen helfen später enorm bei der Auswertung.",
+  "Rekrutierung ist Teamarbeit — danke an alle, die mitanpacken!",
+  "Erinnerungen rechtzeitig zu verschicken verhindert Dropouts.",
+  "Gute Kommunikation mit den Proband*innen ist der beste Schutz vor Studienabbruch.",
+  "Wer Termine frühzeitig plant, vermeidet Engpässe in der Hauptphase.",
+  "Ein kurzer Check der Messgeräte vor dem Termin erspart Nacharbeit."
+];
+
+var GLP_MEILENSTEINE = [
+  {n:10,  msg:"10 GLP-1-Probanden! Toller Start!"},
+  {n:25,  msg:"Ein Viertel geschafft — weiter so!"},
+  {n:50,  msg:"50 Probanden — Halbzeit bei den Starts!"},
+  {n:100, msg:"Zielgröße erreicht! Das ganze Team hat es geschafft!"}
+];
+var GLP_ZIEL_P = 100;   // vorläufiger Platzhalter — bitte Zielgröße der Studie anpassen
+
+window.renderGlpFortschritt = function() {
+  var el = document.getElementById('glp-fortschritt-content');
+  if(!el) return;
+
+  var tps = Object.values(window._GLPP || {});
+  var TB  = window._GLP_BOOKINGS || {};
+  // Hilfsfunktion: hat dieser Proband einen T0/T1/T2 Termin (entweder über glp_bookings oder Legacy-Feld)?
+  function hasTermin(tp, termin) {
+    // glp_bookings prüfen
+    if(Object.values(TB).some(function(bk){ return bk.probandId===tp._id && bk.termin===termin; })) return true;
+    // Legacy-Felder prüfen
+    var wField = termin==='T0' ? tp.t0week : termin==='T1' ? tp.t1week : tp.t2week;
+    var dField = termin==='T0' ? tp.t0day  : termin==='T1' ? tp.t1day  : tp.t2day;
+    return (wField !== undefined && wField !== null && dField);
+  }
+  var t0done = tps.filter(function(tp){ return hasTermin(tp,'T0'); }).length;
+  var t1done = tps.filter(function(tp){ return hasTermin(tp,'T1'); }).length;
+  var t2done = tps.filter(function(tp){ return hasTermin(tp,'T2'); }).length;
+
+  var dayIdx = Math.floor(Date.now() / 86400000) % GLP_FUNFACTS.length;
+  var funfact = GLP_FUNFACTS[dayIdx];
+
+  var milestone = null;
+  for (var i = GLP_MEILENSTEINE.length - 1; i >= 0; i--) {
+    if (t0done >= GLP_MEILENSTEINE[i].n) { milestone = GLP_MEILENSTEINE[i]; break; }
+  }
+  var nextM = GLP_MEILENSTEINE.find(function(m){ return m.n > t0done; });
+
+  function pct(v, max) { return max > 0 ? Math.min(100, Math.round(v / max * 100)) : 0; }
+  function bar(v, max, col) {
+    return '<div style="background:var(--g2);border-radius:99px;height:10px;overflow:hidden;margin-top:6px">'
+      + '<div style="background:' + col + ';height:100%;width:' + pct(v,max) + '%;border-radius:99px"></div></div>';
+  }
+
+  var pipelineCells = [
+    {label:"T0", n:t0done, color:"#2A8C85"},
+    {label:"T1 (+12 Wo)", n:t1done, color:"#5BB0A9"},
+    {label:"T2 (+24 Wo)", n:t2done, color:"#7FC4BE"}
+  ];
+
+  var pipelineHtml = "";
+  pipelineCells.forEach(function(s) {
+    pipelineHtml += '<div style="text-align:center">'
+      + '<div style="font-size:28px;font-weight:800;color:' + s.color + '">' + s.n + '</div>'
+      + '<div style="font-size:10px;color:var(--g5);margin-top:2px">' + s.label + '</div>'
+      + bar(s.n, tps.length || 1, s.color)
+      + '</div>';
+  });
+
+  var milestoneStyle = milestone
+    ? 'background:linear-gradient(135deg,#0F4A46,#2A8C85);border:1px solid transparent'
+    : 'background:#fff;border:1px solid var(--g2)';
+  var milestoneContent = milestone
+    ? '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.1em;margin-bottom:12px">MEILENSTEIN</div>'
+      + '<div style="font-size:16px;font-weight:800;color:#fff;line-height:1.4">&#127942; ' + milestone.msg + '</div>'
+      + (nextM ? '<div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:8px">Nächstes Ziel: ' + nextM.n + ' Probanden</div>' : '')
+    : '<div style="font-size:10px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">MEILENSTEIN</div>'
+      + '<div style="font-size:13px;color:var(--g5)">Nächstes Ziel: <strong style="color:#2A8C85">'
+      + GLP_MEILENSTEINE[0].n + ' Probanden</strong></div>';
+
+  el.innerHTML =
+    '<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh);margin-bottom:16px">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:12px">STUDIENZIEL GLP-1</div>'
+    + '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">'
+    + '<span style="font-size:36px;font-weight:800;color:#2A8C85">' + t0done + '</span>'
+    + '<span style="font-size:16px;color:var(--g4)"> / ' + GLP_ZIEL_P + '</span>'
+    + '<span style="font-size:13px;color:var(--g5);margin-left:auto">' + pct(t0done,GLP_ZIEL_P) + '%</span>'
+    + '</div>' + bar(t0done, GLP_ZIEL_P, '#2A8C85')
+    + '<div style="font-size:11px;color:var(--g4);margin-top:6px">' + (GLP_ZIEL_P - t0done) + ' Probanden noch ausstehend</div>'
+    + '</div>'
+
+    + '<div style="background:#fff;border:1px solid var(--g2);border-radius:var(--rl);padding:20px;box-shadow:var(--sh);margin-bottom:16px">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--g5);letter-spacing:.1em;margin-bottom:16px">GLP-1-PIPELINE</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">'
+    + pipelineHtml + '</div></div>'
+
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
+    + '<div style="background:linear-gradient(135deg,#0F4A46,#2A8C85);border-radius:var(--rl);padding:24px;box-shadow:var(--sh)">'
+    + '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.7);letter-spacing:.1em;margin-bottom:12px">💉 MOTIVATION DES TAGES</div>'
     + '<div style="font-size:14px;color:#fff;line-height:1.6">' + funfact + '</div>'
     + '</div>'
     + '<div style="' + milestoneStyle + ';border-radius:var(--rl);padding:24px;box-shadow:var(--sh)">'
