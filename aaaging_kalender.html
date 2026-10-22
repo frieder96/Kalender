@@ -10272,7 +10272,7 @@ window.renderTelKalender = function() {
               ? '<button style="background:' + (telP._customStart?'#FFF3E0':'none') + ';border:1px solid ' + (telP._customStart?'#FFB74D':'transparent') + ';color:' + (telP._customStart?'#E65100':'#888') + ';cursor:pointer;font-size:11px;padding:1px 5px;border-radius:4px" onclick="setTelCustomStartTime(\'' + telP._telBookingId + '\',\'' + s.blutStart + '\')" title="' + (telP._customStart?'Aktuell: '+telP._customStart+' (manuell)':'Startzeit individuell anpassen') + '">⏰</button>'
               : '';
             html += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;flex-wrap:wrap">'
-              + '<span style="background:#EAD4CB;color:#4A2A1F;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;border:1px solid #C9A999">' + telP.tid + (telP.aufpassen?' ⚠️':'') + '</span>'
+              + '<span style="background:#EAD4CB;color:#4A2A1F;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;border:1px solid #C9A999;cursor:pointer" title="Zur Erinnerung dieser Person" onclick="telGoToErinnerung(\'' + telP.tid + '\')">' + telP.tid + (telP.aufpassen?' ⚠️':'') + '</span>'
               + (telP.lnr ? '<span style="background:var(--ubl);color:var(--ub);padding:1px 6px;border-radius:99px;font-size:10px">' + telP.lnr + '</span>' : '')
               + _termBadge
               + _telClockBtn
@@ -10848,7 +10848,7 @@ window.renderTelErinnerungen = function() {
     + '</div>';
 
   var searchBarHtml = '<div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">'
-    + '<input type="text" placeholder="🔍 Proband suchen (TID oder Laufnr.)…" value="'+(q?q.replace(/"/g,'&quot;'):'')+'" oninput="telErinSetSearch(this.value)" style="flex:1;min-width:220px;padding:9px 14px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">'
+    + '<input type="text" placeholder="🔍 Proband suchen (TID oder Laufnr.)…" value="'+(q?q.replace(/"/g,'&quot;'):'')+'" id="tel-erin-search" oninput="telErinSetSearch(this.value)" style="flex:1;min-width:220px;padding:9px 14px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">'
     + '<button onclick="telErinSetSort(\'due\')" style="padding:8px 14px;border-radius:8px;border:1px solid '+(sortMode==='due'?'#8B5A4A':'#DDD')+';background:'+(sortMode==='due'?'#EAD4CB':'#fff')+';color:'+(sortMode==='due'?'#4A2A1F':'#888')+';font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">📅 Nach Termin</button>'
     + '<button onclick="telErinSetSort(\'alpha\')" style="padding:8px 14px;border-radius:8px;border:1px solid '+(sortMode==='alpha'?'#8B5A4A':'#DDD')+';background:'+(sortMode==='alpha'?'#EAD4CB':'#fff')+';color:'+(sortMode==='alpha'?'#4A2A1F':'#888')+';font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">🔤 Alphabetisch</button>'
     + '</div>';
@@ -10943,7 +10943,21 @@ window.renderTelErinnerungen = function() {
 
 };
 
-window.telErinSetSearch = function(v){ window._telErinSearch = v; window.renderTelErinnerungen(); };
+window.telErinSetSearch = function(v){
+  var cur = document.activeElement, pos = null;
+  if(cur && cur.id==='tel-erin-search') pos = cur.selectionStart;
+  window._telErinSearch = v; window.renderTelErinnerungen();
+  var inp = document.getElementById('tel-erin-search');
+  if(inp && pos!==null){ inp.focus(); try{ inp.setSelectionRange(pos,pos); }catch(e){} }
+};
+// Aus dem Kalender direkt zur Erinnerung einer Person springen (Suche wird auf die ID gesetzt)
+window.telGoToErinnerung = function(tid) {
+  window._telErinSearch = tid;
+  var btn = Array.from(document.querySelectorAll('.ntab')).find(function(b){ return (b.getAttribute('onclick')||'').indexOf("'tel-erinnerungen'")>=0; });
+  goTab('tel-erinnerungen', btn||null);
+  window.renderTelErinnerungen();
+  var inp = document.getElementById('tel-erin-search'); if(inp) inp.scrollIntoView({block:'nearest'});
+};
 window.telErinSetSort = function(v){ window._telErinSort = v; window.renderTelErinnerungen(); };
 
 // Zeigt live KW + freie/belegte Slots an, sobald ein Datum im Buchungsformular gewählt wird.
@@ -11485,7 +11499,7 @@ window.renderGlpKalender = function() {
               ? '<button style="background:' + (glpP._customStart?'#FFF3E0':'none') + ';border:1px solid ' + (glpP._customStart?'#FFB74D':'transparent') + ';color:' + (glpP._customStart?'#E65100':'#888') + ';cursor:pointer;font-size:11px;padding:1px 5px;border-radius:4px" onclick="setGlpCustomStartTime(\'' + glpP._glpBookingId + '\',\'' + s.blutStart + '\')" title="' + (glpP._customStart?'Aktuell: '+glpP._customStart+' (manuell)':'Startzeit individuell anpassen') + '">⏰</button>'
               : '';
             html += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;flex-wrap:wrap">'
-              + '<span style="background:#CDEBE8;color:#0F4A46;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;border:1px solid #7FC4BE">' + glpP.tid + (glpP.aufpassen?' ⚠️':'') + '</span>'
+              + '<span style="background:#CDEBE8;color:#0F4A46;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;border:1px solid #7FC4BE;cursor:pointer" title="Zur Erinnerung dieser Person" onclick="glpGoToErinnerung(\'' + glpP.tid + '\')">' + glpP.tid + (glpP.aufpassen?' ⚠️':'') + '</span>'
               + (glpP.lnr ? '<span style="background:var(--ubl);color:var(--ub);padding:1px 6px;border-radius:99px;font-size:10px">' + glpP.lnr + '</span>' : '')
               + _termBadge
               + _glpClockBtn
@@ -12062,7 +12076,7 @@ window.renderGlpErinnerungen = function() {
     + '</div>';
 
   var searchBarHtml = '<div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">'
-    + '<input type="text" placeholder="🔍 Proband suchen (TID oder Laufnr.)…" value="'+(q?q.replace(/"/g,'&quot;'):'')+'" oninput="glpErinSetSearch(this.value)" style="flex:1;min-width:220px;padding:9px 14px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">'
+    + '<input type="text" placeholder="🔍 Proband suchen (TID oder Laufnr.)…" value="'+(q?q.replace(/"/g,'&quot;'):'')+'" id="glp-erin-search" oninput="glpErinSetSearch(this.value)" style="flex:1;min-width:220px;padding:9px 14px;border:1px solid #DDD;border-radius:8px;font-size:13px;outline:none">'
     + '<button onclick="glpErinSetSort(\'due\')" style="padding:8px 14px;border-radius:8px;border:1px solid '+(sortMode==='due'?'#2A8C85':'#DDD')+';background:'+(sortMode==='due'?'#CDEBE8':'#fff')+';color:'+(sortMode==='due'?'#0F4A46':'#888')+';font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">📅 Nach Termin</button>'
     + '<button onclick="glpErinSetSort(\'alpha\')" style="padding:8px 14px;border-radius:8px;border:1px solid '+(sortMode==='alpha'?'#2A8C85':'#DDD')+';background:'+(sortMode==='alpha'?'#CDEBE8':'#fff')+';color:'+(sortMode==='alpha'?'#0F4A46':'#888')+';font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">🔤 Alphabetisch</button>'
     + '</div>';
@@ -12157,7 +12171,21 @@ window.renderGlpErinnerungen = function() {
 
 };
 
-window.glpErinSetSearch = function(v){ window._glpErinSearch = v; window.renderGlpErinnerungen(); };
+window.glpErinSetSearch = function(v){
+  var cur = document.activeElement, pos = null;
+  if(cur && cur.id==='glp-erin-search') pos = cur.selectionStart;
+  window._glpErinSearch = v; window.renderGlpErinnerungen();
+  var inp = document.getElementById('glp-erin-search');
+  if(inp && pos!==null){ inp.focus(); try{ inp.setSelectionRange(pos,pos); }catch(e){} }
+};
+// Aus dem Kalender direkt zur Erinnerung einer Person springen (Suche wird auf die ID gesetzt)
+window.glpGoToErinnerung = function(tid) {
+  window._glpErinSearch = tid;
+  var btn = Array.from(document.querySelectorAll('.ntab')).find(function(b){ return (b.getAttribute('onclick')||'').indexOf("'glp-erinnerungen'")>=0; });
+  goTab('glp-erinnerungen', btn||null);
+  window.renderGlpErinnerungen();
+  var inp = document.getElementById('glp-erin-search'); if(inp) inp.scrollIntoView({block:'nearest'});
+};
 window.glpErinSetSort = function(v){ window._glpErinSort = v; window.renderGlpErinnerungen(); };
 
 // Zeigt live KW + freie/belegte Slots an, sobald ein Datum im Buchungsformular gewählt wird.
