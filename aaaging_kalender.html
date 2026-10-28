@@ -7685,6 +7685,8 @@ const SP_TOTAL = 96;
 let SP_PROBANDS = {}, SP_SLOTS_DATA = {}, SP_TRAINING_LOGS = {}, SP_TRAINING_TEMPLATES = {}, SP_DAY_TRAINERS = {};
 let sp_listeners = [];
 function spEmit(){ sp_listeners.forEach(fn=>fn()); }
+// Training: Anwesenheit/Protokolle dürfen alle angemeldeten Nutzer bearbeiten (nicht nur Trainer/Admin)
+window.spCanTrain = () => !!((window.isTrainer && window.isTrainer()) || (window.canRecall && window.canRecall()));
 window.spOnChange = fn => sp_listeners.push(fn);
 
 // Start Firestore listeners for studio data
@@ -7853,7 +7855,7 @@ window.spRenderProtokolle = () => {
           <span style="font-size:12px;color:var(--g5)">${dayName}, ${dateStr} · ${log.h}:00 Uhr</span>
           <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
             <span id="proto-saved-${logId}" style="font-size:11px;color:#4CAF80;display:none">✓ Gespeichert</span>
-            ${window.isTrainer&&window.isTrainer()?`<button id="proto-save-btn-${logId}" onclick="spProtoSave('${logId}')"
+            ${window.spCanTrain()?`<button id="proto-save-btn-${logId}" onclick="spProtoSave('${logId}')"
               style="padding:4px 12px;border-radius:6px;border:none;background:var(--ub);color:#fff;font-size:11px;font-weight:700;cursor:pointer;opacity:0.3;pointer-events:none">Speichern</button>`:''}
           </span>
         </div>
@@ -8066,7 +8068,7 @@ function spRenderCalendar(){
       return `<div style="text-align:center;padding:8px 4px;border-radius:10px;background:${isToday?studio.color+'18':'#fff'};border:1px solid ${isToday?studio.color:'#E8E4DE'};opacity:${isAvail?1:0.3}">
         <div style="font-size:9px;color:#BBB;letter-spacing:2px">${SP_DAY_SHORT[dn]}</div>
         <div style="font-size:15px;font-weight:500;color:${isToday?studio.color:'#2A2A2A'};margin-top:2px">${spFmtDate(date)}</div>
-        ${isAvail&&isTrainer()?`<button onclick="spOpenDayTrainerModal(${dn})" style="margin-top:5px;width:100%;padding:3px 6px;border-radius:6px;border:1px solid ${dayTrainer?studio.color:'#DDD'};background:${dayTrainer?studio.color+'18':'#F8F5F0'};color:${dayTrainer?studio.color:'#AAA'};font-size:9px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dayTrainer?`🏋️ ${dayTrainer}`:'+ Trainer'}</button>`
+        ${isAvail&&window.spCanTrain()?`<button onclick="spOpenDayTrainerModal(${dn})" style="margin-top:5px;width:100%;padding:3px 6px;border-radius:6px;border:1px solid ${dayTrainer?studio.color:'#DDD'};background:${dayTrainer?studio.color+'18':'#F8F5F0'};color:${dayTrainer?studio.color:'#AAA'};font-size:9px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dayTrainer?`🏋️ ${dayTrainer}`:'+ Trainer'}</button>`
         :dayTrainer?`<div style="margin-top:4px;font-size:9px;color:${studio.color};font-weight:600">🏋️ ${dayTrainer}</div>`:''}
       </div>`;
     }).join('');
@@ -8185,7 +8187,7 @@ window.spOpenSlotModal=(di,h)=>{
       <div style="display:flex;gap:6px;align-items:center">
         <button onclick="spOpenTrainingLog(${spActiveStudio},${di},${h},${spWeekOff},'${name.replace(/'/g,"\\'")}',this)" style="background:${hasLog?'#003975':'#fff'};border:1px solid #003975;border-radius:6px;color:${hasLog?'#fff':'#003975'};font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer" title="Trainingsprotokoll">📋</button>
         <button onclick="spOpen5rmFromSlot('${name.replace(/'/g,"\\'")}')" style="background:#fff;border:1px solid #1A4A2A;border-radius:6px;color:#1A4A2A;font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer" title="5RM Diagnostik">💪</button>
-        ${isTrainer()?`<button onclick="spToggleAtt(${i},'${att}')" style="background:none;border:1px solid ${attCfg.border};border-radius:6px;color:${attCfg.color};font-weight:700;font-size:14px;width:30px;height:28px;cursor:pointer">${attCfg.icon}</button>`:''}
+        ${window.spCanTrain()?`<button onclick="spToggleAtt(${i},'${att}')" style="background:none;border:1px solid ${attCfg.border};border-radius:6px;color:${attCfg.color};font-weight:700;font-size:14px;width:30px;height:28px;cursor:pointer">${attCfg.icon}</button>`:''}
         <span style="font-size:10px;font-family:monospace;color:${spPColor(spCountAll(name),SP_TOTAL)}">${spCountAll(name)}/${SP_TOTAL}</span>
         ${isAdmin()?`<button onclick="spQuickMove('${name.replace(/'/g,"\\'")}')" style="background:#fff;border:1px solid #003975;border-radius:6px;color:#003975;font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer" title="Termin verschieben">🔀</button>`:''}
         ${isAdmin()?`<button onclick="spRemoveBooking('member',${i})" style="background:none;border:none;color:#CCC;font-size:16px;cursor:pointer" title="Termin löschen">×</button>`:''}
@@ -8436,7 +8438,7 @@ window.spOpenTrainingLog = (sid, di, h, wo, proband, btn) => {
     </div>`:''}
 
 
-    ${isTrainer()?`<div style="margin-top:16px;padding-top:14px;border-top:1px solid #EAE7E2">
+    ${window.spCanTrain()?`<div style="margin-top:16px;padding-top:14px;border-top:1px solid #EAE7E2">
       <div style="font-size:10px;font-weight:700;color:#888;letter-spacing:1px;margin-bottom:12px">WOHLBEFINDEN</div>
 
       <!-- RPE -->
@@ -9313,7 +9315,7 @@ window.spOpen5rmFromSlot = (name) => {
       <input type="text" id="sl5-note" placeholder="Notiz (optional)" style="flex:1;padding:6px 10px;border:1px solid #DDD;border-radius:8px;font-size:12px;outline:none">
     </div>
     <div style="max-height:55vh;overflow-y:auto;padding-right:4px">${exRows}${_wellnessBlockHtml}</div>
-    ${(window.isTrainer?window.isTrainer():true)?`<div style="display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #EAE7E2">
+    ${window.spCanTrain()?`<div style="display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #EAE7E2">
       <button onclick="spCloseTrainModal()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#888;font-size:12px;cursor:pointer">Abbrechen</button>
       <button onclick="sl5rmSave()" style="flex:2;padding:11px;border-radius:8px;border:none;background:#1A4A2A;color:#fff;font-size:12px;font-weight:700;cursor:pointer">💪 5RM speichern</button>
     </div>`:''}
