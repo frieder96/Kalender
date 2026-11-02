@@ -7401,13 +7401,13 @@ window.bhEditNote = function(key){
 };
 
 // ── Person / Raum (Durchführung) wie bei AAAging über das Zuweisen-Modal ──
-function _bhPersonRow(aKey, label, info, ds, time, defRoom){
+function _bhPersonRow(aKey, label, info, ds, time, defRoom, chipTxt){
   var a = (window._ASSIGN||{})[aKey];
   var pName = a && a.person ? (((window._teamCache||{})[a.person]||{}).name || a.person) : null;
   var room = (a && a.room) || defRoom || '';
   var can = window.isTrainer && window.isTrainer();
   return '<div class="meas-row" style="margin-top:3px;display:flex;align-items:center;gap:4px;flex-wrap:wrap">'
-    + '<span class="chip ciso" style="min-width:0;flex-shrink:0;font-size:9px">Durchführung'+(room?' · 📍 '+room:'')+'</span><span style="flex:1"></span>'
+    + '<span class="chip ciso" style="min-width:0;flex-shrink:0;font-size:9px">'+(chipTxt||'Durchführung')+(room?' · 📍 '+room:'')+'</span><span style="flex:1"></span>'
     + (can ? '<button class="assign-btn" onclick="openAssignModal(\''+aKey+'\',\''+label+'\',\''+info+'\',\''+ds+'\',\''+time+'\')">'+(pName?'<span class="team-chip">'+pName+'</span>':'+ Person')+'</button>' : (pName?'<span class="team-chip">'+pName+'</span>':''))
     + '</div>';
 }
@@ -7668,6 +7668,7 @@ function _bhRenderT0(ds){
     + BH_T0_ROOMS_OPTIONS.map(function(r){ return '<option value="'+r+'"'+(r===room?' selected':'')+'>'+r+'</option>'; }).join('') + '</select>'
     + (can?_bhLockBtn('d_'+ds,'Blutabnahme '+_bhFull(ds),'Tag sperren')+'<button class="btn btn-xs" onclick="bhBlockRange(\''+ds+'\')">🔒 Zeitraum</button><button class="btn btn-xs" onclick="bhRemoveT0Date(\''+ds+'\')" title="Diesen Blutabnahme-Tag streichen">Tag streichen</button>':'')+'</div></div>';
   h += _bhBanner(['wk_'+_bhWeekOfDate(ds),'d_'+ds]);
+  h += '<div style="max-width:420px;margin-bottom:6px">'+_bhPersonRow(_bhAKey('BH_T0', ds, 'Verantwortlich'), 'Verantwortliche Person', 'T0 Blutabnahme '+_bhWd(ds)+' '+_bhFull(ds)+' (BH)', ds, '07:00', room, 'Verantwortlich')+'</div>';
   h += bhNoteHtml('t0_'+ds);
   h += '<div style="font-size:11px;font-weight:700;color:#5E35B1;margin:6px 0">5-Min-Takt, 07:00–09:55</div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:flex-start">';
   BH_T0_BLUT_TIMES.forEach(function(time){
