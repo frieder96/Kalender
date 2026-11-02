@@ -7692,6 +7692,7 @@ function _bhRenderIntro(w){
   days.forEach(function(ds){
     h += '<div><div style="text-align:center;font-size:12px;font-weight:700;color:#1F5A33;margin-bottom:4px">'+_bhWd(ds)+' '+_bhShort(ds)+_bhDate(ds).getFullYear()+(can?' '+_bhLockBtn('d_'+ds,'Einführung '+_bhWd(ds)+' '+_bhFull(ds),'Tag'):'')+'</div>';
     h += _bhBanner(['wk_'+w,'d_'+ds]);
+    h += _bhPersonRow(_bhAKey('BH_INTRO', ds, 'Verantwortlich'), 'Verantwortliche Person', 'Einführung '+_bhWd(ds)+' '+_bhFull(ds)+' (BH)', ds, '11:00', '', 'Verantwortlich');
     h += bhNoteHtml('intro_'+ds);
     bhIntroTimes(ds).forEach(function(time){
       var r = bhIntroGetBooking(ds,time);
@@ -7729,6 +7730,7 @@ function _bhRenderFam(w, force){
     var ds = _bhWeekDs(w, BH_DAYOFF[day]), times = bhFamTimes(w,day);
     h += '<div><div style="text-align:center;font-size:12px;font-weight:700;color:#B8590E;margin-bottom:4px">'+day.slice(0,2)+' '+_bhShort(ds)+_bhDate(ds).getFullYear()+(can?' '+_bhLockBtn('d_'+ds,'Familiarisierung '+day+' '+_bhFull(ds),'Tag'):'')+'</div>';
     h += _bhBanner(['wk_'+w,'d_'+ds]);
+    h += _bhPersonRow(_bhAKey('BH_FAM', w, day, 'Verantwortlich'), 'Verantwortliche Person', 'Familiarisierung '+day+' '+_bhFull(ds)+' (BH)', ds, '08:00', '', 'Verantwortlich');
     h += bhNoteHtml('fam_'+w+'_'+day);
     if(!times.length) h += '<div style="padding:8px;text-align:center;font-size:10.5px;color:var(--g4);font-style:italic">Keine Slots</div>';
     times.forEach(function(time){
@@ -7766,6 +7768,7 @@ function _bhRenderWeekEntry(e){
   h += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px"><div style="font-weight:700;color:#1A4B8C">🧠 '+t+' · '+wlTxt+' — Blutabnahme — Montag, '+_bhFull(mon)+'</div>'
     + (can?'<div style="display:flex;gap:4px"><button class="btn btn-xs" onclick="bhEditWelle(\''+t+'\','+w+')">Welle ändern</button><button class="btn btn-xs" onclick="bhToggleBlock(\''+t+'\','+w+',true)">Woche ausblenden</button>'+_bhLockBtn('tw_'+t+'_'+w,t+' '+_bhRange(w,3),'Termin sperren')+_bhLockBtn('d_'+mon,'Blutabnahme '+_bhFull(mon),'Montag')+'<button class="btn btn-xs" onclick="bhBlockRange(\''+mon+'\')">🔒 Zeitraum</button></div>':'')+'</div>';
   h += _bhBanner(['wk_'+w,'tw_'+t+'_'+w,'d_'+mon]);
+  h += '<div style="max-width:420px">'+_bhPersonRow(_bhAKey('BH_BLUT', t, w, 'Verantwortlich'), 'Verantwortliche Person', t+' Blutabnahme Mo '+_bhFull(mon)+' (BH)', mon, '07:00', '', 'Verantwortlich')+'</div>';
   h += bhNoteHtml(wkKey);
   h += '<div style="display:grid;grid-template-columns:70px repeat('+BH_T1_ROOMS.length+',1fr);gap:2px;margin-top:6px"><div></div>';
   BH_T1_ROOMS.forEach(function(room){ h += '<div style="text-align:center;font-size:11px;font-weight:700;color:#1A4B8C;padding:4px 0">'+room+'</div>'; });
@@ -7785,7 +7788,7 @@ function _bhRenderWeekEntry(e){
   h += '<div style="display:grid;grid-template-columns:repeat('+BH_T12_DAYS.length+',minmax(170px,1fr));gap:10px">';
   BH_T12_DAYS.forEach(function(day){
     var dds = _bhWeekDs(w, BH_DAYOFF[day]);
-    h += '<div><div style="text-align:center;font-size:12px;font-weight:700;color:#B85010;margin-bottom:4px">'+day+', '+_bhShort(dds)+_bhDate(dds).getFullYear()+(can?' '+_bhLockBtn('d_'+dds,t+'.2 '+day+' '+_bhFull(dds),'Tag'):'')+'</div>'+_bhBanner(['wk_'+w,'tw_'+t+'_'+w,'d_'+dds])+bhNoteHtml('t12_'+w+'_'+day);
+    h += '<div><div style="text-align:center;font-size:12px;font-weight:700;color:#B85010;margin-bottom:4px">'+day+', '+_bhShort(dds)+_bhDate(dds).getFullYear()+(can?' '+_bhLockBtn('d_'+dds,t+'.2 '+day+' '+_bhFull(dds),'Tag'):'')+'</div>'+_bhBanner(['wk_'+w,'tw_'+t+'_'+w,'d_'+dds])+_bhPersonRow(_bhAKey('BH_T12', t, w, day, 'Verantwortlich'), 'Verantwortliche Person', t+'.2 '+day+' '+_bhFull(dds)+' (BH)', dds, '10:00', '', 'Verantwortlich')+bhNoteHtml('t12_'+w+'_'+day);
     BH_T12_TEMPLATE.forEach(function(s){
       var bk = bhGetT12Booking(w, day, s.slot);
       h += '<div style="background:#fff;border:1px solid #FFCC80;border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:10.5px">';
