@@ -1272,6 +1272,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <div class="phdr">
         <div><div class="ptitle">🧠 Brain-Health Probanden</div><div class="psub">Studien-ID S… · Laufnr. R… · Eigener Pool</div></div>
         <div style="display:flex;gap:8px">
+          <button class="btn btn-sm" onclick="bhImportLaufnummern()">⇪ Laufnummern anlegen (Import)</button>
           <button class="btn btn-sm btn-p" onclick="openAddBHProband()">+ Neuer Brain-Health-Proband</button>
         </div>
       </div>
@@ -7175,8 +7176,10 @@ function bhGetT12Booking(week,day,slot){
 }
 function bhProbandLabel(pid){
   var p = (window._BH_PROBANDEN || {})[pid];
-  return p ? {pid:p.pid||'?', lnr:p.lnr||''} : {pid:'?', lnr:''};
+  if(!p) return {pid:'?', lnr:''};
+  return p.pid ? {pid:p.pid, lnr:p.lnr||''} : {pid:p.lnr||'?', lnr:'(keine ID)'};
 }
+function _bhPLabel(p){ return p.pid ? (p.pid+' · '+(p.lnr||'')) : (p.lnr||'?'); }
 function _bhAssignKey(w, day, slot, label){
   var A = window._ASSIGN || {};
   function mk(x){ return ('BH_T12_'+x+'_'+day+'_'+slot+'_'+label).replace(/[^a-zA-Z0-9_]/g,'_'); }
@@ -7208,13 +7211,13 @@ window.openBHBook = function(kind, a, b, c, id){
   document.getElementById('bh-book-info').textContent = infoParts.join(' · ');
   var BHP = window._BH_PROBANDEN || {};
   document.getElementById('bhb-pid-list').innerHTML = Object.values(BHP).sort(function(x,y){return (x.lnr||'').localeCompare(y.lnr||'');})
-    .map(function(p){ return '<option value="'+p.pid+' · '+(p.lnr||'')+'" data-id="'+p._id+'">'; }).join('');
+    .map(function(p){ return '<option value="'+_bhEsc(_bhPLabel(p))+'" data-id="'+p._id+'">'; }).join('');
   var existingPid = '', existingNote = '';
   document.getElementById('bhb-pid').value = '';
   if(ctx.id){
     var collMap = {t0blut:window._BH_T0_BOOKINGS, t0einschluss:window._BH_T0_BOOKINGS, intro:window._BH_INTRO_BOOKINGS, t1blut:window._BH_T1_BOOKINGS, t12:window._BH_T12_BOOKINGS, fam:window._BH_FAM_BOOKINGS};
     var bk = (collMap[kind] || {})[ctx.id];
-    if(bk){ var p = BHP[bk.pid]; existingPid = p ? (p.pid+' · '+(p.lnr||'')) : ''; document.getElementById('bhb-pid').value = bk.pid; existingNote = bk.note || ''; }
+    if(bk){ var p = BHP[bk.pid]; existingPid = p ? _bhPLabel(p) : ''; document.getElementById('bhb-pid').value = bk.pid; existingNote = bk.note || ''; }
   }
   document.getElementById('bhb-pid-search').value = existingPid;
   document.getElementById('bhb-note').value = existingNote;
@@ -7223,7 +7226,7 @@ window.openBHBook = function(kind, a, b, c, id){
 window.bhbSyncPid = function(){
   var search = document.getElementById('bhb-pid-search').value;
   var BHP = window._BH_PROBANDEN || {};
-  var p = Object.values(BHP).find(function(p){ return (p.pid+' · '+(p.lnr||''))===search || p.pid===search || p.lnr===search; });
+  var p = Object.values(BHP).find(function(p){ return _bhPLabel(p)===search || (p.pid && p.pid===search) || p.lnr===search; });
   if(p) document.getElementById('bhb-pid').value = p._id;
 };
 window.closeBHBook = function(){ document.getElementById('bh-book-modal').classList.remove('open'); window._bhBookCtx=null; };
@@ -7901,10 +7904,11 @@ window.openAddBHProband = function(){
   if(!(window.isAdmin && window.isAdmin())){ window.toast&&toast('Keine Berechtigung',true); return; }
   _bhProbandEditId = null;
   document.getElementById('bh-proband-title').textContent = 'Neuer Brain-Health-Proband';
-  var existing = Object.values(window._BH_PROBANDEN||{}).map(function(p){ return parseInt((p.pid||'').replace(/\D/g,''))||0; });
-  var next = existing.length ? Math.max.apply(null, existing)+1 : 1;
-  document.getElementById('bhp-pid').value = 'S' + String(next).padStart(3,'0');
-  document.getElementById('bhp-lnr').value = 'R' + String(next).padStart(3,'0');
+  var PL = Object.values(window._BH_PROBANDEN||{});
+  var nextS = Math.max.apply(null, [0].concat(PL.map(function(p){ return parseInt((p.pid||'').replace(/\D/g,''))||0; })))+1;
+  var nextR = Math.max.apply(null, [0].concat(PL.map(function(p){ return parseInt((p.lnr||'').replace(/\D/g,''))||0; })))+1;
+  document.getElementById('bhp-pid').value = 'S' + String(nextS).padStart(3,'0');
+  document.getElementById('bhp-lnr').value = 'R' + String(nextR).padStart(3,'0');
   document.getElementById('bhp-notiz').value = '';
   document.getElementById('bhp-aufpassen').checked = false;
   document.getElementById('bh-proband-modal').classList.add('open');
@@ -7925,10 +7929,12 @@ window.saveBHProband = async function(){
   var lnr = document.getElementById('bhp-lnr').value.trim();
   var notiz = document.getElementById('bhp-notiz').value.trim();
   var aufpassen = document.getElementById('bhp-aufpassen').checked;
-  if(!pid){ toast('Studien-ID ist Pflicht', true); return; }
-  var pidLower = pid.toLowerCase();
-  var dup = Object.values(window._BH_PROBANDEN||{}).find(function(p){ return p._id!==_bhProbandEditId && (p.pid||'').trim().toLowerCase()===pidLower; });
+  if(!pid && !lnr){ toast('Studien-ID oder Laufnr. ist Pflicht', true); return; }
+  var pidLower = pid.toLowerCase(), lnrLower = lnr.toLowerCase();
+  var dup = pid && Object.values(window._BH_PROBANDEN||{}).find(function(p){ return p._id!==_bhProbandEditId && (p.pid||'').trim().toLowerCase()===pidLower; });
   if(dup){ toast('❌ Studien-ID "'+pid+'" ist bereits vergeben!', true); return; }
+  var dupL = lnr && Object.values(window._BH_PROBANDEN||{}).find(function(p){ return p._id!==_bhProbandEditId && (p.lnr||'').trim().toLowerCase()===lnrLower; });
+  if(dupL){ toast('❌ Laufnr. "'+lnr+'" ist bereits vergeben!', true); return; }
   var data = {pid:pid, lnr:lnr, notiz:notiz, aufpassen:aufpassen, updated:Date.now()};
   try {
     var fns = window._fbFns;
@@ -7937,6 +7943,29 @@ window.saveBHProband = async function(){
     closeBHProband(); toast('Gespeichert ✓');
   } catch(e){ toast('Fehler: '+e.message, true); }
 };
+// Laufnummern vorab anlegen (ohne Studien-ID) — bestehende Laufnummern werden übersprungen
+window.bhImportLaufnummern = function(){
+  if(!(window.isAdmin && window.isAdmin())){ window.toast&&toast('Keine Berechtigung',true); return; }
+  window.bhPrompt({title:'Laufnummern anlegen', info:'Legt Probanden R001, R002 … ohne Studien-ID an. Bereits vorhandene Laufnummern werden übersprungen, nichts wird überschrieben.', label:'Anzahl', value:'300', input2:{label:'Ab Nummer', value:'1'}, onSave: async function(v,sel,v2){
+    var n = parseInt(v,10), start = parseInt(v2,10)||1;
+    if(!(n>=1 && n<=1000)){ window.toast&&toast('Anzahl 1–1000',true); return false; }
+    var have = {}; Object.values(window._BH_PROBANDEN||{}).forEach(function(p){ if(p.lnr) have[p.lnr.toLowerCase()] = 1; });
+    var todo = [];
+    for(var i=0;i<n;i++){ var l = 'R'+String(start+i).padStart(3,'0'); if(!have[l.toLowerCase()]) todo.push(l); }
+    if(!todo.length){ window.toast&&toast('Alle Laufnummern existieren bereits'); return; }
+    var fns = window._fbFns, now = Date.now(), done = 0;
+    try {
+      for(var j=0;j<todo.length;j+=25){
+        await Promise.all(todo.slice(j,j+25).map(function(l){
+          return fns.setDoc(fns.doc(window.db,'bh_probanden','lnr_'+l), {pid:'', lnr:l, notiz:'', aufpassen:false, created:now, updated:now});
+        }));
+        done += Math.min(25, todo.length-j);
+      }
+      window.toast&&toast(todo.length+' Laufnummern angelegt ✓ ('+(n-todo.length)+' übersprungen)');
+    } catch(e){ window.toast&&toast('Fehler nach '+done+' Einträgen: '+e.message,true); return false; }
+  }});
+};
+window._bhPFilter = '';
 window.delBHProband = async function(id){
   if(!confirm('Brain-Health-Proband endgültig löschen?')) return;
   try { var fns = window._fbFns; await fns.deleteDoc(fns.doc(window.db,'bh_probanden',id)); toast('Gelöscht ✓'); }
@@ -7944,14 +7973,26 @@ window.delBHProband = async function(id){
 };
 window.renderBHProbanden = function(){
   var el = document.getElementById('bh-proband-list'); if(!el) return;
-  var ps = Object.values(window._BH_PROBANDEN||{}).sort(function(a,b){
+  var allPs = Object.values(window._BH_PROBANDEN||{});
+  var q = (window._bhPFilter||'').toLowerCase(), onlyFree = window._bhPFree;
+  var ps = allPs.filter(function(p){
+    if(onlyFree && p.pid) return false;
+    return !q || ((p.pid||'')+' '+(p.lnr||'')+' '+(p.notiz||'')).toLowerCase().indexOf(q)>-1;
+  }).sort(function(a,b){
+    var ra = parseInt((a.lnr||'').replace(/\D/g,'')), rb = parseInt((b.lnr||'').replace(/\D/g,''));
+    if(!isNaN(ra) && !isNaN(rb) && ra!==rb) return ra-rb;
     return (parseInt((a.pid||'').replace(/\D/g,''))||0) - (parseInt((b.pid||'').replace(/\D/g,''))||0);
   });
+  var nFree = allPs.filter(function(p){ return !p.pid; }).length;
+  var bar = '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px">'
+    + '<input class="fi" id="bhp-filter" placeholder="Suchen (ID, Laufnr., Notiz)…" value="'+_bhEsc(window._bhPFilter||'')+'" oninput="window._bhPFilter=this.value;renderBHProbanden();var f=document.getElementById(\'bhp-filter\');f.focus();f.setSelectionRange(f.value.length,f.value.length)" style="max-width:260px">'
+    + '<label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" '+(onlyFree?'checked ':'')+'onchange="window._bhPFree=this.checked;renderBHProbanden()"> nur ohne Studien-ID ('+nFree+')</label>'
+    + '<span style="font-size:11px;color:var(--g4)">'+allPs.length+' Probanden gesamt</span></div>';
   if(!ps.length){
-    el.innerHTML = '<div style="padding:40px;text-align:center;color:#888;font-style:italic">Noch keine Brain-Health-Probanden angelegt.</div>';
+    el.innerHTML = bar + '<div style="padding:40px;text-align:center;color:#888;font-style:italic">'+(allPs.length?'Keine Treffer.':'Noch keine Brain-Health-Probanden angelegt.')+'</div>';
     return;
   }
-  var html = '<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)">'
+  var html = bar + '<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)">'
     + '<thead><tr style="background:#5E35B1;color:#fff">'
     + '<th style="padding:10px;text-align:left;font-size:11px">Studien-ID</th>'
     + '<th style="padding:10px;text-align:left;font-size:11px">Laufnr.</th>'
@@ -7959,7 +8000,7 @@ window.renderBHProbanden = function(){
     + '<th style="padding:10px;text-align:left;font-size:11px">Aktionen</th></tr></thead><tbody>';
   ps.forEach(function(p){
     html += '<tr style="border-top:1px solid var(--g2)'+(p.aufpassen?';background:#FFF8E1':'')+'">'
-      + '<td style="padding:8px 10px;font-weight:700">'+(p.aufpassen?'⚠️ ':'')+p.pid+'</td>'
+      + '<td style="padding:8px 10px;font-weight:700">'+(p.aufpassen?'⚠️ ':'')+(p.pid?_bhEsc(p.pid):'<span style="color:var(--g4);font-weight:400;font-style:italic">noch keine ID</span>')+'</td>'
       + '<td style="padding:8px 10px">'+(p.lnr||'—')+'</td>'
       + '<td style="padding:8px 10px;font-size:12px;color:var(--g5)">'+(p.notiz||'')+'</td>'
       + '<td style="padding:8px 10px">'
