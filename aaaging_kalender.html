@@ -7158,6 +7158,21 @@ function bhIntroGetBooking(ds,time){
   Object.keys(leg).forEach(function(k){ var b=leg[k]; if(b.kind==='einschluss' && b.date===ds && b.time===time) found = {b:b, kind:'t0einschluss'}; });
   return found;
 }
+function bhIntroGetBookings(ds,time){
+  var out = [], src = window._BH_INTRO_BOOKINGS || {}, leg = window._BH_T0_BOOKINGS || {};
+  Object.keys(src).forEach(function(k){ var b=src[k]; if(b.date===ds && b.time===time) out.push({b:b, kind:'intro'}); });
+  Object.keys(leg).forEach(function(k){ var b=leg[k]; if(b.kind==='einschluss' && b.date===ds && b.time===time) out.push({b:b, kind:'t0einschluss'}); });
+  return out.sort(function(x,y){ return (x.b.created||0)-(y.b.created||0); });
+}
+function bhIntroDouble(w){ var o=(window._BH_WEEKS||{})['INTRO_'+w]; return !!(o && o.double); }
+function bhIntroDoubleOfDate(ds){ return bhIntroDouble(_bhWeekOfDate(ds)); }
+window.bhToggleIntroDouble = function(w){
+  if(!_bhCan()) return;
+  var on = !bhIntroDouble(w), fns = window._fbFns;
+  fns.setDoc(fns.doc(window.db,'bh_weeks','INTRO_'+w), {termin:'INTRO', week:w, double:on, updated:Date.now()}, {merge:true})
+    .then(function(){ window.toast&&toast(on?'Doppelbelegung aktiviert ✓':'Doppelbelegung deaktiviert ✓'); })
+    .catch(function(e){ window.toast&&toast('Fehler: '+e.message,true); });
+};
 function bhIntroTimes(ds){
   var set = {};
   if(bhIntroDayActive(ds)) BH_INTRO_TIMES.forEach(function(t){ set[t]=true; });
@@ -7224,6 +7239,7 @@ window.openBHBook = function(kind, a, b, c, id){
   else if(kind==='t12'){ ctx.week=a; ctx.day=b; ctx.slot=c; ctx.date=_bhWeekDs(a, BH_DAYOFF[b]||0); }
   else if(kind==='fam'){ ctx.week=a; ctx.day=b; ctx.time=c; ctx.date=_bhWeekDs(a, BH_DAYOFF[b]||0); }
   if(!ctx.id){ var _bb = bhBlockedFor(kind,a,b,c); if(_bb){ window.toast&&toast('🔒 Gesperrt'+(_bb.reason?': '+_bb.reason:''),true); return; } }
+  if(!ctx.id && (kind==='intro'||kind==='t0einschluss') && bhIntroGetBookings(a,b).length >= (bhIntroDoubleOfDate(a)?2:1)){ window.toast&&toast('Slot ist belegt',true); return; }
   window._bhBookCtx = ctx;
   var tn = (ctx.week!==undefined && kind!=='fam') ? bhTerminOfWeek(ctx.week) : 'T1';
   var titleMap = {t0blut:'T0 Blutabnahme', t0einschluss:'Einführungsgespräch', intro:'Einführungsgespräch', t1blut:tn+' Blutabnahme', t12:tn+'.2 Termin', fam:'Familiarisierung'};
@@ -7333,11 +7349,12 @@ window.saveBHGen = async function(){
 function bhBlk(key){ return (window._BH_BLOCKS||{})[key] || null; }
 function bhBlockKeysFor(kind,a,b,c){
   var ds;
-  if(kind==='t0blut'){ return ['wk_'+_bhWeekOfDate(a),'d_'+a,'bl_'+a+'_'+String(b).replace(':','')]; }
-  if(kind==='intro' || kind==='t0einschluss'){ return ['wk_'+_bhWeekOfDate(a),'d_'+a,'is_'+a+'_'+String(b).replace(':','')]; }
-  if(kind==='t1blut'){ ds=_bhWeekDs(a,0); return ['wk_'+a,'tw_'+bhTerminOfWeek(a)+'_'+a,'d_'+ds,'bl_'+ds+'_'+String(c).replace(':','')]; }
-  if(kind==='t12'){ ds=_bhWeekDs(a,BH_DAYOFF[b]||0); return ['wk_'+a,'tw_'+bhTerminOfWeek(a)+'_'+a,'d_'+ds,'ts_'+a+'_'+b+'_'+c]; }
-  if(kind==='fam'){ ds=_bhWeekDs(a,BH_DAYOFF[b]||0); return ['wk_'+a,'d_'+ds,'fs_'+a+'_'+b+'_'+String(c).replace(':','')]; }
+  // d_<Datum> = ganzer Tag (alle Bereiche) · da_<Bereich>_<Datum> = nur ein Bereich (blut | intro | t12 | fam)
+  if(kind==='t0blut'){ return ['wk_'+_bhWeekOfDate(a),'d_'+a,'da_blut_'+a,'bl_'+a+'_'+String(b).replace(':','')]; }
+  if(kind==='intro' || kind==='t0einschluss'){ return ['wk_'+_bhWeekOfDate(a),'d_'+a,'da_intro_'+a,'is_'+a+'_'+String(b).replace(':','')]; }
+  if(kind==='t1blut'){ ds=_bhWeekDs(a,0); return ['wk_'+a,'tw_'+bhTerminOfWeek(a)+'_'+a,'d_'+ds,'da_blut_'+ds,'bl_'+ds+'_'+String(c).replace(':','')]; }
+  if(kind==='t12'){ ds=_bhWeekDs(a,BH_DAYOFF[b]||0); return ['wk_'+a,'tw_'+bhTerminOfWeek(a)+'_'+a,'d_'+ds,'da_t12_'+ds,'ts_'+a+'_'+b+'_'+c]; }
+  if(kind==='fam'){ ds=_bhWeekDs(a,BH_DAYOFF[b]||0); return ['wk_'+a,'d_'+ds,'da_fam_'+ds,'fs_'+a+'_'+b+'_'+String(c).replace(':','')]; }
   return [];
 }
 function bhFirstBlk(keys){ for(var i=0;i<keys.length;i++){ var x=bhBlk(keys[i]); if(x) return x; } return null; }
@@ -7694,8 +7711,8 @@ function _bhRenderT0(ds){
   h += '<div style="font-weight:700;color:#3A2A5A">🩸 T0 Blutabnahme — '+_bhWdLong(ds)+', '+_bhFull(ds)+'</div>';
   h += '<div style="display:flex;align-items:center;gap:6px;font-size:12px">Raum: <select onchange="bhSetT0Room(\''+ds+'\',this.value)" style="padding:3px 6px;border:1px solid var(--g3);border-radius:4px">'
     + BH_T0_ROOMS_OPTIONS.map(function(r){ return '<option value="'+r+'"'+(r===room?' selected':'')+'>'+r+'</option>'; }).join('') + '</select>'
-    + (can?_bhLockBtn('d_'+ds,'Blutabnahme '+_bhFull(ds),'Tag sperren')+'<button class="btn btn-xs" onclick="bhBlockRange(\''+ds+'\')">🔒 Zeitraum</button><button class="btn btn-xs" onclick="bhRemoveT0Date(\''+ds+'\')" title="Diesen Blutabnahme-Tag streichen">Tag streichen</button>':'')+'</div></div>';
-  h += _bhBanner(['wk_'+_bhWeekOfDate(ds),'d_'+ds]);
+    + (can?_bhLockBtn('da_blut_'+ds,'Blutabnahme '+_bhFull(ds),'Blutabnahme sperren')+'<button class="btn btn-xs" onclick="bhBlockRange(\''+ds+'\')">🔒 Zeitraum</button><button class="btn btn-xs" onclick="bhRemoveT0Date(\''+ds+'\')" title="Diesen Blutabnahme-Tag streichen">Tag streichen</button>':'')+'</div></div>';
+  h += _bhBanner(['wk_'+_bhWeekOfDate(ds),'d_'+ds,'da_blut_'+ds]);
   h += '<div style="max-width:420px;margin-bottom:6px">'+_bhPersonRow(_bhAKey('BH_T0', ds, 'Verantwortlich'), 'Verantwortliche Person', 'T0 Blutabnahme '+_bhWd(ds)+' '+_bhFull(ds)+' (BH)', ds, '07:00', room, 'Verantwortlich')+'</div>';
   h += bhNoteHtml('t0_'+ds);
   h += '<div style="font-size:11px;font-weight:700;color:#5E35B1;margin:6px 0">5-Min-Takt, 07:00–09:55</div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:flex-start">';
@@ -7713,29 +7730,34 @@ function _bhRenderIntro(w){
   if(!days.length && !can) return '';
   var h = '<div style="margin-bottom:20px;background:#EEF7F0;border:1px solid #B9DCC2;border-radius:var(--r);padding:14px">';
   h += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px"><div style="font-weight:700;color:#1F5A33">💬 Einführungsgespräch — '+_bhRange(w,4)+'</div>'
-    + (can?'<button class="btn btn-xs" onclick="bhAddIntroDay()">+ Tag / Slot hinzufügen</button>':'')+'</div>';
+    + (can?'<div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-xs" onclick="bhToggleIntroDouble('+w+')" title="In dieser Woche zwei Termine gleichzeitig pro Slot erlauben" style="'+(bhIntroDouble(w)?'background:#1F5A33;color:#fff;border-color:#1F5A33':'')+'">👥 Doppelbelegung: '+(bhIntroDouble(w)?'AN':'aus')+'</button><button class="btn btn-xs" onclick="bhAddIntroDay()">+ Tag / Slot hinzufügen</button></div>':(bhIntroDouble(w)?'<span style="font-size:11px;color:#1F5A33;font-weight:700">👥 Doppelbelegung</span>':''))+'</div>';
   h += '<div style="font-size:11px;color:var(--g5);margin-bottom:12px">Jeden Tag Mo–Do (unabhängig von der Blutabnahme) · 30-Min-Takt, 11:00–14:30 (letzter Slot) · weitere Slots mit „+ Slot“ · Durchführung/Raum pro Slot wählbar</div>';
   if(!days.length) h += '<div style="color:var(--g4);font-style:italic;font-size:12px">In dieser Woche sind keine Einführungsgespräche vorgesehen (außerhalb des Zeitraums). Mit „+ Tag / Slot hinzufügen“ kannst du welche eintragen.</div>';
   h += '<div style="display:grid;grid-template-columns:repeat('+Math.max(1,days.length)+',minmax(170px,1fr));gap:10px;overflow-x:auto">';
   days.forEach(function(ds){
-    h += '<div><div style="text-align:center;font-size:12px;font-weight:700;color:#1F5A33;margin-bottom:4px">'+_bhWd(ds)+' '+_bhShort(ds)+_bhDate(ds).getFullYear()+(can?' '+_bhLockBtn('d_'+ds,'Einführung '+_bhWd(ds)+' '+_bhFull(ds),'Tag'):'')+'</div>';
-    h += _bhBanner(['wk_'+w,'d_'+ds]);
+    h += '<div><div style="text-align:center;font-size:12px;font-weight:700;color:#1F5A33;margin-bottom:4px">'+_bhWd(ds)+' '+_bhShort(ds)+_bhDate(ds).getFullYear()+(can?' '+_bhLockBtn('da_intro_'+ds,'Einführung '+_bhWd(ds)+' '+_bhFull(ds),'Einführung sperren'):'')+'</div>';
+    h += _bhBanner(['wk_'+w,'d_'+ds,'da_intro_'+ds]);
     h += _bhPersonRow(_bhAKey('BH_INTRO', ds, 'Verantwortlich'), 'Verantwortliche Person', 'Einführung '+_bhWd(ds)+' '+_bhFull(ds)+' (BH)', ds, '11:00', '', 'Verantwortlich');
     h += bhNoteHtml('intro_'+ds);
     bhIntroTimes(ds).forEach(function(time){
-      var r = bhIntroGetBooking(ds,time);
+      var rs = bhIntroGetBookings(ds,time), dbl = bhIntroDouble(w), cap = dbl?2:1, nP = Math.max(cap, rs.length);
       var aKey = _bhAKey('BH_INTRO', ds, time, 'Einfuehrungsgespraech');
       h += '<div style="margin-bottom:6px;background:#fff;border:1px solid #D4E8D9;border-radius:6px;padding:4px">';
       var rm = can?_bhBtnX('bhToggleBlk(\'is_'+ds+'_'+time.replace(':','')+'\',\'Einführung-Slot '+time+'\')','#999',bhBlk('is_'+ds+'_'+time.replace(':',''))?'🔓':'🔒')+_bhBtnX('bhRemoveIntroSlot(\''+ds+'\',\''+time+'\')','#999','⊖'):'';
-      var _ib = r ? null : bhBlockedFor('intro',ds,time);
-      if(_ib){
-        h += '<div style="display:flex;align-items:center;gap:2px"><div style="flex:1">'+_bhLockedCell(time,_ib,null,'font-family:monospace')+'</div>'+rm+'</div>';
-      } else if(r){
-        h += _bhBookedPill(time, bhProbandLabel(r.b.pid), 'openBHBook(\''+r.kind+'\',\''+ds+'\',\''+time+'\',null,\''+r.b._id+'\')', 'delBHBooking(\''+r.kind+'\',\''+r.b._id+'\')', '#DDF0E2', '#B9DCC2', rm, r.b.note);
-      } else {
-        h += '<div style="display:flex;align-items:center;gap:2px"><button onclick="openBHBook(\'intro\',\''+ds+'\',\''+time+'\')" style="flex:1;background:#fff;border:1px dashed var(--g3);border-radius:6px;padding:4px 6px;font-size:11px;color:var(--g5);cursor:pointer;font-family:monospace">'+time+'</button>'+rm+'</div>';
+      var _ib = bhBlockedFor('intro',ds,time);
+      rs.forEach(function(r,ri){
+        h += '<div'+(ri?' style="margin-top:3px"':'')+'>'+_bhBookedPill(ri?(dbl?'2.':''):time, bhProbandLabel(r.b.pid), 'openBHBook(\''+r.kind+'\',\''+ds+'\',\''+time+'\',null,\''+r.b._id+'\')', 'delBHBooking(\''+r.kind+'\',\''+r.b._id+'\')', '#DDF0E2', '#B9DCC2', ri?'':rm, r.b.note)+'</div>';
+      });
+      if(rs.length < cap){
+        if(_ib){
+          h += '<div style="display:flex;align-items:center;gap:2px;'+(rs.length?'margin-top:3px':'')+'"><div style="flex:1">'+_bhLockedCell(rs.length?'gesperrt':time,_ib,null,'font-family:monospace')+'</div>'+(rs.length?'':rm)+'</div>';
+        } else {
+          h += '<div style="display:flex;align-items:center;gap:2px;'+(rs.length?'margin-top:3px':'')+'"><button onclick="openBHBook(\'intro\',\''+ds+'\',\''+time+'\')" style="flex:1;background:#fff;border:1px dashed var(--g3);border-radius:6px;padding:4px 6px;font-size:11px;color:var(--g5);cursor:pointer;font-family:monospace">'+(rs.length?'+ 2. Termin':(dbl?time+' (2 Plätze)':time))+'</button>'+(rs.length?'':rm)+'</div>';
+        }
       }
-      h += _bhPersonRow(aKey, 'Einführungsgespräch', _bhWd(ds)+' '+_bhShort(ds)+' '+time+' Uhr (BH Einführung)', ds, time, '');
+      for(var pi=0; pi<nP; pi++){
+        h += _bhPersonRow(pi?aKey+'_'+(pi+1):aKey, 'Einführungsgespräch', _bhWd(ds)+' '+_bhShort(ds)+' '+time+' Uhr (BH Einführung)'+(pi?' · Platz '+(pi+1):''), ds, time, '', nP>1?'Durchführung '+(pi+1):'');
+      }
       h += '</div>';
     });
     if(can) h += '<button onclick="bhAddIntroSlot(\''+ds+'\')" style="width:100%;margin-top:2px;background:none;border:1px dashed #7DB890;border-radius:6px;padding:3px;font-size:10px;color:#1F5A33;cursor:pointer">+ Slot</button>';
@@ -7756,8 +7778,8 @@ function _bhRenderFam(w, force){
   h += '<div style="display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:10px;overflow-x:auto">';
   BH_FAM_DAYS.forEach(function(day){
     var ds = _bhWeekDs(w, BH_DAYOFF[day]), times = bhFamTimes(w,day);
-    h += '<div><div style="text-align:center;font-size:12px;font-weight:700;color:#B8590E;margin-bottom:4px">'+day.slice(0,2)+' '+_bhShort(ds)+_bhDate(ds).getFullYear()+(can?' '+_bhLockBtn('d_'+ds,'Familiarisierung '+day+' '+_bhFull(ds),'Tag'):'')+'</div>';
-    h += _bhBanner(['wk_'+w,'d_'+ds]);
+    h += '<div><div style="text-align:center;font-size:12px;font-weight:700;color:#B8590E;margin-bottom:4px">'+day.slice(0,2)+' '+_bhShort(ds)+_bhDate(ds).getFullYear()+(can?' '+_bhLockBtn('da_fam_'+ds,'Familiarisierung '+day+' '+_bhFull(ds),'Fam. sperren'):'')+'</div>';
+    h += _bhBanner(['wk_'+w,'d_'+ds,'da_fam_'+ds]);
     h += _bhPersonRow(_bhAKey('BH_FAM', w, day, 'Verantwortlich'), 'Verantwortliche Person', 'Familiarisierung '+day+' '+_bhFull(ds)+' (BH)', ds, '08:00', '', 'Verantwortlich');
     h += bhNoteHtml('fam_'+w+'_'+day);
     if(!times.length) h += '<div style="padding:8px;text-align:center;font-size:10.5px;color:var(--g4);font-style:italic">Keine Slots</div>';
@@ -7794,8 +7816,8 @@ function _bhRenderWeekEntry(e){
   var mon = _bhWeekDs(w,0);
   var h = '<div style="margin-bottom:20px;background:#EAF2FC;border:1px solid #A9C6EE;border-radius:var(--r);padding:14px">';
   h += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px"><div style="font-weight:700;color:#1A4B8C">🧠 '+t+' · '+wlTxt+' — Blutabnahme — Montag, '+_bhFull(mon)+'</div>'
-    + (can?'<div style="display:flex;gap:4px"><button class="btn btn-xs" onclick="bhEditWelle(\''+t+'\','+w+')">Welle ändern</button><button class="btn btn-xs" onclick="bhToggleBlock(\''+t+'\','+w+',true)">Woche ausblenden</button>'+_bhLockBtn('tw_'+t+'_'+w,t+' '+_bhRange(w,3),'Termin sperren')+_bhLockBtn('d_'+mon,'Blutabnahme '+_bhFull(mon),'Montag')+'<button class="btn btn-xs" onclick="bhBlockRange(\''+mon+'\')">🔒 Zeitraum</button></div>':'')+'</div>';
-  h += _bhBanner(['wk_'+w,'tw_'+t+'_'+w,'d_'+mon]);
+    + (can?'<div style="display:flex;gap:4px"><button class="btn btn-xs" onclick="bhEditWelle(\''+t+'\','+w+')">Welle ändern</button><button class="btn btn-xs" onclick="bhToggleBlock(\''+t+'\','+w+',true)">Woche ausblenden</button>'+_bhLockBtn('tw_'+t+'_'+w,t+' '+_bhRange(w,3),'Termin sperren')+_bhLockBtn('da_blut_'+mon,'Blutabnahme '+_bhFull(mon),'Blutabnahme Montag')+'<button class="btn btn-xs" onclick="bhBlockRange(\''+mon+'\')">🔒 Zeitraum</button></div>':'')+'</div>';
+  h += _bhBanner(['wk_'+w,'tw_'+t+'_'+w,'d_'+mon,'da_blut_'+mon]);
   h += '<div style="max-width:420px">'+_bhPersonRow(_bhAKey('BH_BLUT', t, w, 'Verantwortlich'), 'Verantwortliche Person', t+' Blutabnahme Mo '+_bhFull(mon)+' (BH)', mon, '07:00', '', 'Verantwortlich')+'</div>';
   h += bhNoteHtml(wkKey);
   h += '<div style="display:grid;grid-template-columns:70px repeat('+BH_T1_ROOMS.length+',1fr);gap:2px;margin-top:6px"><div></div>';
@@ -7816,7 +7838,7 @@ function _bhRenderWeekEntry(e){
   h += '<div style="display:grid;grid-template-columns:repeat('+BH_T12_DAYS.length+',minmax(170px,1fr));gap:10px">';
   BH_T12_DAYS.forEach(function(day){
     var dds = _bhWeekDs(w, BH_DAYOFF[day]);
-    h += '<div><div style="text-align:center;font-size:12px;font-weight:700;color:#B85010;margin-bottom:4px">'+day+', '+_bhShort(dds)+_bhDate(dds).getFullYear()+(can?' '+_bhLockBtn('d_'+dds,t+'.2 '+day+' '+_bhFull(dds),'Tag'):'')+'</div>'+_bhBanner(['wk_'+w,'tw_'+t+'_'+w,'d_'+dds])+_bhPersonRow(_bhAKey('BH_T12', t, w, day, 'Verantwortlich'), 'Verantwortliche Person', t+'.2 '+day+' '+_bhFull(dds)+' (BH)', dds, '10:00', '', 'Verantwortlich')+bhNoteHtml('t12_'+w+'_'+day);
+    h += '<div><div style="text-align:center;font-size:12px;font-weight:700;color:#B85010;margin-bottom:4px">'+day+', '+_bhShort(dds)+_bhDate(dds).getFullYear()+(can?' '+_bhLockBtn('da_t12_'+dds,t+'.2 '+day+' '+_bhFull(dds),'Tag sperren'):'')+'</div>'+_bhBanner(['wk_'+w,'tw_'+t+'_'+w,'d_'+dds,'da_t12_'+dds])+_bhPersonRow(_bhAKey('BH_T12', t, w, day, 'Verantwortlich'), 'Verantwortliche Person', t+'.2 '+day+' '+_bhFull(dds)+' (BH)', dds, '10:00', '', 'Verantwortlich')+bhNoteHtml('t12_'+w+'_'+day);
     BH_T12_TEMPLATE.forEach(function(s){
       var bk = bhGetT12Booking(w, day, s.slot);
       h += '<div style="background:#fff;border:1px solid #FFCC80;border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:10.5px">';
