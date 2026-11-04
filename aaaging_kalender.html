@@ -11438,7 +11438,7 @@ window.renderTelMonat = function(){
     var dow = date.getDay()||7, mon = new Date(date); mon.setDate(date.getDate()-dow+1); mon.setHours(12,0,0,0);
     return Math.round((mon-window.START)/(7*86400000));
   }
-  var ev = {}, overdue = [], nBooked = {T0:0,T1:0,T2:0}, nDue = 0;
+  var ev = {}, soll = {}, overdue = [], nBooked = {T0:0,T1:0,T2:0}, nDue = 0;
   var y = window._telMonY, m = window._telMonM;
   if(y===null){ var nn=new Date(); y=nn.getFullYear(); m=nn.getMonth(); }
   var mStart = localDate(new Date(y,m,1)), mEnd = localDate(new Date(y,m+1,0));
@@ -11460,9 +11460,10 @@ window.renderTelMonat = function(){
       var t0d = wDay(inf.T0.week, DAYOFF[inf.T0.day]||0); t0d.setHours(0,0,0,0);
       var dow = t0d.getDay(), start = new Date(t0d); start.setDate(t0d.getDate()+(dow===0?1:(8-dow)));
       [['T1',84],['T2',168]].forEach(function(x){
-        if(inf[x[0]]) return;
         var tg = new Date(start); tg.setDate(start.getDate()+x[1]);
         var iso = localDate(tg), od = iso < todayIso;
+        var sk = x[0]+'|'+iso; soll[sk] = soll[sk] || [0,0]; soll[sk][0]++; if(!inf[x[0]]) soll[sk][1]++; // [Soll gesamt, davon noch nicht eingetragen]
+        if(inf[x[0]]) return;
         var o = {kind:'due', termin:x[0], label:label, overdue:od, week:weekOf(tg), iso:iso};
         if(od && iso < mStart) overdue.push(o);
         else put(iso, o);
@@ -11499,10 +11500,11 @@ window.renderTelMonat = function(){
   var first = new Date(y,m,1), last = new Date(y,m+1,0);
   var cur = new Date(first); cur.setDate(1-((first.getDay()+6)%7)); // Montag der ersten Woche
   while(cur <= last){
-    var wk = {T0:[0,0], T1:[0,0], T2:[0,0]}; // [eingetragen, geplant]
+    var wk = {T0:[0,0], T1:[0,0], T2:[0,0]}, monIso = localDate(cur); // [eingetragen, Soll]
+    var wkOpen = {T1:0, T2:0};
     for(var i=0;i<5;i++){
       var d = new Date(cur); d.setDate(cur.getDate()+i);
-      (ev[localDate(d)]||[]).forEach(function(o){ wk[o.termin][o.kind==='booked'?0:1]++; });
+      (ev[localDate(d)]||[]).forEach(function(o){ if(o.kind==='booked') wk[o.termin][0]++; });
       var iso = localDate(d), inM = d.getMonth()===m, list = ev[iso] || [];
       var isT = iso===todayIso;
       h += '<div style="min-height:78px;background:'+(inM?'#fff':'var(--g1)')+';border:1px solid '+(isT?'#8B5A4A':'var(--g2)')+';'+(isT?'box-shadow:0 0 0 1px #8B5A4A;':'')+'border-radius:6px;padding:4px 5px;'+(inM?'':'opacity:.55')+'">'
@@ -11510,18 +11512,19 @@ window.renderTelMonat = function(){
         + list.sort(function(a,b){ return (a.kind===b.kind?0:a.kind==='booked'?-1:1) || a.termin.localeCompare(b.termin) || (a.time||'').localeCompare(b.time||''); }).map(chip).join('')
         + '</div>';
     }
+    ['T1','T2'].forEach(function(t){ var sv = soll[t+'|'+monIso]; if(sv){ wk[t][1] = sv[0]; wkOpen[t] = sv[1]; } });
     var kwNum = window.kw ? window.kw(cur) : '';
     h += '<div style="min-height:78px;background:var(--g1);border:1px solid var(--g2);border-radius:6px;padding:5px 7px;font-size:10.5px">'
       + '<div style="font-size:11px;font-weight:700;color:var(--g5);margin-bottom:3px">KW '+kwNum+'</div>'
       + ['T0','T1','T2'].map(function(t){
           var c = COL[t];
-          return '<div style="background:'+c[0]+';border:1px solid '+c[1]+';color:'+c[2]+';border-radius:5px;padding:2px 5px;margin-top:2px"><b>'+t+'</b>: '+wk[t][0]+' eingetragen'+(t==='T0'?'':' · '+wk[t][1]+' geplant')+'</div>';
+          return '<div style="background:'+c[0]+';border:1px solid '+c[1]+';color:'+c[2]+';border-radius:5px;padding:2px 5px;margin-top:2px"><b>'+t+'</b>: '+wk[t][0]+' eingetragen'+(t==='T0'?'':'<br><span style="font-size:10px">geplant (Soll) '+wk[t][1]+' · noch offen '+wkOpen[t]+'</span>')+'</div>';
         }).join('')
       + '</div>';
     cur.setDate(cur.getDate()+7);
   }
   h += '</div>';
-  h += '<div style="font-size:11px;color:var(--g4);margin-top:10px">Regel: Interventionsstart = Montag nach T0 · T1 fällig +12 Wochen · T2 fällig +24 Wochen (immer ab T0). „Geplant“ = laut Regel noch fällig, aber noch nicht eingetragen (gestrichelt). Dropouts werden nicht angezeigt. Klick auf einen Eintrag öffnet die Woche im Telomer-Kalender.</div>';
+  h += '<div style="font-size:11px;color:var(--g4);margin-top:10px">Regel: Interventionsstart = Montag nach T0 · T1 fällig +12 Wochen · T2 fällig +24 Wochen (immer ab T0). Wochen-Legende: „eingetragen“ = Termine, die in dieser Woche stattfinden · „geplant (Soll)“ = Personen, deren T1/T2 laut Regel in diese Woche fällt · „noch offen“ = davon noch ohne Termin (gestrichelt im Kalender). Dropouts werden nicht angezeigt. Klick auf einen Eintrag öffnet die Woche im Telomer-Kalender.</div>';
   el.innerHTML = h;
 };
 
