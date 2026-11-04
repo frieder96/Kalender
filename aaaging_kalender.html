@@ -2033,6 +2033,7 @@ function getDayLayout(w, day) {
   if(window._LOCAL_DAY_LAYOUTS[localKey]) return window._LOCAL_DAY_LAYOUTS[localKey];
   const override = Object.values(DAY_LAYOUTS).find(dl => dl.week===w && dl.day===day);
   if(override && override.layout) return override.layout;
+  if(day==='Freitag') return 'T1.1';
   return (day==='Montag'||day==='Dienstag') ? 'T1.1' : 'T1.2';
 }
 window._isKW27 = isKW27;
@@ -2222,6 +2223,12 @@ function isT0ExtraFriWeek(w) {
   return mo.getFullYear()===2026 && mo.getMonth()===7 && mo.getDate()===10; // Monat 7 = August (0-indiziert)
 }
 window._isT0ExtraFriWeek = isT0ExtraFriWeek;
+// Zusatztag für T1/T2/T3: Freitag 20.11.2026 (Woche vom 16.11.2026) — Layout T1.1 (Vormittag/Blut) als Standard
+function isT1ExtraFriWeek(w) {
+  const mo = wMon(w);
+  return mo.getFullYear()===2026 && mo.getMonth()===10 && mo.getDate()===16; // Monat 10 = November
+}
+window._isT1ExtraFriWeek = isT1ExtraFriWeek;
 
 // ── STATE ─────────────────────────
 let P={}, RECALLS={}, TEAM={}, ASSIGN={}, SPERREN={}, ABSENT={}, ROOMS={}, ROOM_BLOCKS={}, TELP={}, TEL_ERINNERUNGEN={}, KW27_BOOKINGS={}, SONDERTAGE={}, T_BOOKINGS={}, TEL_BOOKINGS={}, DAY_LAYOUTS={};
@@ -2315,6 +2322,7 @@ function getSubTermin(termin, day) {
   const is1 = day==='Montag'||day==='Dienstag';
   // KW 27: T1 uses the sub-view state instead of day
   if(termin==='T1' && isKW27(cW)) return _kw27T1Sub;
+  if(day==='Freitag' && (termin==='T1'||termin==='T2'||termin==='T3')) { const _l = getDayLayout(cW,day); return termin+(_l==='T1.2'?'.2':'.1'); }
   if(termin==='T1') return is1 ? 'T1.1' : 'T1.2';
   if(termin==='T2') return is1 ? 'T2.1' : 'T2.2';
   if(termin==='T3') return is1 ? 'T3.1' : 'T3.2';
@@ -2727,7 +2735,8 @@ function renderWeek() {
   const mo=wMon(cW), thu=wDay(cW,3), k=kw(mo);
   document.getElementById('wbadge').textContent=`KW ${k} · ${mo.getFullYear()}`;
   const _t0FriWeek = curTermin==='T0' && isT0ExtraFriWeek(cW);
-  document.getElementById('wrange').textContent=`${fD(mo)} – ${fD(_t0FriWeek ? wDay(cW,4) : thu)}`;
+  const _t1FriWeek = (curTermin==='T1'||curTermin==='T2'||curTermin==='T3') && isT1ExtraFriWeek(cW);
+  document.getElementById('wrange').textContent=`${fD(mo)} – ${fD((_t0FriWeek||_t1FriWeek) ? wDay(cW,4) : thu)}`;
 
   const content = document.getElementById('cal-content');
   if (!content) return;
@@ -2746,6 +2755,7 @@ function renderWeek() {
     // Termin-Typ wird pro Buchung gespeichert (t_bookings.termin)
     curTermin = 'T1'; // Slot-Struktur immer nach T1
     days=[{label:'Montag',off:0},{label:'Dienstag',off:1},{label:'Mittwoch',off:2},{label:'Donnerstag',off:3}];
+    if(_t1FriWeek) days.push({label:'Freitag',off:4});
     // .2 Layout (Nachmittag, Isokinetik) verwendet stündliche Slots 10:00–17:00 — Mo-Do verfügbar
     slotSets = days.map(d => {
       return getDayLayout(cW, d.label) === 'T1.1' ? T11 : T12_KW27;
@@ -2788,7 +2798,7 @@ function renderWeek() {
     </div>`;
   }
 
-  const _dgridStyle = (_t0FriWeek && days.length===5) ? ' style="grid-template-columns:repeat(5,1fr)"' : '';
+  const _dgridStyle = ((_t0FriWeek||_t1FriWeek) && days.length===5) ? ' style="grid-template-columns:repeat(5,1fr)"' : '';
   content.innerHTML = _kw27Banner + `<div class="dgrid"${_dgridStyle}>${days.map((d,i)=>{
     const date=wDay(cW,d.off);
     const slots=(curTermin==='T1' && getDayLayout(cW,d.label)==='T1.1')
@@ -4005,7 +4015,7 @@ window.openAddProbandSlot = (w, termin, day, slot) => {
   }
 
   // Build label
-  const _is1 = day==='Montag'||day==='Dienstag';
+  const _is1 = day==='Montag'||day==='Dienstag'||(day==='Freitag' && /(\.1|^T\d)$/.test(termin));
   const slotDef = termin==='T0' ? T0.find(s=>s.slot===slot)
     : (termin==='T1.1'||termin==='T1') ? (_is1?T11:T12).find(s=>s.slot===slot)
     : termin==='T1.2' ? T12.find(s=>s.slot===slot)
