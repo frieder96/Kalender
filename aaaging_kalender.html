@@ -694,6 +694,7 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
     <div class="unav-i" id="nav-telomer" style="display:none">
       <button class="ntab on"  onclick="goTab('tel-kalender',this)">Kalender</button>
       <button class="ntab"     onclick="goTab('tel-erinnerungen',this)">🔔 Erinnerungen</button>
+      <button class="ntab"     onclick="goTab('tel-monat',this)">📅 Monatsansicht</button>
       <button class="ntab"     onclick="goTab('tel-probanden',this)">Probanden</button>
       <button class="ntab"     onclick="goTab('team',this)">Team &amp; Aufgaben</button>
       <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
@@ -1195,6 +1196,17 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         </div>
       </div>
       <div id="tel-erinnerungen-content"></div>
+    </div>
+
+    <!-- TELOMER MONATSANSICHT -->
+    <div id="tab-tel-monat" class="panel">
+      <div class="phdr">
+        <div>
+          <div class="ptitle">📅 Telomer Monatsansicht</div>
+          <div class="psub">Eingetragene Termine + noch fällige T1 (12 Wo.) / T2 (24 Wo.) nach Interventionsstart (Mo nach T0)</div>
+        </div>
+      </div>
+      <div id="tel-monat-content"></div>
     </div>
 
     <!-- TELOMER PROBANDEN -->
@@ -2511,6 +2523,7 @@ function startDB() {
   }, ()=>setSync(false,'Verbindungsfehler'));
   onSnapshot(collection(db,'telomer_probanden'), snap => {
     TELP={}; snap.forEach(d=>{TELP[d.id]={...d.data(),_id:d.id}}); window._TELP=TELP;
+    if(window.renderTelMonat) window.renderTelMonat();
     if(window.renderTelProbanden) window.renderTelProbanden();
     if(window.renderTelKalender) window.renderTelKalender();
     if(window.renderTelErinnerungen) window.renderTelErinnerungen();
@@ -2523,6 +2536,7 @@ function startDB() {
   onSnapshot(collection(db,'tel_erinnerungen'), snap => {
     TEL_ERINNERUNGEN={}; snap.forEach(d=>{TEL_ERINNERUNGEN[d.id]={...d.data(),_id:d.id}});
     window._TEL_ERINNERUNGEN = TEL_ERINNERUNGEN;
+    if(window.renderTelMonat) window.renderTelMonat();
     if(window.renderTelErinnerungen) window.renderTelErinnerungen();
   });
   onSnapshot(collection(db,'team'), snap => {
@@ -2627,6 +2641,7 @@ function startDB() {
   onSnapshot(collection(db,'tel_bookings'), snap => {
     TEL_BOOKINGS={}; snap.forEach(d=>{TEL_BOOKINGS[d.id]={...d.data(),_id:d.id}});
     window._TEL_BOOKINGS = TEL_BOOKINGS;
+    if(window.renderTelMonat) window.renderTelMonat();
     if(window.renderTelKalender) window.renderTelKalender();
     if(window.renderTelErinnerungen) window.renderTelErinnerungen();
     if(window.renderTelFortschritt) window.renderTelFortschritt();
@@ -6990,7 +7005,7 @@ function goTab(name,btn){
   if(btn) btn.classList.add('on');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('tab-'+name).classList.add('on');
-  const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export',abwesenheit:'Abwesenheiten',raumplan:'Live Raumplan',studio:'Studio & Training','glp-kalender':'GLP-1 Kalender','glp-erinnerungen':'GLP-1 Erinnerungen','glp-probanden':'GLP-1 Probanden','glp-fortschritt':'GLP-1 Fortschritt','bh-kalender':'Brain-Health Kalender','bh-probanden':'Brain-Health Probanden'};
+  const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export',abwesenheit:'Abwesenheiten',raumplan:'Live Raumplan',studio:'Studio & Training','glp-kalender':'GLP-1 Kalender','glp-erinnerungen':'GLP-1 Erinnerungen','glp-probanden':'GLP-1 Probanden','glp-fortschritt':'GLP-1 Fortschritt','bh-kalender':'Brain-Health Kalender','bh-probanden':'Brain-Health Probanden','tel-monat':'Telomer Monatsansicht'};
   document.getElementById('bcc').textContent=L[name]||name;
   if(name==='team'){tW=cW;renderTaskTab();}
   if(name==='recalls'){ renderRecallHolidays(); if(window._recallView==='kalender' && window.renderRecallKalender) window.renderRecallKalender(); }
@@ -11376,6 +11391,140 @@ window.telErinJumpToWeek = function(week) {
   renderTelKalender();
 };
 
+// ── TELOMER MONATSANSICHT: eingetragene Termine + noch fällige T1/T2 (12/24 Wochen ab Interventionsstart) ──
+window._telMonY = null; window._telMonM = null;
+window.telMonNav = function(d){
+  if(d===0){ window._telMonY = null; window._telMonM = null; }
+  else {
+    var y = window._telMonY, m = window._telMonM;
+    if(y===null){ var n=new Date(); y=n.getFullYear(); m=n.getMonth(); }
+    m += d; while(m<0){ m+=12; y--; } while(m>11){ m-=12; y++; }
+    window._telMonY = y; window._telMonM = m;
+  }
+  renderTelMonat();
+};
+window.renderTelMonat = function(){
+  var el = document.getElementById('tel-monat-content'); if(!el) return;
+  var panel = document.getElementById('tab-tel-monat'); if(panel && !panel.classList.contains('on')) return;
+  var wDay = window._wDay, localDate = window._localDate;
+  if(!wDay || !localDate || !window.START){ el.innerHTML = '<div style="padding:20px;color:#888">Wird geladen…</div>'; return; }
+  var DAYOFF = {Montag:0,Dienstag:1,Mittwoch:2,Donnerstag:3,Freitag:4};
+  var today = new Date(); today.setHours(0,0,0,0);
+  var todayIso = localDate(today);
+  var TEL_BK = window._TEL_BOOKINGS || {}, ERIN = window._TEL_ERINNERUNGEN || {};
+  var esc = function(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  function bkTime(bk){
+    if(!bk) return '';
+    if(bk.customStartTime) return bk.customStartTime;
+    var slot = Number(bk.slot); if(!slot) return '';
+    var isT1 = bk.termin==='T1';
+    if(slot>=5000){
+      var hh=Math.floor((slot-5000)/100), mm=(slot-5000)%100;
+      if(isT1) return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+      var dt=new Date(2000,0,1,hh,mm); dt.setMinutes(dt.getMinutes()-15);
+      return String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
+    }
+    var def=(window._TEL_T0||[]).find(function(x){ return x.slot===slot; });
+    return def ? (isT1 ? def.blutStart : def.inviteTime) : '';
+  }
+  function info(tp, termin){
+    var bk = Object.values(TEL_BK).find(function(b){ return b.probandId===tp._id && b.termin===termin; });
+    if(bk && bk.week!==undefined && bk.day) return {week:bk.week, day:bk.day, time:bkTime(bk)};
+    var w = termin==='T0'?tp.t0week:termin==='T1'?tp.t1week:tp.t2week, d = termin==='T0'?tp.t0day:termin==='T1'?tp.t1day:tp.t2day;
+    if(w!==undefined && w!==null && d) return {week:w, day:d, time:''};
+    return null;
+  }
+  function weekOf(date){
+    var dow = date.getDay()||7, mon = new Date(date); mon.setDate(date.getDate()-dow+1); mon.setHours(12,0,0,0);
+    return Math.round((mon-window.START)/(7*86400000));
+  }
+  var ev = {}, overdue = [], nBooked = {T0:0,T1:0,T2:0}, nDue = 0;
+  var y = window._telMonY, m = window._telMonM;
+  if(y===null){ var nn=new Date(); y=nn.getFullYear(); m=nn.getMonth(); }
+  var mStart = localDate(new Date(y,m,1)), mEnd = localDate(new Date(y,m+1,0));
+  function put(iso, o){ (ev[iso] = ev[iso] || []).push(o); }
+  Object.values(window._TELP || {}).forEach(function(tp){
+    var label = tp.tid || tp.lnr || '?';
+    var isDrop = !!(ERIN[tp._id+'_DROPOUT'] && ERIN[tp._id+'_DROPOUT'].dropout);
+    var inf = {};
+    ['T0','T1','T2'].forEach(function(t){
+      inf[t] = info(tp,t);
+      if(inf[t]){
+        var d = wDay(inf[t].week, DAYOFF[inf[t].day]||0); d.setHours(0,0,0,0);
+        var iso = localDate(d);
+        put(iso, {kind:'booked', termin:t, label:label, time:inf[t].time, week:inf[t].week});
+        if(iso>=mStart && iso<=mEnd) nBooked[t]++;
+      }
+    });
+    if(inf.T0 && !isDrop){
+      var t0d = wDay(inf.T0.week, DAYOFF[inf.T0.day]||0); t0d.setHours(0,0,0,0);
+      var dow = t0d.getDay(), start = new Date(t0d); start.setDate(t0d.getDate()+(dow===0?1:(8-dow)));
+      [['T1',84],['T2',168]].forEach(function(x){
+        if(inf[x[0]]) return;
+        var tg = new Date(start); tg.setDate(start.getDate()+x[1]);
+        var iso = localDate(tg), od = iso < todayIso;
+        var o = {kind:'due', termin:x[0], label:label, overdue:od, week:weekOf(tg), iso:iso};
+        if(od && iso < mStart) overdue.push(o);
+        else put(iso, o);
+        if(iso>=mStart && iso<=mEnd) nDue++;
+      });
+    }
+  });
+  var COL = {T0:['#E0EBFF','#A7BFEC','#1E3F9C'], T1:['#F2E3F8','#D2A8E2','#5B167A'], T2:['#CDEFD9','#6DBC8C','#155532']}; // wie im Telomer-Kalender: T0 blau, T1 lila, T2 grün
+  function chip(o){
+    var c = COL[o.termin];
+    if(o.kind==='booked'){
+      return '<div onclick="telErinJumpToWeek('+o.week+')" title="Zum Termin im Kalender" style="cursor:pointer;background:'+c[0]+';border:1px solid '+c[1]+';color:'+c[2]+';border-radius:5px;padding:2px 5px;font-size:10.5px;margin-top:2px;line-height:1.3"><b>'+o.termin+'</b> ✅ '+esc(o.label)+(o.time?' · '+esc(o.time):'')+'</div>';
+    }
+    var col = o.overdue ? '#C8102E' : c[2];
+    return '<div onclick="telErinJumpToWeek('+o.week+')" title="Fällig laut Regel (Zielwoche im Kalender öffnen)" style="cursor:pointer;background:'+(o.overdue?'#FFF5F6':c[0]+'99')+';border:1.5px dashed '+(o.overdue?'#C8102E':c[1])+';color:'+col+';border-radius:5px;padding:2px 5px;font-size:10.5px;margin-top:2px;line-height:1.3"><b>'+o.termin+'</b> '+(o.overdue?'🔴 überfällig':'⏰ fällig')+' · '+esc(o.label)+'</div>';
+  }
+  var MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  var h = '<div class="month-nav" style="flex-wrap:wrap;gap:6px;margin-bottom:10px">'
+    + '<div style="display:flex;gap:3px"><button class="arr" onclick="telMonNav(-1)">&#8592;</button><button class="arr" onclick="telMonNav(1)">&#8594;</button></div>'
+    + '<span class="month-badge">'+MONTHS[m]+' '+y+'</span><button class="btn btn-sm" onclick="telMonNav(0)">Aktueller Monat</button></div>';
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:12px">'
+    + '<span style="background:#E0EBFF;border:1px solid #A7BFEC;color:#1E3F9C;border-radius:99px;padding:3px 10px"><b>T0</b> eingetragen: '+nBooked.T0+'</span>'
+    + '<span style="background:#F2E3F8;border:1px solid #D2A8E2;color:#5B167A;border-radius:99px;padding:3px 10px"><b>T1</b> eingetragen: '+nBooked.T1+'</span>'
+    + '<span style="background:#CDEFD9;border:1px solid #6DBC8C;color:#155532;border-radius:99px;padding:3px 10px"><b>T2</b> eingetragen: '+nBooked.T2+'</span>'
+    + '<span style="background:#fff;border:1.5px dashed #777;color:#555;border-radius:99px;padding:3px 10px">⏰ gestrichelt = noch fällig in diesem Monat: <b>'+nDue+'</b></span></div>';
+  if(overdue.length){
+    overdue.sort(function(a,b){ return a.iso.localeCompare(b.iso); });
+    h += '<div style="background:#FDF2F4;border:1px solid #E8BFBF;border-left:4px solid #C8102E;border-radius:var(--r);padding:8px 12px;margin-bottom:12px;font-size:12px"><div style="font-weight:700;color:#C8102E;margin-bottom:4px">🔴 Überfällig aus früheren Monaten ('+overdue.length+')</div><div style="display:flex;flex-wrap:wrap;gap:6px">'
+      + overdue.map(function(o){ var d=o.iso.split('-'); return '<span onclick="telErinJumpToWeek('+o.week+')" style="cursor:pointer;background:'+COL[o.termin][0]+';border:1.5px dashed #C8102E;color:'+COL[o.termin][2]+';border-radius:5px;padding:2px 7px;font-size:11px"><b>'+o.termin+'</b> '+esc(o.label)+' · fällig '+d[2]+'.'+d[1]+'.</span>'; }).join('')
+      + '</div></div>';
+  }
+  h += '<div style="display:grid;grid-template-columns:repeat(5,minmax(120px,1fr)) minmax(130px,.9fr);gap:4px;overflow-x:auto">';
+  ['Mo','Di','Mi','Do','Fr','Wochen-Legende'].forEach(function(d){ h += '<div style="text-align:center;font-size:11px;font-weight:700;color:var(--g5);padding:4px 0">'+d+'</div>'; });
+  var first = new Date(y,m,1), last = new Date(y,m+1,0);
+  var cur = new Date(first); cur.setDate(1-((first.getDay()+6)%7)); // Montag der ersten Woche
+  while(cur <= last){
+    var wk = {T0:[0,0], T1:[0,0], T2:[0,0]}; // [eingetragen, geplant]
+    for(var i=0;i<5;i++){
+      var d = new Date(cur); d.setDate(cur.getDate()+i);
+      (ev[localDate(d)]||[]).forEach(function(o){ wk[o.termin][o.kind==='booked'?0:1]++; });
+      var iso = localDate(d), inM = d.getMonth()===m, list = ev[iso] || [];
+      var isT = iso===todayIso;
+      h += '<div style="min-height:78px;background:'+(inM?'#fff':'var(--g1)')+';border:1px solid '+(isT?'#8B5A4A':'var(--g2)')+';'+(isT?'box-shadow:0 0 0 1px #8B5A4A;':'')+'border-radius:6px;padding:4px 5px;'+(inM?'':'opacity:.55')+'">'
+        + '<div style="font-size:11px;font-weight:700;color:'+(isT?'#8B5A4A':'var(--g5)')+'">'+d.getDate()+(d.getDate()===1?'. '+MONTHS[d.getMonth()].slice(0,3):'')+'</div>'
+        + list.sort(function(a,b){ return (a.kind===b.kind?0:a.kind==='booked'?-1:1) || a.termin.localeCompare(b.termin) || (a.time||'').localeCompare(b.time||''); }).map(chip).join('')
+        + '</div>';
+    }
+    var kwNum = window.kw ? window.kw(cur) : '';
+    h += '<div style="min-height:78px;background:var(--g1);border:1px solid var(--g2);border-radius:6px;padding:5px 7px;font-size:10.5px">'
+      + '<div style="font-size:11px;font-weight:700;color:var(--g5);margin-bottom:3px">KW '+kwNum+'</div>'
+      + ['T0','T1','T2'].map(function(t){
+          var c = COL[t];
+          return '<div style="background:'+c[0]+';border:1px solid '+c[1]+';color:'+c[2]+';border-radius:5px;padding:2px 5px;margin-top:2px"><b>'+t+'</b>: '+wk[t][0]+' eingetragen'+(t==='T0'?'':' · '+wk[t][1]+' geplant')+'</div>';
+        }).join('')
+      + '</div>';
+    cur.setDate(cur.getDate()+7);
+  }
+  h += '</div>';
+  h += '<div style="font-size:11px;color:var(--g4);margin-top:10px">Regel: Interventionsstart = Montag nach T0 · T1 fällig +12 Wochen · T2 fällig +24 Wochen (immer ab T0). „Geplant“ = laut Regel noch fällig, aber noch nicht eingetragen (gestrichelt). Dropouts werden nicht angezeigt. Klick auf einen Eintrag öffnet die Woche im Telomer-Kalender.</div>';
+  el.innerHTML = h;
+};
+
 // Trägt einen T0/T1/T2-Termin direkt aus der Erinnerungsansicht ein — landet als echte
 // Buchung im Telomer-Kalender (tel_bookings). Zeit außerhalb der 4 Standard-Slots
 // wird automatisch als Zusatz-Slot angelegt (analog "+ Slot hinzufügen" im Kalender).
@@ -11496,6 +11645,7 @@ window.saveTelErinnerung = async function(erinId) {
       renderTelKalender();
     }
     if(name==='tel-erinnerungen'){ renderTelErinnerungen(); }
+    if(name==='tel-monat'){ renderTelMonat(); }
     if(name==='tel-probanden'){ renderTelProbanden(); }
     if(name==='tel-fortschritt'){ renderTelFortschritt(); }
   };
