@@ -11392,7 +11392,8 @@ window.telErinJumpToWeek = function(week) {
 };
 
 // ── TELOMER MONATSANSICHT: eingetragene Termine + noch fällige T1/T2 (12/24 Wochen ab Interventionsstart) ──
-window._telMonY = null; window._telMonM = null;
+window._telMonY = null; window._telMonM = null; window._telMonView = 'cal';
+window.telMonSetView = function(v){ window._telMonView = v; renderTelMonat(); };
 window.telMonNav = function(d){
   if(d===0){ window._telMonY = null; window._telMonM = null; }
   else {
@@ -11438,7 +11439,7 @@ window.renderTelMonat = function(){
     var dow = date.getDay()||7, mon = new Date(date); mon.setDate(date.getDate()-dow+1); mon.setHours(12,0,0,0);
     return Math.round((mon-window.START)/(7*86400000));
   }
-  var ev = {}, soll = {}, overdue = [], nBooked = {T0:0,T1:0,T2:0}, nDue = 0;
+  var plan = {}, planOver = {T1:0,T2:0}, ev = {}, soll = {}, overdue = [], nBooked = {T0:0,T1:0,T2:0}, nDue = 0;
   var y = window._telMonY, m = window._telMonM;
   if(y===null){ var nn=new Date(); y=nn.getFullYear(); m=nn.getMonth(); }
   var mStart = localDate(new Date(y,m,1)), mEnd = localDate(new Date(y,m+1,0));
@@ -11453,6 +11454,7 @@ window.renderTelMonat = function(){
         var d = wDay(inf[t].week, DAYOFF[inf[t].day]||0); d.setHours(0,0,0,0);
         var iso = localDate(d);
         put(iso, {kind:'booked', termin:t, label:label, time:inf[t].time, week:inf[t].week});
+        var pk = localDate(wDay(inf[t].week,0)); plan[pk] = plan[pk] || {T0:[0,0],T1:[0,0],T2:[0,0]}; plan[pk][t][0]++; // [fix, offen]
         if(iso>=mStart && iso<=mEnd) nBooked[t]++;
       }
     });
@@ -11464,6 +11466,7 @@ window.renderTelMonat = function(){
         var iso = localDate(tg), od = iso < todayIso;
         var sk = x[0]+'|'+iso; soll[sk] = soll[sk] || [0,0]; soll[sk][0]++; if(!inf[x[0]]) soll[sk][1]++; // [Soll gesamt, davon noch nicht eingetragen]
         if(inf[x[0]]) return;
+        if(od){ planOver[x[0]]++; } else { plan[iso] = plan[iso] || {T0:[0,0],T1:[0,0],T2:[0,0]}; plan[iso][x[0]][1]++; }
         var o = {kind:'due', termin:x[0], label:label, overdue:od, week:weekOf(tg), iso:iso};
         if(od && iso < mStart) overdue.push(o);
         else put(iso, o);
@@ -11481,7 +11484,47 @@ window.renderTelMonat = function(){
     return '<div onclick="telErinJumpToWeek('+o.week+')" title="Fällig laut Regel (Zielwoche im Kalender öffnen)" style="cursor:pointer;background:'+(o.overdue?'#FFF5F6':c[0]+'99')+';border:1.5px dashed '+(o.overdue?'#C8102E':c[1])+';color:'+col+';border-radius:5px;padding:2px 5px;font-size:10.5px;margin-top:2px;line-height:1.3"><b>'+o.termin+'</b> '+(o.overdue?'🔴 überfällig':'⏰ fällig')+' · '+esc(o.label)+'</div>';
   }
   var MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
-  var h = '<div class="month-nav" style="flex-wrap:wrap;gap:6px;margin-bottom:10px">'
+  var vw = window._telMonView || 'cal';
+  var viewBar = '<div style="display:flex;gap:6px;margin-bottom:12px">'
+    + [['cal','📅 Monatskalender'],['plan','📊 Wochen-Vorschau (Planung)']].map(function(x){ var on=x[0]===vw; return '<button onclick="telMonSetView(\''+x[0]+'\')" style="border:1px solid '+(on?'#8B5A4A':'var(--g3)')+';background:'+(on?'#EAD4CB':'#fff')+';color:'+(on?'#4A2A1F':'#888')+';border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer">'+x[1]+'</button>'; }).join('') + '</div>';
+  if(vw==='plan'){
+    var MONS = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+    var nowD = new Date(); nowD.setHours(12,0,0,0);
+    var curMon = new Date(nowD); curMon.setDate(nowD.getDate()-((nowD.getDay()+6)%7));
+    var keys = Object.keys(plan).filter(function(k){ return k >= localDate(curMon); }).sort();
+    var ph = viewBar;
+    ph += '<div style="font-size:12px;color:var(--g5);margin-bottom:10px">Erwartete Termine pro Woche ab der aktuellen Woche: <b>fix</b> = bereits eingetragen, <b>offen</b> = laut Regel (T1 +12 / T2 +24 Wochen ab Interventionsstart) noch einzutragen. Dropouts sind nicht eingerechnet.</div>';
+    if(planOver.T1 || planOver.T2){
+      ph += '<div style="background:#FDF2F4;border:1px solid #E8BFBF;border-left:4px solid #C8102E;border-radius:var(--r);padding:8px 12px;margin-bottom:12px;font-size:12px;color:#C8102E"><b>🔴 Bereits überfällig, noch ohne Termin:</b> T1: '+planOver.T1+' · T2: '+planOver.T2+'</div>';
+    }
+    if(!keys.length){ el.innerHTML = ph + '<div style="padding:30px;text-align:center;color:#888;font-style:italic">Keine geplanten Termine ab der aktuellen Woche.</div>'; return; }
+    var maxTot = 1; keys.forEach(function(k){ var t=0; ['T0','T1','T2'].forEach(function(x){ t+=plan[k][x][0]+plan[k][x][1]; }); if(t>maxTot) maxTot=t; });
+    ph += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;background:#fff;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);font-size:12px"><thead><tr style="background:#8B5A4A;color:#fff">'
+      + '<th style="padding:8px 10px;text-align:left">Woche</th>'
+      + ['T0','T1','T2'].map(function(t){ return '<th style="padding:8px 10px;text-align:center">'+t+(t==='T0'?' (fix)':' (fix + offen)')+'</th>'; }).join('')
+      + '<th style="padding:8px 10px;text-align:center">Gesamt</th><th style="padding:8px 10px;text-align:left;min-width:160px">Auslastung</th></tr></thead><tbody>';
+    var lastMonth = '';
+    keys.forEach(function(k){
+      var pr = plan[k], d0 = new Date(k+'T12:00'), d4 = new Date(d0); d4.setDate(d0.getDate()+4);
+      var fix = pr.T0[0]+pr.T1[0]+pr.T2[0], off = pr.T1[1]+pr.T2[1] + pr.T0[1], tot = fix+off;
+      var mLabel = MONS[d0.getMonth()]+' '+d0.getFullYear();
+      if(mLabel!==lastMonth){ lastMonth=mLabel; ph += '<tr><td colspan="6" style="background:#EAD4CB;color:#4A2A1F;font-weight:700;padding:4px 10px">'+mLabel+'</td></tr>'; }
+      var cells = ['T0','T1','T2'].map(function(t){
+        var c = COL[t], a = pr[t][0], b = pr[t][1];
+        if(!a && !b) return '<td style="padding:6px 10px;text-align:center;color:#ccc">–</td>';
+        return '<td style="padding:6px 10px;text-align:center"><span style="background:'+c[0]+';border:1px solid '+c[1]+';color:'+c[2]+';border-radius:5px;padding:1px 7px;font-weight:700">'+a+'</span>'+(b?' <span style="background:'+c[0]+'99;border:1.5px dashed '+c[1]+';color:'+c[2]+';border-radius:5px;padding:1px 7px;font-weight:700">+'+b+'</span>':'')+'</td>';
+      }).join('');
+      var isCur = k===localDate(curMon);
+      ph += '<tr style="border-top:1px solid var(--g2)'+(isCur?';background:#FFF8F0':'')+'"><td style="padding:6px 10px;white-space:nowrap"><b>KW '+(window.kw?window.kw(d0):'')+'</b> <span style="color:var(--g4)">'+d0.getDate()+'.'+(d0.getMonth()+1)+'. – '+d4.getDate()+'.'+(d4.getMonth()+1)+'.</span>'+(isCur?' <span style="color:#8B5A4A;font-weight:700">· aktuell</span>':'')+'</td>'
+        + cells
+        + '<td style="padding:6px 10px;text-align:center;font-weight:700">'+tot+'</td>'
+        + '<td style="padding:6px 10px"><div style="display:flex;height:12px;gap:1px"><div style="width:'+Math.round(fix/maxTot*150)+'px;background:#8B5A4A;border-radius:3px"></div><div style="width:'+Math.round(off/maxTot*150)+'px;background:repeating-linear-gradient(45deg,#E2C4B6,#E2C4B6 3px,#fff 3px,#fff 6px);border:1px dashed #B8916F;border-radius:3px;box-sizing:border-box"></div></div></td></tr>';
+    });
+    ph += '</tbody></table></div>';
+    el.innerHTML = ph;
+    return;
+  }
+  var h = viewBar + '<div class="month-nav" style="flex-wrap:wrap;gap:6px;margin-bottom:10px">'
     + '<div style="display:flex;gap:3px"><button class="arr" onclick="telMonNav(-1)">&#8592;</button><button class="arr" onclick="telMonNav(1)">&#8594;</button></div>'
     + '<span class="month-badge">'+MONTHS[m]+' '+y+'</span><button class="btn btn-sm" onclick="telMonNav(0)">Aktueller Monat</button></div>';
   h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:12px">'
@@ -11518,13 +11561,13 @@ window.renderTelMonat = function(){
       + '<div style="font-size:11px;font-weight:700;color:var(--g5);margin-bottom:3px">KW '+kwNum+'</div>'
       + ['T0','T1','T2'].map(function(t){
           var c = COL[t];
-          return '<div style="background:'+c[0]+';border:1px solid '+c[1]+';color:'+c[2]+';border-radius:5px;padding:2px 5px;margin-top:2px"><b>'+t+'</b>: '+wk[t][0]+' eingetragen'+(t==='T0'?'':'<br><span style="font-size:10px">geplant (Soll) '+wk[t][1]+' · noch offen '+wkOpen[t]+'</span>')+'</div>';
+          return '<div style="background:'+c[0]+';border:1px solid '+c[1]+';color:'+c[2]+';border-radius:5px;padding:2px 5px;margin-top:2px"><b>'+t+'</b>: '+wk[t][0]+' Termine in dieser Woche'+(t==='T0'?'':'<br><span style="font-size:10px">Soll in dieser Woche: '+wk[t][1]+' (davon eingetragen '+(wk[t][1]-wkOpen[t])+' · offen '+wkOpen[t]+')</span>')+'</div>';
         }).join('')
       + '</div>';
     cur.setDate(cur.getDate()+7);
   }
   h += '</div>';
-  h += '<div style="font-size:11px;color:var(--g4);margin-top:10px">Regel: Interventionsstart = Montag nach T0 · T1 fällig +12 Wochen · T2 fällig +24 Wochen (immer ab T0). Wochen-Legende: „eingetragen“ = Termine, die in dieser Woche stattfinden · „geplant (Soll)“ = Personen, deren T1/T2 laut Regel in diese Woche fällt · „noch offen“ = davon noch ohne Termin (gestrichelt im Kalender). Dropouts werden nicht angezeigt. Klick auf einen Eintrag öffnet die Woche im Telomer-Kalender.</div>';
+  h += '<div style="font-size:11px;color:var(--g4);margin-top:10px">Regel: Interventionsstart = Montag nach T0 · T1 fällig +12 Wochen · T2 fällig +24 Wochen (immer ab T0). Wochen-Legende: „Termine in dieser Woche“ = alle Termine, die tatsächlich in dieser Woche stattfinden (auch von Personen, deren Soll in einer anderen Woche liegt) · „Soll“ = Personen, deren T1/T2 laut Regel in diese Woche fällt, davon schon eingetragen (irgendwann) bzw. noch offen (gestrichelt im Kalender). Dropouts werden nicht angezeigt. Klick auf einen Eintrag öffnet die Woche im Telomer-Kalender.</div>';
   el.innerHTML = h;
 };
 
