@@ -3050,7 +3050,7 @@ function renderWeek() {
 
     // Layout-Toggle (Vormittag/Nachmittag): zwei Buttons als Segment-Control, aktiver ist hervorgehoben
     const _curLayout = curTermin==='T1' ? getDayLayout(cW, d.label) : null;
-    const _defaultLayout = (d.label==='Montag'||d.label==='Dienstag') ? 'T1.1' : 'T1.2';
+    const _defaultLayout = (d.label==='Montag'||d.label==='Dienstag'||d.label==='Freitag') ? 'T1.1' : 'T1.2';
     const _isOverridden = _curLayout && _curLayout !== _defaultLayout;
     const _vActive = _curLayout==='T1.1';
     const _nActive = _curLayout==='T1.2';
@@ -3713,7 +3713,7 @@ function recallStaffConflict(memberId, date, time) {
     // Sub-Layout (.1 = Mo/Di, .2 = Mi/Do) bestimmen: aus dem Termin-String falls vorhanden,
     // sonst automatisch aus dem Wochentag ableiten.
     const kBase = kTermin.replace(/\.[12]$/,'');
-    const kSub = /\.[12]$/.test(kTermin) ? kTermin.slice(-1) : ((kDay==='Montag'||kDay==='Dienstag') ? '1' : '2');
+    const kSub = /\.[12]$/.test(kTermin) ? kTermin.slice(-1) : ((kDay==='Montag'||kDay==='Dienstag'||kDay==='Freitag') ? '1' : '2');
     if(isTel) {
       const telPool = kBase==='T0' ? window._TEL_T0 : kBase==='T1' ? window._TEL_T1 : kBase==='T2' ? window._TEL_T2 : null;
       if(telPool && telPool[kSlot-1]) kSlotDef = telPool[kSlot-1];
@@ -3930,7 +3930,7 @@ window.setDayLayout = async (w, day, newLayout) => {
     return;
   }
   const existing = Object.values(DAY_LAYOUTS).find(dl=>dl.week===w && dl.day===day);
-  const defaultLayout = (day==='Montag'||day==='Dienstag') ? 'T1.1' : 'T1.2';
+  const defaultLayout = (day==='Montag'||day==='Dienstag'||day==='Freitag') ? 'T1.1' : 'T1.2'; // Freitag = Zusatztag, Standard Vormittag (wie getDayLayout)
   try {
     // Wenn das neue Layout dem Default entspricht: Override entfernen
     if(newLayout === defaultLayout) {
