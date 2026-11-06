@@ -2585,16 +2585,16 @@ function startDB() {
     BH_T0_ROOM={}; snap.forEach(d=>{BH_T0_ROOM[d.id]={...d.data(),_id:d.id}}); window._BH_T0_ROOM=BH_T0_ROOM; if(window.renderBHCalendar) window.renderBHCalendar();
   });
   onSnapshot(collection(db,'bh_t0_bookings'), snap => {
-    BH_T0_BOOKINGS={}; snap.forEach(d=>{BH_T0_BOOKINGS[d.id]={...d.data(),_id:d.id}}); window._BH_T0_BOOKINGS=BH_T0_BOOKINGS; if(window.renderBHCalendar) window.renderBHCalendar();
+    BH_T0_BOOKINGS={}; snap.forEach(d=>{BH_T0_BOOKINGS[d.id]={...d.data(),_id:d.id}}); window._BH_T0_BOOKINGS=BH_T0_BOOKINGS; if(window.renderBHCalendar) window.renderBHCalendar(); if(window._bhProbVisible&&window._bhProbVisible()) window.renderBHProbanden();
   });
   onSnapshot(collection(db,'bh_t1_bookings'), snap => {
-    BH_T1_BOOKINGS={}; snap.forEach(d=>{BH_T1_BOOKINGS[d.id]={...d.data(),_id:d.id}}); window._BH_T1_BOOKINGS=BH_T1_BOOKINGS; if(window.renderBHCalendar) window.renderBHCalendar();
+    BH_T1_BOOKINGS={}; snap.forEach(d=>{BH_T1_BOOKINGS[d.id]={...d.data(),_id:d.id}}); window._BH_T1_BOOKINGS=BH_T1_BOOKINGS; if(window.renderBHCalendar) window.renderBHCalendar(); if(window._bhProbVisible&&window._bhProbVisible()) window.renderBHProbanden();
   });
   onSnapshot(collection(db,'bh_fam_slots'), snap => {
     BH_FAM_SLOTS={}; snap.forEach(d=>{BH_FAM_SLOTS[d.id]={...d.data(),_id:d.id}}); window._BH_FAM_SLOTS=BH_FAM_SLOTS; if(window.renderBHCalendar) window.renderBHCalendar();
   });
   onSnapshot(collection(db,'bh_fam_bookings'), snap => {
-    BH_FAM_BOOKINGS={}; snap.forEach(d=>{BH_FAM_BOOKINGS[d.id]={...d.data(),_id:d.id}}); window._BH_FAM_BOOKINGS=BH_FAM_BOOKINGS; if(window.renderBHCalendar) window.renderBHCalendar();
+    BH_FAM_BOOKINGS={}; snap.forEach(d=>{BH_FAM_BOOKINGS[d.id]={...d.data(),_id:d.id}}); window._BH_FAM_BOOKINGS=BH_FAM_BOOKINGS; if(window.renderBHCalendar) window.renderBHCalendar(); if(window._bhProbVisible&&window._bhProbVisible()) window.renderBHProbanden();
   });
   onSnapshot(collection(db,'bh_notes'), snap => {
     BH_NOTES={}; snap.forEach(d=>{BH_NOTES[d.id]={...d.data(),_id:d.id}}); window._BH_NOTES=BH_NOTES; if(window.renderBHCalendar) window.renderBHCalendar();
@@ -2609,13 +2609,13 @@ function startDB() {
     BH_T0_DATES={}; snap.forEach(d=>{BH_T0_DATES[d.id]={...d.data(),_id:d.id}}); window._BH_T0_DATES=BH_T0_DATES; if(window.renderBHCalendar) window.renderBHCalendar();
   });
   onSnapshot(collection(db,'bh_intro_bookings'), snap => {
-    BH_INTRO_BOOKINGS={}; snap.forEach(d=>{BH_INTRO_BOOKINGS[d.id]={...d.data(),_id:d.id}}); window._BH_INTRO_BOOKINGS=BH_INTRO_BOOKINGS; if(window.renderBHCalendar) window.renderBHCalendar();
+    BH_INTRO_BOOKINGS={}; snap.forEach(d=>{BH_INTRO_BOOKINGS[d.id]={...d.data(),_id:d.id}}); window._BH_INTRO_BOOKINGS=BH_INTRO_BOOKINGS; if(window.renderBHCalendar) window.renderBHCalendar(); if(window._bhProbVisible&&window._bhProbVisible()) window.renderBHProbanden();
   });
   onSnapshot(collection(db,'bh_intro_slots'), snap => {
     BH_INTRO_SLOTS={}; snap.forEach(d=>{BH_INTRO_SLOTS[d.id]={...d.data(),_id:d.id}}); window._BH_INTRO_SLOTS=BH_INTRO_SLOTS; if(window.renderBHCalendar) window.renderBHCalendar();
   });
   onSnapshot(collection(db,'bh_t12_bookings'), snap => {
-    BH_T12_BOOKINGS={}; snap.forEach(d=>{BH_T12_BOOKINGS[d.id]={...d.data(),_id:d.id}}); window._BH_T12_BOOKINGS=BH_T12_BOOKINGS; if(window.renderBHCalendar) window.renderBHCalendar();
+    BH_T12_BOOKINGS={}; snap.forEach(d=>{BH_T12_BOOKINGS[d.id]={...d.data(),_id:d.id}}); window._BH_T12_BOOKINGS=BH_T12_BOOKINGS; if(window.renderBHCalendar) window.renderBHCalendar(); if(window._bhProbVisible&&window._bhProbVisible()) window.renderBHProbanden();
   });
   onSnapshot(collection(db,'fam_bookings'), snap => {
     FAM_BOOKINGS={}; snap.forEach(d=>{FAM_BOOKINGS[d.id]={...d.data(),_id:d.id}}); renderWeek();
@@ -8018,12 +8018,34 @@ window.delBHProband = async function(id){
   try { var fns = window._fbFns; await fns.deleteDoc(fns.doc(window.db,'bh_probanden',id)); toast('Gelöscht ✓'); }
   catch(e){ toast('Fehler: '+e.message, true); }
 };
+window._bhProbVisible = function(){ var e=document.getElementById('bh-proband-list'); return !!(e && e.offsetParent!==null); };
+// Alle Termine je Proband (aus allen BH-Buchungssammlungen) → {pid: [{ds,time,label,kind}]}
+function bhAppointmentsByProband(){
+  var out = {};
+  function add(pid, ds, time, label, kind){ if(!pid) return; (out[pid] = out[pid] || []).push({ds:ds, time:time||'', label:label, kind:kind}); }
+  var t0 = window._BH_T0_BOOKINGS||{}, ib = window._BH_INTRO_BOOKINGS||{}, t1 = window._BH_T1_BOOKINGS||{}, t12 = window._BH_T12_BOOKINGS||{}, fam = window._BH_FAM_BOOKINGS||{};
+  Object.keys(t0).forEach(function(k){ var b=t0[k]; add(b.pid, b.date, b.time, b.kind==='einschluss'?'Einführung':'T0 Blut', b.kind==='einschluss'?'intro':'t0'); });
+  Object.keys(ib).forEach(function(k){ var b=ib[k]; add(b.pid, b.date, b.time, 'Einführung', 'intro'); });
+  Object.keys(t1).forEach(function(k){ var b=t1[k], w=_bhNormWeek(b); add(b.pid, _bhWeekDs(w,0), b.time, bhTerminOfWeek(w)+' Blut', bhTerminOfWeek(w)==='T2'?'t2':'t1'); });
+  Object.keys(t12).forEach(function(k){
+    var b=t12[k], w=_bhNormWeek(b), tm = '';
+    BH_T12_TEMPLATE.forEach(function(x){ if(Number(x.slot)===Number(b.slot)) tm = x.blutStart; });
+    var tt = bhTerminOfWeek(w);
+    add(b.pid, _bhWeekDs(w, BH_DAYOFF[b.day]||0), tm, tt+'.2', tt==='T2'?'t2':'t1');
+  });
+  Object.keys(fam).forEach(function(k){ var b=fam[k], w=_bhNormWeek(b); add(b.pid, _bhWeekDs(w, BH_DAYOFF[b.day]||0), b.time, 'Familiarisierung', 'fam'); });
+  Object.keys(out).forEach(function(pid){ out[pid].sort(function(a,b){ return (a.ds+(a.time||'')).localeCompare(b.ds+(b.time||'')); }); });
+  return out;
+}
 window.renderBHProbanden = function(){
   var el = document.getElementById('bh-proband-list'); if(!el) return;
   var allPs = Object.values(window._BH_PROBANDEN||{});
   var q = (window._bhPFilter||'').toLowerCase(), onlyFree = window._bhPFree;
+  var apps = bhAppointmentsByProband(), dFrom = window._bhPFrom||'', dTo = window._bhPTo||'';
+  var inRange = function(a){ return (!dFrom || a.ds>=dFrom) && (!dTo || a.ds<=dTo); };
   var ps = allPs.filter(function(p){
     if(onlyFree && p.pid) return false;
+    if((dFrom||dTo) && !(apps[p._id]||[]).some(inRange)) return false;
     return !q || ((p.pid||'')+' '+(p.lnr||'')+' '+(p.notiz||'')).toLowerCase().indexOf(q)>-1;
   }).sort(function(a,b){
     var ra = parseInt((a.lnr||'').replace(/\D/g,'')), rb = parseInt((b.lnr||'').replace(/\D/g,''));
@@ -8031,10 +8053,14 @@ window.renderBHProbanden = function(){
     return (parseInt((a.pid||'').replace(/\D/g,''))||0) - (parseInt((b.pid||'').replace(/\D/g,''))||0);
   });
   var nFree = allPs.filter(function(p){ return !p.pid; }).length;
+  var todayIso = _localDate(new Date());
+  var KC = {t0:['#FFE4EC','#F1A9BF','#8C1D40'], intro:['#DDF0E2','#B9DCC2','#1F5A33'], fam:['#FFEFD8','#FFC380','#A65300'], t1:['#E0EBFF','#A7BFEC','#1E3F9C'], t2:['#F2E3F8','#D2A8E2','#5B167A']};
   var bar = '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px">'
     + '<input class="fi" id="bhp-filter" placeholder="Suchen (ID, Laufnr., Notiz)…" value="'+_bhEsc(window._bhPFilter||'')+'" oninput="window._bhPFilter=this.value;renderBHProbanden();var f=document.getElementById(\'bhp-filter\');f.focus();f.setSelectionRange(f.value.length,f.value.length)" style="max-width:260px">'
     + '<label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" '+(onlyFree?'checked ':'')+'onchange="window._bhPFree=this.checked;renderBHProbanden()"> nur ohne Studien-ID ('+nFree+')</label>'
-    + '<span style="font-size:11px;color:var(--g4)">'+allPs.length+' Probanden gesamt</span></div>';
+    + '<span style="font-size:12px;display:flex;align-items:center;gap:5px">Termine von <input type="date" class="fi" value="'+dFrom+'" onchange="window._bhPFrom=this.value;renderBHProbanden()" style="width:auto"> bis <input type="date" class="fi" value="'+dTo+'" onchange="window._bhPTo=this.value;renderBHProbanden()" style="width:auto">'
+    + ((dFrom||dTo)?' <button class="btn btn-xs" onclick="window._bhPFrom=\'\';window._bhPTo=\'\';renderBHProbanden()">✕ Datum zurücksetzen</button>':'')+'</span>'
+    + '<span style="font-size:11px;color:var(--g4)">'+ps.length+' von '+allPs.length+' Probanden</span></div>';
   if(!ps.length){
     el.innerHTML = bar + '<div style="padding:40px;text-align:center;color:#888;font-style:italic">'+(allPs.length?'Keine Treffer.':'Noch keine Brain-Health-Probanden angelegt.')+'</div>';
     return;
@@ -8044,12 +8070,17 @@ window.renderBHProbanden = function(){
     + '<th style="padding:10px;text-align:left;font-size:11px">Studien-ID</th>'
     + '<th style="padding:10px;text-align:left;font-size:11px">Laufnr.</th>'
     + '<th style="padding:10px;text-align:left;font-size:11px">Notiz</th>'
+    + '<th style="padding:10px;text-align:left;font-size:11px">Termine</th>'
     + '<th style="padding:10px;text-align:left;font-size:11px">Aktionen</th></tr></thead><tbody>';
   ps.forEach(function(p){
     html += '<tr style="border-top:1px solid var(--g2)'+(p.aufpassen?';background:#FFF8E1':'')+'">'
       + '<td style="padding:8px 10px;font-weight:700">'+(p.aufpassen?'⚠️ ':'')+(p.pid?_bhEsc(p.pid):'<span style="color:var(--g4);font-weight:400;font-style:italic">noch keine ID</span>')+'</td>'
       + '<td style="padding:8px 10px">'+(p.lnr||'—')+'</td>'
       + '<td style="padding:8px 10px;font-size:12px;color:var(--g5)">'+(p.notiz||'')+'</td>'
+      + '<td style="padding:6px 10px">'+((apps[p._id]||[]).length ? (apps[p._id]||[]).map(function(a){
+          var c = KC[a.kind]||KC.t1, past = a.ds < todayIso;
+          return '<span title="'+_bhEsc(a.label)+'" style="display:inline-block;background:'+c[0]+';border:1px solid '+c[1]+';color:'+c[2]+';border-radius:5px;padding:1px 6px;margin:1px 3px 1px 0;font-size:10.5px;white-space:nowrap'+(past?';opacity:.55':'')+((dFrom||dTo)&&inRange(a)?';box-shadow:0 0 0 2px '+c[2]+';opacity:1':'')+'"><b>'+_bhEsc(a.label)+'</b> '+_bhWd(a.ds)+' '+_bhShort(a.ds)+(a.time?' '+_bhEsc(a.time):'')+'</span>';
+        }).join('') : '<span style="color:var(--g4);font-size:11px;font-style:italic">keine Termine</span>')+'</td>'
       + '<td style="padding:8px 10px">'
       + (window.isAdmin && window.isAdmin() ? '<button class="btn btn-xs" onclick="openEditBHProband(\''+p._id+'\')">Bearbeiten</button> <button class="btn btn-xs btn-d" onclick="delBHProband(\''+p._id+'\')">Löschen</button>' : '')
       + '</td></tr>';
