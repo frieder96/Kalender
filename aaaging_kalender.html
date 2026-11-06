@@ -690,11 +690,13 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <button class="ntab"     onclick="goTab('studio',this)">Studio &amp; Training</button>
       <button class="ntab"     onclick="goTab('monatsübersicht',this)">📅 Monatsübersicht</button>
       <button class="ntab"     onclick="goTab('fortschritt',this)">&#128202; Fortschritt</button>
+      <button class="ntab"     onclick="goTab('verlauf',this)">🗑 Verlauf</button>
     </div>
     <div class="unav-i" id="nav-telomer" style="display:none">
       <button class="ntab on"  onclick="goTab('tel-kalender',this)">Kalender</button>
       <button class="ntab"     onclick="goTab('tel-erinnerungen',this)">🔔 Erinnerungen</button>
       <button class="ntab"     onclick="goTab('tel-monat',this)">📅 Monatsansicht</button>
+      <button class="ntab"     onclick="goTab('verlauf',this)">🗑 Verlauf</button>
       <button class="ntab"     onclick="goTab('tel-probanden',this)">Probanden</button>
       <button class="ntab"     onclick="goTab('team',this)">Team &amp; Aufgaben</button>
       <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
@@ -712,11 +714,13 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
       <button class="ntab"     onclick="goTab('raumplan',this)">🏠 Raumplan</button>
       <button class="ntab"     onclick="goTab('monatsübersicht',this)">📅 Monatsübersicht</button>
       <button class="ntab"     onclick="goTab('glp-fortschritt',this)">&#128202; Fortschritt</button>
+      <button class="ntab"     onclick="goTab('verlauf',this)">🗑 Verlauf</button>
       <button class="ntab"     onclick="goTab('backup',this)">Backup &amp; Export</button>
     </div>
         <div class="unav-i" id="nav-brainhealth" style="display:none">
       <button class="ntab on"  onclick="goTab('bh-kalender',this)">Kalender</button>
       <button class="ntab"     onclick="goTab('bh-probanden',this)">Probanden</button>
+      <button class="ntab"     onclick="goTab('verlauf',this)">🗑 Verlauf</button>
       <button class="ntab"     onclick="goTab('abwesenheit',this)">Abwesenheiten</button>
       <button class="ntab"     onclick="goTab('backup',this)">Backup &amp; Export</button>
     </div>
@@ -858,6 +862,13 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
         <div id="team-week-overview" style="padding:14px"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" id="task-assign-grid"></div>
+    </div>
+
+    <!-- VERLAUF / GELÖSCHTE TERMINE -->
+    <div id="tab-verlauf" class="panel">
+      <div class="phdr"><div><div class="ptitle">🗑 Verlauf — gelöschte Einträge</div><div class="psub">Alles, was gelöscht wurde (Buchungen, Probanden, Slots …), mit Zeitpunkt und Benutzer · Admins können wiederherstellen</div></div>
+        <div><button class="btn btn-sm" onclick="renderVerlauf(true)">↻ Aktualisieren</button></div></div>
+      <div id="verlauf-content"></div>
     </div>
 
     <!-- BACKUP -->
@@ -1827,7 +1838,7 @@ const firebaseConfig = {
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, setDoc, getDoc, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc as _fsDeleteDoc, doc, query, orderBy, setDoc, getDoc, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // Expose to window so regular <script> blocks can use them
 window._col      = (...a) => collection(...a);
@@ -2258,6 +2269,20 @@ let sperrenEditId=null, sperrenDay=null, sperrenSlot=null, sperrenTermin=null;
 let absentEditId=null, curMonth=new Date().getMonth(), curYear=new Date().getFullYear();
 let db=null, auth=null, userRole='readonly', currentUser=null;
 window._db = () => db;
+// Verlauf „Gelöschte Termine“: jedes deleteDoc wird vorher mit vollem Inhalt in 'deleted_log' protokolliert (Wiederherstellung möglich)
+const _AUDIT_SKIP = ['deleted_log','bh_blocks'];
+const deleteDoc = async (ref) => {
+  try {
+    const coll = ref && ref.parent && ref.parent.id, parts = ref && ref.path ? ref.path.split('/') : [];
+    if (coll && parts.length===2 && !_AUDIT_SKIP.includes(coll)) {
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        await addDoc(collection(db,'deleted_log'), {coll, docId:ref.id, data:snap.data(), by:(currentUser && currentUser.email)||'', role:userRole, at:Date.now()});
+      }
+    }
+  } catch(e) { console.warn('deleted_log:', e && e.message); }
+  return _fsDeleteDoc(ref);
+};
 window._fbFns = null; // set after import
 window._fbFns = {addDoc, deleteDoc, setDoc, getDoc, getDocs, doc, collection, updateDoc};
 const isAdmin   = () => userRole==='admin';
@@ -7005,12 +7030,13 @@ function goTab(name,btn){
   if(btn) btn.classList.add('on');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('tab-'+name).classList.add('on');
-  const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export',abwesenheit:'Abwesenheiten',raumplan:'Live Raumplan',studio:'Studio & Training','glp-kalender':'GLP-1 Kalender','glp-erinnerungen':'GLP-1 Erinnerungen','glp-probanden':'GLP-1 Probanden','glp-fortschritt':'GLP-1 Fortschritt','bh-kalender':'Brain-Health Kalender','bh-probanden':'Brain-Health Probanden','tel-monat':'Telomer Monatsansicht'};
+  const L={kalender:'Kalender',probanden:'Probandenverwaltung',recalls:'Supplement-Ausgabe & Recalls',team:'Team & Aufgaben',backup:'Backup & Export',abwesenheit:'Abwesenheiten',raumplan:'Live Raumplan',studio:'Studio & Training','glp-kalender':'GLP-1 Kalender','glp-erinnerungen':'GLP-1 Erinnerungen','glp-probanden':'GLP-1 Probanden','glp-fortschritt':'GLP-1 Fortschritt','bh-kalender':'Brain-Health Kalender','bh-probanden':'Brain-Health Probanden','tel-monat':'Telomer Monatsansicht',verlauf:'Verlauf (gelöscht)'};
   document.getElementById('bcc').textContent=L[name]||name;
   if(name==='team'){tW=cW;renderTaskTab();}
   if(name==='recalls'){ renderRecallHolidays(); if(window._recallView==='kalender' && window.renderRecallKalender) window.renderRecallKalender(); }
   if(name==='abwesenheit'){renderAbsentCal();}
   if(name==='backup'){renderRoomList();}
+  if(name==='verlauf'){ renderVerlauf(true); }
   if(name==='studio'){spRenderProbanden();}
   if(name==='raumplan'){ _rpWeek=cW; rpRender(); }
   if(name==='fortschritt'){ if(window.spRenderFortschritt) window.spRenderFortschritt(); }
@@ -7342,6 +7368,55 @@ window.saveBHGen = async function(){
   if(ok!==false) closeBHGen();
 };
 
+// ── Blutabnahme: Beginn / Ende / Takt einstellbar (Config in bh_weeks, Doc-ID CFG_…; Standard T0 5 Min, T1/T2 15 Min) ──
+function bhBloodCfg(kind,key){
+  var ov = window._BH_WEEKS || {};
+  var d = kind==='T0' ? {start:'07:00', end:'09:55', takt:5} : {start:'07:00', end:'09:45', takt:15};
+  var pre = kind==='T0' ? 'T0_' : 'BLUT_';
+  [ov['CFG_'+pre+'ALL'], ov['CFG_'+pre+key]].forEach(function(o){ if(o && o.takt) d = {start:o.start||d.start, end:o.end||d.end, takt:Number(o.takt)}; });
+  return d;
+}
+function bhBloodTimes(kind,key){
+  var c = bhBloodCfg(kind,key), a = c.start.split(':'), b = c.end.split(':'), set = {};
+  _bhTimeRange(+a[0],+a[1],+b[0],+b[1],c.takt).forEach(function(t){ set[t]=1; });
+  if(kind==='T0') Object.values(window._BH_T0_BOOKINGS||{}).forEach(function(x){ if(x.kind!=='einschluss' && x.date===key && x.time) set[x.time]=1; });
+  else Object.values(window._BH_T1_BOOKINGS||{}).forEach(function(x){ if(_bhNormWeek(x)===key && x.time) set[x.time]=1; });
+  return Object.keys(set).sort();
+}
+window.bhEditBloodCfg = function(kind,key,label){
+  if(!_bhCan()) return;
+  var c = bhBloodCfg(kind,key), fns = window._fbFns, pre = kind==='T0' ? 'T0_' : 'BLUT_';
+  window.bhPrompt({title:'Blutabnahme einstellen — '+label, info:'Beginn, letzter Slot und Takt (Minuten). Bereits gebuchte Zeiten bleiben immer sichtbar.', label:'Beginn (HH:MM)', value:c.start, input2:{label:'Ende = letzter Slot (HH:MM)', value:c.end},
+    select:{label:'Takt', options:[['0','Standard ('+(kind==='T0'?'5':'15')+' Min)'],['5','5 Min'],['10','10 Min'],['15','15 Min'],['20','20 Min'],['30','30 Min']], value:String(c.takt)}, onSave: async function(v,sel,v2){
+    var a=(v||'').trim(), b=(v2||'').trim();
+    if(!/^\d{1,2}:\d\d$/.test(a)||!/^\d{1,2}:\d\d$/.test(b)){ window.toast&&toast('Bitte Uhrzeiten als HH:MM angeben',true); return false; }
+    a=_bhP2(a.split(':')[0])+':'+a.split(':')[1]; b=_bhP2(b.split(':')[0])+':'+b.split(':')[1];
+    if(a>b){ window.toast&&toast('Beginn muss vor dem Ende liegen',true); return false; }
+    var all = confirm('Für ALLE '+(kind==='T0'?'T0-Blutabnahme-Tage':'T1/T2-Blutabnahme-Wochen')+' übernehmen?\n\nOK = für alle · Abbrechen = nur '+(kind==='T0'?'für diesen Tag':'für diese Woche'));
+    var id = 'CFG_'+pre+(all?'ALL':key);
+    try {
+      if(sel==='0') await fns.deleteDoc(fns.doc(window.db,'bh_weeks',id));
+      else await fns.setDoc(fns.doc(window.db,'bh_weeks',id), {termin:'CFG', cfg:true, start:a, end:b, takt:Number(sel), updated:Date.now()});
+      window.toast&&toast('Blutabnahme angepasst ✓');
+    } catch(e){ window.toast&&toast('Fehler: '+e.message,true); return false; }
+  }});
+};
+// Sperr-Modus: Klick auf freie Blutabnahme-Slots sperrt/entsperrt sie direkt (ohne Rückfrage)
+window._bhLockMode = false;
+window.bhToggleLockMode = function(){ window._bhLockMode = !window._bhLockMode; if(window.renderBHCalendar) window.renderBHCalendar(); };
+window.bhQuickBlock = function(key,label){
+  if(!_bhCan()) return;
+  var fns = window._fbFns;
+  var p = bhBlk(key) ? fns.deleteDoc(fns.doc(window.db,'bh_blocks',key))
+                     : fns.setDoc(fns.doc(window.db,'bh_blocks',key), {key:key, label:label, reason:'', created:Date.now()});
+  p.catch(function(e){ window.toast&&toast('Fehler: '+e.message,true); });
+};
+function _bhLockModeBtn(){
+  if(!_bhCan()) return '';
+  var on = window._bhLockMode;
+  return '<button class="btn btn-xs" onclick="bhToggleLockMode()" title="Klick auf freie Slots sperrt/entsperrt sie einzeln" style="'+(on?'background:#C8102E;color:#fff;border-color:#C8102E':'')+'">🔒 Sperr-Modus: '+(on?'AN':'aus')+'</button>';
+}
+
 // ── Sperren (Tage, Wochen, Wellen, Slots, Zeiträume) ──
 // Sperr-Schlüssel (Doc-ID in bh_blocks): d_<Datum> Tag · wk_<Woche> ganze Woche · tw_<T1|T2>_<Woche> Termin-Woche
 // bl_<Datum>_<HHMM> Blutabnahme-Slot · is_<Datum>_<HHMM> Einführung-Slot · fs_<Woche>_<Tag>_<HHMM> Fam-Slot · ts_<Woche>_<Tag>_<Slot> T1.2/T2.2-Slot
@@ -7388,9 +7463,9 @@ window.bhToggleBlk = function(key,label){
 // Blutabnahme: Zeitraum (von–bis) an einem Datum sperren/entsperren
 window.bhBlockRange = function(ds){
   if(!_bhCan()) return;
-  var isT0 = bhT0Dates().indexOf(ds)>-1, times = isT0 ? BH_T0_BLUT_TIMES : BH_T1_BLUT_TIMES;
+  var isT0 = bhT0Dates().indexOf(ds)>-1, times = isT0 ? bhBloodTimes('T0',ds) : bhBloodTimes('T1',_bhWeekOfDate(ds));
   window.bhPrompt({title:'Blutabnahme-Zeitraum — '+_bhWd(ds)+' '+_bhFull(ds), info:'Zeiten '+times[0]+'–'+times[times.length-1]+' (alle Slots von/bis einschließlich)', label:'Von (HH:MM)', value:times[0], input2:{label:'Bis (HH:MM)', value:times[times.length-1]},
-    select:{label:'Aktion', options:[['block','Sperren'],['unblock','Entsperren']], value:'block'}, onSave: async function(v,sel,v2){
+    select:{label:'Aktion', options:[['block','Sperren (bleibt sichtbar, grau)'],['remove','Slots löschen (ausblenden)'],['unblock','Entsperren / Wiederherstellen']], value:'block'}, onSave: async function(v,sel,v2){
     var a=(v||'').trim(), b=(v2||'').trim();
     if(!/^\d{1,2}:\d\d$/.test(a)||!/^\d{1,2}:\d\d$/.test(b)){ window.toast&&toast('Bitte Uhrzeiten als HH:MM angeben',true); return false; }
     a=_bhP2(a.split(':')[0])+':'+a.split(':')[1]; b=_bhP2(b.split(':')[0])+':'+b.split(':')[1];
@@ -7401,11 +7476,20 @@ window.bhBlockRange = function(ds){
       for(var i=0;i<sel2.length;i++){
         var key='bl_'+ds+'_'+sel2[i].replace(':','');
         if(sel==='unblock'){ if(bhBlk(key)) await fns.deleteDoc(fns.doc(window.db,'bh_blocks',key)); }
+        else if(sel==='remove') await fns.setDoc(fns.doc(window.db,'bh_blocks',key), {key:key, hidden:true, label:'Blutabnahme-Slot '+_bhShort(ds)+' '+sel2[i]+' (gelöscht)', reason:'', created:Date.now()});
         else await fns.setDoc(fns.doc(window.db,'bh_blocks',key), {key:key, label:'Blutabnahme '+_bhShort(ds)+' '+a+'–'+b, reason:'', created:Date.now()});
       }
-      window.toast&&toast((sel==='unblock'?'Entsperrt':'Gesperrt')+': '+sel2.length+' Slots ✓');
+      window.toast&&toast((sel==='unblock'?'Wiederhergestellt':sel==='remove'?'Gelöscht':'Gesperrt')+': '+sel2.length+' Slots ✓');
     } catch(e){ window.toast&&toast('Fehler: '+e.message,true); return false; }
   }});
+};
+// Einzelnen Slot löschen (ausblenden); Wiederherstellen über „Aktive Sperren“ in der Verwaltung
+window.bhHideSlot = function(key,label){
+  if(!_bhCan()) return;
+  if(!confirm((label||'Slot')+' löschen (ausblenden)?\nBestehende Buchungen bleiben sichtbar. Wiederherstellen: Verwaltung → Aktive Sperren.')) return;
+  var fns = window._fbFns;
+  fns.setDoc(fns.doc(window.db,'bh_blocks',key), {key:key, hidden:true, label:(label||'Slot')+' (gelöscht)', reason:'', created:Date.now()})
+    .then(function(){ window.toast&&toast('Slot gelöscht ✓'); }).catch(function(e){ window.toast&&toast('Fehler: '+e.message,true); });
 };
 // Welle n (T1 + T2) sperren/entsperren — Wellen-Nummerierung bleibt erhalten
 window.bhToggleWelle = function(n){
@@ -7711,16 +7795,18 @@ function _bhRenderT0(ds){
   h += '<div style="font-weight:700;color:#3A2A5A">🩸 T0 Blutabnahme — '+_bhWdLong(ds)+', '+_bhFull(ds)+'</div>';
   h += '<div style="display:flex;align-items:center;gap:6px;font-size:12px">Raum: <select onchange="bhSetT0Room(\''+ds+'\',this.value)" style="padding:3px 6px;border:1px solid var(--g3);border-radius:4px">'
     + BH_T0_ROOMS_OPTIONS.map(function(r){ return '<option value="'+r+'"'+(r===room?' selected':'')+'>'+r+'</option>'; }).join('') + '</select>'
-    + (can?_bhLockBtn('da_blut_'+ds,'Blutabnahme '+_bhFull(ds),'Blutabnahme sperren')+'<button class="btn btn-xs" onclick="bhBlockRange(\''+ds+'\')">🔒 Zeitraum</button><button class="btn btn-xs" onclick="bhRemoveT0Date(\''+ds+'\')" title="Diesen Blutabnahme-Tag streichen">Tag streichen</button>':'')+'</div></div>';
+    + (can?_bhLockBtn('da_blut_'+ds,'Blutabnahme '+_bhFull(ds),'Blutabnahme sperren')+'<button class="btn btn-xs" onclick="bhBlockRange(\''+ds+'\')">🔒 Zeitraum</button>'+_bhLockModeBtn()+'<button class="btn btn-xs" onclick="bhEditBloodCfg(\'T0\',\''+ds+'\',\''+_bhFull(ds)+'\')">⏱ Länge/Takt</button><button class="btn btn-xs" onclick="bhRemoveT0Date(\''+ds+'\')" title="Diesen Blutabnahme-Tag streichen">Tag streichen</button>':'')+'</div></div>';
   h += _bhBanner(['wk_'+_bhWeekOfDate(ds),'d_'+ds,'da_blut_'+ds]);
   h += '<div style="max-width:420px;margin-bottom:6px">'+_bhPersonRow(_bhAKey('BH_T0', ds, 'Verantwortlich'), 'Verantwortliche Person', 'T0 Blutabnahme '+_bhWd(ds)+' '+_bhFull(ds)+' (BH)', ds, '07:00', room, 'Verantwortlich')+'</div>';
   h += bhNoteHtml('t0_'+ds);
-  h += '<div style="font-size:11px;font-weight:700;color:#5E35B1;margin:6px 0">5-Min-Takt, 07:00–09:55</div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:flex-start">';
-  BH_T0_BLUT_TIMES.forEach(function(time){
+  var _t0t = bhBloodTimes('T0',ds), _t0c = bhBloodCfg('T0',ds);
+  h += '<div style="font-size:11px;font-weight:700;color:#5E35B1;margin:6px 0">'+_t0c.takt+'-Min-Takt, '+_t0c.start+'–'+_t0c.end+(window._bhLockMode&&can?' <span style="color:#C8102E">· 🔒 Sperr-Modus aktiv: Klick auf freie Slots sperrt/entsperrt sie</span>':'')+'</div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:flex-start">';
+  _t0t.forEach(function(time){
     var bk = bhGetT0Booking(ds, time, 'blut');
     if(bk) h += _bhBookedPill(time, bhProbandLabel(bk.pid), 'openBHBook(\'t0blut\',\''+ds+'\',\''+time+'\',null,\''+bk._id+'\')', 'delBHBooking(\'t0blut\',\''+bk._id+'\')', '#EDE4FB', '#C7B3EE', '', bk.note);
+    else if((bhBlockedFor('t0blut',ds,time)||{}).hidden) { /* Slot gelöscht */ }
     else if(bhBlockedFor('t0blut',ds,time)) h += _bhLockedCell(time, bhBlockedFor('t0blut',ds,time), 'bl_'+ds+'_'+time.replace(':',''), 'min-width:56px');
-    else h += '<button onclick="openBHBook(\'t0blut\',\''+ds+'\',\''+time+'\')" style="min-width:56px;background:#fff;border:1px dashed var(--g3);border-radius:6px;padding:3px 6px;font-size:10px;color:var(--g4);cursor:pointer">'+time+'</button>';
+    else h += '<button onclick="'+(window._bhLockMode&&can?'bhQuickBlock(\'bl_'+ds+'_'+time.replace(':','')+'\',\'Blutabnahme '+_bhShort(ds)+' '+time+'\')':'openBHBook(\'t0blut\',\''+ds+'\',\''+time+'\')')+'" style="min-width:56px;background:#fff;border:1px dashed var(--g3);border-radius:6px;padding:3px 6px;font-size:10px;color:var(--g4);cursor:pointer">'+time+'</button>';
   });
   return h + '</div></div>';
 }
@@ -7816,19 +7902,20 @@ function _bhRenderWeekEntry(e){
   var mon = _bhWeekDs(w,0);
   var h = '<div style="margin-bottom:20px;background:#EAF2FC;border:1px solid #A9C6EE;border-radius:var(--r);padding:14px">';
   h += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px"><div style="font-weight:700;color:#1A4B8C">🧠 '+t+' · '+wlTxt+' — Blutabnahme — Montag, '+_bhFull(mon)+'</div>'
-    + (can?'<div style="display:flex;gap:4px"><button class="btn btn-xs" onclick="bhEditWelle(\''+t+'\','+w+')">Welle ändern</button><button class="btn btn-xs" onclick="bhToggleBlock(\''+t+'\','+w+',true)">Woche ausblenden</button>'+_bhLockBtn('tw_'+t+'_'+w,t+' '+_bhRange(w,3),'Termin sperren')+_bhLockBtn('da_blut_'+mon,'Blutabnahme '+_bhFull(mon),'Blutabnahme Montag')+'<button class="btn btn-xs" onclick="bhBlockRange(\''+mon+'\')">🔒 Zeitraum</button></div>':'')+'</div>';
+    + (can?'<div style="display:flex;gap:4px"><button class="btn btn-xs" onclick="bhEditWelle(\''+t+'\','+w+')">Welle ändern</button><button class="btn btn-xs" onclick="bhToggleBlock(\''+t+'\','+w+',true)">Woche ausblenden</button>'+_bhLockBtn('tw_'+t+'_'+w,t+' '+_bhRange(w,3),'Termin sperren')+_bhLockBtn('da_blut_'+mon,'Blutabnahme '+_bhFull(mon),'Blutabnahme Montag')+'<button class="btn btn-xs" onclick="bhBlockRange(\''+mon+'\')">🔒 Zeitraum</button>'+_bhLockModeBtn()+'<button class="btn btn-xs" onclick="bhEditBloodCfg(\'T1\','+w+',\''+t+' '+_bhFull(mon)+'\')">⏱ Länge/Takt</button></div>':'')+'</div>';
   h += _bhBanner(['wk_'+w,'tw_'+t+'_'+w,'d_'+mon,'da_blut_'+mon]);
   h += '<div style="max-width:420px">'+_bhPersonRow(_bhAKey('BH_BLUT', t, w, 'Verantwortlich'), 'Verantwortliche Person', t+' Blutabnahme Mo '+_bhFull(mon)+' (BH)', mon, '07:00', '', 'Verantwortlich')+'</div>';
   h += bhNoteHtml(wkKey);
   h += '<div style="display:grid;grid-template-columns:70px repeat('+BH_T1_ROOMS.length+',1fr);gap:2px;margin-top:6px"><div></div>';
   BH_T1_ROOMS.forEach(function(room){ h += '<div style="text-align:center;font-size:11px;font-weight:700;color:#1A4B8C;padding:4px 0">'+room+'</div>'; });
-  BH_T1_BLUT_TIMES.forEach(function(time){
+  bhBloodTimes('T1',w).forEach(function(time){
     h += '<div style="display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:11px;font-family:monospace;color:var(--g5)">'+time+'</div>';
     BH_T1_ROOMS.forEach(function(room){
       var bk = bhGetT1Booking(w, room, time);
       if(bk) h += _bhBookedPill('', bhProbandLabel(bk.pid), 'openBHBook(\'t1blut\','+w+',\''+room+'\',\''+time+'\',\''+bk._id+'\')', 'delBHBooking(\'t1blut\',\''+bk._id+'\')', '#DCEAFB', '#A9C6EE', '', bk.note);
+      else if((bhBlockedFor('t1blut',w,room,time)||{}).hidden) { h += '<div></div>'; }
       else if(bhBlockedFor('t1blut',w,room,time)) h += _bhLockedCell('gesperrt', bhBlockedFor('t1blut',w,room,time), 'bl_'+mon+'_'+time.replace(':',''));
-      else h += '<button onclick="openBHBook(\'t1blut\','+w+',\''+room+'\',\''+time+'\')" style="width:100%;background:#fff;border:1px dashed var(--g3);border-radius:6px;padding:3px 6px;font-size:10px;color:var(--g4);cursor:pointer">+ Proband</button>';
+      else h += '<button onclick="'+(window._bhLockMode&&can?'bhQuickBlock(\'bl_'+mon+'_'+time.replace(':','')+'\',\'Blutabnahme '+_bhShort(mon)+' '+time+'\')':'openBHBook(\'t1blut\','+w+',\''+room+'\',\''+time+'\')')+'" style="width:100%;background:#fff;border:1px dashed var(--g3);border-radius:6px;padding:3px 6px;font-size:10px;color:var(--g4);cursor:pointer">+ Proband</button>';
     });
   });
   h += '</div></div>';
@@ -7841,9 +7928,10 @@ function _bhRenderWeekEntry(e){
     h += '<div><div style="text-align:center;font-size:12px;font-weight:700;color:#B85010;margin-bottom:4px">'+day+', '+_bhShort(dds)+_bhDate(dds).getFullYear()+(can?' '+_bhLockBtn('da_t12_'+dds,t+'.2 '+day+' '+_bhFull(dds),'Tag sperren'):'')+'</div>'+_bhBanner(['wk_'+w,'tw_'+t+'_'+w,'d_'+dds,'da_t12_'+dds])+_bhPersonRow(_bhAKey('BH_T12', t, w, day, 'Verantwortlich'), 'Verantwortliche Person', t+'.2 '+day+' '+_bhFull(dds)+' (BH)', dds, '10:00', '', 'Verantwortlich')+bhNoteHtml('t12_'+w+'_'+day);
     BH_T12_TEMPLATE.forEach(function(s){
       var bk = bhGetT12Booking(w, day, s.slot);
+      var _hb = bhBlk('ts_'+w+'_'+day+'_'+s.slot); if(_hb && _hb.hidden && !bk) return; // Slot gelöscht
       h += '<div style="background:#fff;border:1px solid #FFCC80;border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:10.5px">';
       var _tk = 'ts_'+w+'_'+day+'_'+s.slot;
-      h += '<div style="font-family:monospace;font-weight:700;color:#B85010;margin-bottom:3px;display:flex;align-items:center">'+s.blutStart+' Uhr'+(can?'<span style="margin-left:auto">'+_bhBtnX('bhToggleBlk(\''+_tk+'\',\''+t+'.2 '+day+' '+s.blutStart+'\')','#999',bhBlk(_tk)?'🔓':'🔒')+'</span>':'')+'</div>';
+      h += '<div style="font-family:monospace;font-weight:700;color:#B85010;margin-bottom:3px;display:flex;align-items:center">'+s.blutStart+' Uhr'+(can?'<span style="margin-left:auto">'+_bhBtnX('bhHideSlot(\''+_tk+'\',\''+t+'.2 '+day+' '+s.blutStart+'\')','#999','⊖')+_bhBtnX('bhToggleBlk(\''+_tk+'\',\''+t+'.2 '+day+' '+s.blutStart+'\')','#999',bhBlk(_tk)?'🔓':'🔒')+'</span>':'')+'</div>';
       h += s.measures.map(function(m){
         var aKey = _bhAssignKey(w, day, s.slot, m.label);
         var a = (window._ASSIGN||{})[aKey];
@@ -7910,7 +7998,7 @@ function _bhRenderManage(){
   else {
     h += '<div style="display:flex;flex-direction:column;gap:3px">';
     blks.sort(function(a,b){ return (a.key||'').localeCompare(b.key||''); }).forEach(function(b){
-      h += '<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;border-bottom:1px solid var(--g2);padding:3px 0"><span style="flex:1">🔒 '+_bhEsc(b.label||b.key)+(b.reason?' — <i>'+_bhEsc(b.reason)+'</i>':'')+'</span><button class="btn btn-xs" onclick="bhToggleBlk(\''+b.key+'\',\''+String(b.label||'Sperre').replace(/'/g,"\\'")+'\')">Entsperren</button></div>';
+      h += '<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;border-bottom:1px solid var(--g2);padding:3px 0"><span style="flex:1">'+(b.hidden?'🗑 ':'🔒 ')+_bhEsc(b.label||b.key)+(b.reason?' — <i>'+_bhEsc(b.reason)+'</i>':'')+'</span><button class="btn btn-xs" onclick="bhToggleBlk(\''+b.key+'\',\''+String(b.label||'Sperre').replace(/'/g,"\\'")+'\')">'+(b.hidden?'Wiederherstellen':'Entsperren')+'</button></div>';
     });
     h += '</div>';
   }
@@ -11442,6 +11530,76 @@ window.telErinJumpToWeek = function(week) {
   window._telManualNav = true;
   goTab('tel-kalender', document.querySelector('#nav-telomer .ntab'));
   renderTelKalender();
+};
+
+// ── VERLAUF: gelöschte Einträge (Log in 'deleted_log') ──
+window._verlaufData = null; window._verlaufArea = ''; window._verlaufQ = '';
+window.renderVerlauf = async function(reload){
+  var el = document.getElementById('verlauf-content'); if(!el) return;
+  if(!window.isTrainer || !window.isTrainer()){ el.innerHTML = '<div style="padding:30px;color:#888">Nur für Trainer/Admins sichtbar.</div>'; return; }
+  var fns = window._fbFns;
+  if(reload || !window._verlaufData){
+    el.innerHTML = '<div style="padding:30px;color:#888">Wird geladen…</div>';
+    try {
+      var snap = await fns.getDocs(fns.collection(window.db,'deleted_log'));
+      window._verlaufData = []; snap.forEach(function(d){ window._verlaufData.push(Object.assign({_id:d.id}, d.data())); });
+    } catch(e){ el.innerHTML = '<div style="padding:30px;color:#C8102E">Fehler beim Laden: '+e.message+'<br><small>Falls „Missing permissions“: Firestore-Regeln für die Collection <b>deleted_log</b> freigeben.</small></div>'; return; }
+  }
+  var esc = function(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  var AREAS = {tel:'Telomer', bh:'Brain-Health', glp:'GLP-1', aa:'AAAging'};
+  function areaOf(c){ return /^tel_/.test(c)?'tel':/^bh_/.test(c)?'bh':/^glp_/.test(c)?'glp':'aa'; }
+  var CN = {bookings:'Buchung', tel_bookings:'Buchung', glp_bookings:'Buchung', bh_t0_bookings:'T0-Blutabnahme', bh_t1_bookings:'T1/T2-Blutabnahme', bh_t12_bookings:'T1.2/T2.2-Termin', bh_intro_bookings:'Einführungsgespräch', bh_fam_bookings:'Familiarisierung', probanden:'Proband', tel_probanden:'Proband', bh_probanden:'Proband', glp_probanden:'Proband', recalls:'Recall', sperren:'Sperre', sondertage:'Sondertag', assignments:'Zuweisung', bh_notes:'Notiz', bh_weeks:'Woche/Einstellung', bh_t0_dates:'T0-Tag', bh_intro_slots:'Einführungs-Slot', bh_fam_slots:'Familiarisierungs-Slot', tel_erinnerungen:'Erinnerung', glp_erinnerungen:'Erinnerung'};
+  function pName(e){
+    var d = e.data||{}, id = d.probandId || d.pid;
+    try {
+      if(/^bh_/.test(e.coll) && d.pid){ var l = bhProbandLabel(d.pid); return l.pid+(l.lnr?' '+l.lnr:''); }
+      if(/^tel_/.test(e.coll) && d.probandId){ var t=(window._TELP||{})[d.probandId]; if(t) return t.tid||t.lnr||''; }
+      if(/^glp_/.test(e.coll) && d.probandId){ var g=(window._GLPP||{})[d.probandId]; if(g) return g.tid||g.lnr||''; }
+    } catch(x){}
+    return d.tid || d.name || d.pid || '';
+  }
+  function summary(e){
+    var d = e.data||{}, parts = [];
+    var who = pName(e); if(who) parts.push('<b>'+esc(who)+'</b>');
+    ['termin','date','day','week','time','slot','room','kind','text','note'].forEach(function(k){ if(d[k]!==undefined && d[k]!=='' && d[k]!==null) parts.push(esc(k)+': '+esc(typeof d[k]==='object'?JSON.stringify(d[k]):d[k])); });
+    return parts.join(' · ') || '<i>'+esc(e.docId)+'</i>';
+  }
+  var q = (window._verlaufQ||'').toLowerCase(), area = window._verlaufArea||'';
+  var list = (window._verlaufData||[]).filter(function(e){
+    if(area && areaOf(e.coll)!==area) return false;
+    return !q || (e.coll+' '+JSON.stringify(e.data||{})+' '+(e.by||'')).toLowerCase().indexOf(q)>-1;
+  }).sort(function(a,b){ return (b.at||0)-(a.at||0); });
+  var h = '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px">'
+    + '<select class="fi" onchange="window._verlaufArea=this.value;renderVerlauf()" style="max-width:180px"><option value="">Alle Bereiche</option>'+Object.keys(AREAS).map(function(k){ return '<option value="'+k+'"'+(area===k?' selected':'')+'>'+AREAS[k]+'</option>'; }).join('')+'</select>'
+    + '<input class="fi" id="verlauf-q" placeholder="Suchen (Proband, Datum, Benutzer …)" value="'+esc(window._verlaufQ||'')+'" oninput="window._verlaufQ=this.value;renderVerlauf();var f=document.getElementById(\'verlauf-q\');f.focus();f.setSelectionRange(f.value.length,f.value.length)" style="max-width:280px">'
+    + '<span style="font-size:11px;color:var(--g4)">'+list.length+' Einträge'+(list.length>300?' (neueste 300 angezeigt)':'')+'</span></div>';
+  if(!list.length){ el.innerHTML = h + '<div style="padding:30px;text-align:center;color:#888;font-style:italic">Keine gelöschten Einträge'+((area||q)?' für diesen Filter':' (Protokoll startet mit diesem Update)')+'.</div>'; return; }
+  h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;background:#fff;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);font-size:12px"><thead><tr style="background:#5A4A42;color:#fff"><th style="padding:8px 10px;text-align:left">Gelöscht am</th><th style="padding:8px 10px;text-align:left">Von</th><th style="padding:8px 10px;text-align:left">Bereich</th><th style="padding:8px 10px;text-align:left">Was</th><th style="padding:8px 10px;text-align:left">Inhalt</th><th style="padding:8px 10px"></th></tr></thead><tbody>';
+  list.slice(0,300).forEach(function(e){
+    var dt = new Date(e.at||0), pad=function(x){return String(x).padStart(2,'0');};
+    h += '<tr style="border-top:1px solid var(--g2)'+(e.restored?';opacity:.55':'')+'"><td style="padding:6px 10px;white-space:nowrap">'+pad(dt.getDate())+'.'+pad(dt.getMonth()+1)+'.'+dt.getFullYear()+' '+pad(dt.getHours())+':'+pad(dt.getMinutes())+'</td>'
+      + '<td style="padding:6px 10px">'+esc((e.by||'').split('@')[0])+'</td>'
+      + '<td style="padding:6px 10px">'+AREAS[areaOf(e.coll)]+'</td>'
+      + '<td style="padding:6px 10px">'+esc(CN[e.coll]||e.coll)+'</td>'
+      + '<td style="padding:6px 10px">'+summary(e)+'<details style="margin-top:2px"><summary style="cursor:pointer;color:var(--g4);font-size:10.5px">Rohdaten</summary><pre style="white-space:pre-wrap;font-size:10px;margin:2px 0;background:var(--g1);padding:4px;border-radius:4px">'+esc(JSON.stringify(e.data,null,1))+'</pre></details></td>'
+      + '<td style="padding:6px 10px;text-align:right">'+(e.restored?'<span style="color:#1F7041">✓ wiederhergestellt</span>':(window.isAdmin&&window.isAdmin()?'<button class="btn btn-xs btn-p" onclick="verlaufRestore(\''+e._id+'\')">↩ Wiederherstellen</button>':''))+'</td></tr>';
+  });
+  el.innerHTML = h + '</tbody></table></div><div style="font-size:11px;color:var(--g4);margin-top:8px">Wiederherstellen legt den Eintrag mit seiner ursprünglichen ID wieder an. Wurde der Slot inzwischen neu belegt, kann es dort zu einer Doppelbelegung kommen — vorher prüfen.</div>';
+};
+window.verlaufRestore = async function(logId){
+  if(!(window.isAdmin && window.isAdmin())){ window.toast&&toast('Nur Admins',true); return; }
+  var e = (window._verlaufData||[]).find(function(x){ return x._id===logId; }); if(!e) return;
+  var fns = window._fbFns, ref = fns.doc(window.db, e.coll, e.docId);
+  try {
+    var ex = await fns.getDoc(ref);
+    if(ex.exists() && !confirm('Es existiert bereits ein Eintrag mit dieser ID. Überschreiben?')) return;
+    if(!confirm('Diesen Eintrag wiederherstellen?')) return;
+    await fns.setDoc(ref, e.data);
+    await fns.updateDoc(fns.doc(window.db,'deleted_log',logId), {restored:true, restoredAt:Date.now()});
+    e.restored = true;
+    window.toast&&toast('Wiederhergestellt ✓');
+    renderVerlauf();
+  } catch(err){ window.toast&&toast('Fehler: '+err.message,true); }
 };
 
 // ── TELOMER MONATSANSICHT: eingetragene Termine + noch fällige T1/T2 (12/24 Wochen ab Interventionsstart) ──
