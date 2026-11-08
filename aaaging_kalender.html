@@ -2594,6 +2594,9 @@ function startDB() {
   onSnapshot(collection(db,'tel_extra_slots'), snap => {
     TEL_EXTRA_SLOTS={}; snap.forEach(d=>{TEL_EXTRA_SLOTS[d.id]={...d.data(),_id:d.id}}); window._TEL_EXTRA_SLOTS=TEL_EXTRA_SLOTS; if(window.renderTelKalender) window.renderTelKalender();
   });
+  onSnapshot(collection(db,'tel_presence'), snap => {
+    var m={}; snap.forEach(d=>{m[d.id]={...d.data(),_id:d.id}}); window._TEL_PRESENCE=m; if(window.renderTelKalender) window.renderTelKalender();
+  });
   onSnapshot(collection(db,'tel_slot_overrides'), snap => {
     TEL_SLOT_OVERRIDES={}; snap.forEach(d=>{TEL_SLOT_OVERRIDES[d.id]={...d.data(),_id:d.id}}); window._TEL_SLOT_OVERRIDES=TEL_SLOT_OVERRIDES; if(window.renderTelKalender) window.renderTelKalender();
   });
@@ -5636,7 +5639,7 @@ window.exportRecalls = () => {
 // ── VOLLSTÄNDIGES BACKUP ───────────────────────────────────────────
 const BACKUP_COLLECTIONS = [
   'probanden','recalls','team','assignments','sperren',
-  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots','tel_slot_overrides','glp_probanden','glp_erinnerungen','glp_bookings','glp_extra_slots','glp_slot_overrides','aaa_slot_overrides','recall_day_release',
+  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots','tel_slot_overrides','tel_presence','glp_probanden','glp_erinnerungen','glp_bookings','glp_extra_slots','glp_slot_overrides','aaa_slot_overrides','recall_day_release',
   'training_logs','training_templates','recall_rooms',
   'sp_slots','sp_probands','sp_day_trainers',
   'bh_probanden','bh_t0_room','bh_t0_bookings','bh_t1_bookings','bh_t12_bookings','bh_weeks','bh_t0_dates','bh_intro_bookings','bh_intro_slots','bh_fam_slots','bh_fam_bookings','bh_notes','bh_blocks'
@@ -10526,6 +10529,16 @@ window.telWToday = function() {
   renderTelKalender();
 };
 
+window.setTelPresence = async function(dateStr, val, reach) {
+  var fns = window._fbFns;
+  try {
+    var cur = (window._TEL_PRESENCE||{})[dateStr] || {};
+    var st = val===null||val===undefined ? (cur.status||'') : val;
+    var rc = reach===null||reach===undefined ? (cur.reach||'') : reach;
+    if(!st && !rc) await fns.deleteDoc(fns.doc(window.db,'tel_presence',dateStr));
+    else await fns.setDoc(fns.doc(window.db,'tel_presence',dateStr), {date:dateStr, status:st, reach:rc, updated:Date.now()});
+  } catch(e){ alert('Fehler beim Speichern: '+e.message); }
+};
 window.renderTelKalender = function() {
   var el = document.getElementById('tel-calendar-content'); if(!el) return;
   var wDay = window._wDay;
@@ -10701,6 +10714,18 @@ window.renderTelKalender = function() {
       ? '<div style="font-size:9.5px;color:' + (hd||daySperre?'rgba(255,220,160,.95)':'#7A4530') + ';margin-top:3px">🏖️ Abwesend: ' + _absNames.join(', ') + '</div>'
       : '';
 
+    var _pres = (window._TEL_PRESENCE||{})[dateStr];
+    var _presVal = _pres && _pres.status ? _pres.status : '';
+    var _reachVal = _pres && _pres.reach ? _pres.reach : '';
+    var _reachCol = _reachVal==='erreichbar' ? '#2E7D32' : _reachVal==='nicht erreichbar' ? '#C62828' : '#7A5A4D';
+    var _presCol = {'Vor Ort':'#2E7D32','UZA':'#1565C0','Homeoffice':'#E65100'}[_presVal] || '#7A5A4D';
+    var presenceHtml = '<div style="margin-top:4px;font-size:10px;color:' + (hd||daySperre?'rgba(255,255,255,.85)':'#4A2A1F') + '">Anwesenheit Jana: '
+      + '<select onchange="setTelPresence(\'' + dateStr + '\',this.value)" style="font-size:10px;padding:1px 2px;border-radius:4px;border:1px solid ' + _presCol + ';color:' + _presCol + ';background:#fff;font-weight:600">'
+      + ['','Vor Ort','UZA','Homeoffice'].map(function(o){ return '<option value="' + o + '"' + (o===_presVal?' selected':'') + '>' + (o||'– offen –') + '</option>'; }).join('')
+      + '</select>'
+      + '<br><select onchange="setTelPresence(\'' + dateStr + '\',null,this.value)" style="margin-top:3px;font-size:10px;padding:1px 2px;border-radius:4px;border:1px solid ' + _reachCol + ';color:' + _reachCol + ';background:#fff;font-weight:600">'
+      + ['','erreichbar','nicht erreichbar'].map(function(o){ return '<option value="' + o + '"' + (o===_reachVal?' selected':'') + '>' + (o||'– Erreichbarkeit –') + '</option>'; }).join('')
+      + '</select></div>';
     html += '<div>'
       + '<div style="background:' + headerBg + ';border-radius:var(--r) var(--r) 0 0;padding:9px 12px;display:flex;justify-content:space-between;align-items:flex-start">'
       + '<div>'
@@ -10709,6 +10734,7 @@ window.renderTelKalender = function() {
       + (hd ? ' · 🎉 ' + hd.name : daySperre ? ' · 🔒 ' + (daySperre.grund||'gesperrt') : '')
       + '</div>'
       + absentNote
+      + presenceHtml
       + '</div>'
       + dayLockBtn
       + '</div>'
@@ -11548,7 +11574,7 @@ window.renderVerlauf = async function(reload){
   var esc = function(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
   var AREAS = {tel:'Telomer', bh:'Brain-Health', glp:'GLP-1', aa:'AAAging'};
   function areaOf(c){ return /^tel_/.test(c)?'tel':/^bh_/.test(c)?'bh':/^glp_/.test(c)?'glp':'aa'; }
-  var CN = {bookings:'Buchung', tel_bookings:'Buchung', glp_bookings:'Buchung', bh_t0_bookings:'T0-Blutabnahme', bh_t1_bookings:'T1/T2-Blutabnahme', bh_t12_bookings:'T1.2/T2.2-Termin', bh_intro_bookings:'Einführungsgespräch', bh_fam_bookings:'Familiarisierung', probanden:'Proband', tel_probanden:'Proband', bh_probanden:'Proband', glp_probanden:'Proband', recalls:'Recall', sperren:'Sperre', sondertage:'Sondertag', assignments:'Zuweisung', bh_notes:'Notiz', bh_weeks:'Woche/Einstellung', bh_t0_dates:'T0-Tag', bh_intro_slots:'Einführungs-Slot', bh_fam_slots:'Familiarisierungs-Slot', tel_erinnerungen:'Erinnerung', glp_erinnerungen:'Erinnerung'};
+  var CN = {bookings:'Buchung', tel_bookings:'Buchung', glp_bookings:'Buchung', bh_t0_bookings:'T0-Blutabnahme', bh_t1_bookings:'T1/T2-Blutabnahme', bh_t12_bookings:'T1.2/T2.2-Termin', bh_intro_bookings:'Einführungsgespräch', bh_fam_bookings:'Familiarisierung', probanden:'Proband', tel_probanden:'Proband', bh_probanden:'Proband', glp_probanden:'Proband', recalls:'Recall', sperren:'Sperre', sondertage:'Sondertag', assignments:'Zuweisung', bh_notes:'Notiz', bh_weeks:'Woche/Einstellung', bh_t0_dates:'T0-Tag', bh_intro_slots:'Einführungs-Slot', bh_fam_slots:'Familiarisierungs-Slot', tel_erinnerungen:'Erinnerung', tel_presence:'Anwesenheit Jana', glp_erinnerungen:'Erinnerung'};
   function pName(e){
     var d = e.data||{}, id = d.probandId || d.pid;
     try {
