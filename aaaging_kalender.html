@@ -10718,10 +10718,10 @@ window.renderTelKalender = function() {
     var _presVal = _pres && _pres.status ? _pres.status : 'Vor Ort';
     var _reachVal = _pres && _pres.reach ? _pres.reach : 'erreichbar';
     var _reachCol = _reachVal==='erreichbar' ? '#2E7D32' : _reachVal==='nicht erreichbar' ? '#C62828' : '#7A5A4D';
-    var _presCol = {'Vor Ort':'#2E7D32','UZA':'#1565C0','Homeoffice':'#E65100'}[_presVal] || '#7A5A4D';
+    var _presCol = {'Vor Ort':'#2E7D32','UZA':'#1565C0','Homeoffice':'#E65100','Urlaub':'#6A1B9A'}[_presVal] || '#7A5A4D';
     var presenceHtml = '<div style="margin-top:4px;font-size:10px;color:' + (hd||daySperre?'rgba(255,255,255,.85)':'#4A2A1F') + '">Anwesenheit Jana: '
       + '<select onchange="setTelPresence(\'' + dateStr + '\',this.value)" style="font-size:10px;padding:1px 2px;border-radius:4px;border:1px solid ' + _presCol + ';color:' + _presCol + ';background:#fff;font-weight:600">'
-      + ['Vor Ort','UZA','Homeoffice'].map(function(o){ return '<option value="' + o + '"' + (o===_presVal?' selected':'') + '>' + o + '</option>'; }).join('')
+      + ['Vor Ort','UZA','Homeoffice','Urlaub'].map(function(o){ return '<option value="' + o + '"' + (o===_presVal?' selected':'') + '>' + o + '</option>'; }).join('')
       + '</select>'
       + '<br><select onchange="setTelPresence(\'' + dateStr + '\',null,this.value)" style="margin-top:3px;font-size:10px;padding:1px 2px;border-radius:4px;border:1px solid ' + _reachCol + ';color:' + _reachCol + ';background:#fff;font-weight:600">'
       + ['erreichbar','nicht erreichbar'].map(function(o){ return '<option value="' + o + '"' + (o===_reachVal?' selected':'') + '>' + o + '</option>'; }).join('')
