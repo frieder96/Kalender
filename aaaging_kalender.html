@@ -10533,9 +10533,9 @@ window.setTelPresence = async function(dateStr, val, reach) {
   var fns = window._fbFns;
   try {
     var cur = (window._TEL_PRESENCE||{})[dateStr] || {};
-    var st = val===null||val===undefined ? (cur.status||'') : val;
-    var rc = reach===null||reach===undefined ? (cur.reach||'') : reach;
-    if(!st && !rc) await fns.deleteDoc(fns.doc(window.db,'tel_presence',dateStr));
+    var st = val===null||val===undefined ? (cur.status||'Vor Ort') : val;
+    var rc = reach===null||reach===undefined ? (cur.reach||'erreichbar') : reach;
+    if(st==='Vor Ort' && rc==='erreichbar') await fns.deleteDoc(fns.doc(window.db,'tel_presence',dateStr));
     else await fns.setDoc(fns.doc(window.db,'tel_presence',dateStr), {date:dateStr, status:st, reach:rc, updated:Date.now()});
   } catch(e){ alert('Fehler beim Speichern: '+e.message); }
 };
@@ -10715,16 +10715,16 @@ window.renderTelKalender = function() {
       : '';
 
     var _pres = (window._TEL_PRESENCE||{})[dateStr];
-    var _presVal = _pres && _pres.status ? _pres.status : '';
-    var _reachVal = _pres && _pres.reach ? _pres.reach : '';
+    var _presVal = _pres && _pres.status ? _pres.status : 'Vor Ort';
+    var _reachVal = _pres && _pres.reach ? _pres.reach : 'erreichbar';
     var _reachCol = _reachVal==='erreichbar' ? '#2E7D32' : _reachVal==='nicht erreichbar' ? '#C62828' : '#7A5A4D';
     var _presCol = {'Vor Ort':'#2E7D32','UZA':'#1565C0','Homeoffice':'#E65100'}[_presVal] || '#7A5A4D';
     var presenceHtml = '<div style="margin-top:4px;font-size:10px;color:' + (hd||daySperre?'rgba(255,255,255,.85)':'#4A2A1F') + '">Anwesenheit Jana: '
       + '<select onchange="setTelPresence(\'' + dateStr + '\',this.value)" style="font-size:10px;padding:1px 2px;border-radius:4px;border:1px solid ' + _presCol + ';color:' + _presCol + ';background:#fff;font-weight:600">'
-      + ['','Vor Ort','UZA','Homeoffice'].map(function(o){ return '<option value="' + o + '"' + (o===_presVal?' selected':'') + '>' + (o||'– offen –') + '</option>'; }).join('')
+      + ['Vor Ort','UZA','Homeoffice'].map(function(o){ return '<option value="' + o + '"' + (o===_presVal?' selected':'') + '>' + o + '</option>'; }).join('')
       + '</select>'
       + '<br><select onchange="setTelPresence(\'' + dateStr + '\',null,this.value)" style="margin-top:3px;font-size:10px;padding:1px 2px;border-radius:4px;border:1px solid ' + _reachCol + ';color:' + _reachCol + ';background:#fff;font-weight:600">'
-      + ['','erreichbar','nicht erreichbar'].map(function(o){ return '<option value="' + o + '"' + (o===_reachVal?' selected':'') + '>' + (o||'– Erreichbarkeit –') + '</option>'; }).join('')
+      + ['erreichbar','nicht erreichbar'].map(function(o){ return '<option value="' + o + '"' + (o===_reachVal?' selected':'') + '>' + o + '</option>'; }).join('')
       + '</select></div>';
     html += '<div>'
       + '<div style="background:' + headerBg + ';border-radius:var(--r) var(--r) 0 0;padding:9px 12px;display:flex;justify-content:space-between;align-items:flex-start">'
