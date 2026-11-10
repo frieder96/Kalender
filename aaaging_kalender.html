@@ -2603,6 +2603,9 @@ function startDB() {
   onSnapshot(collection(db,'aaa_slot_overrides'), snap => {
     AAA_SLOT_OVERRIDES={}; snap.forEach(d=>{AAA_SLOT_OVERRIDES[d.id]={...d.data(),_id:d.id}}); window._AAA_SLOT_OVERRIDES=AAA_SLOT_OVERRIDES; renderWeek();
   });
+  onSnapshot(collection(db,'recall_slot_blocks'), snap => {
+    var m={}; snap.forEach(d=>{m[d.id]={...d.data(),_id:d.id}}); window._RECALL_SLOT_BLOCKS=m; if(window.renderRecallKalender) window.renderRecallKalender();
+  });
   onSnapshot(collection(db,'recall_day_release'), snap => {
     RECALL_DAY_RELEASE={}; snap.forEach(d=>{RECALL_DAY_RELEASE[d.id]={...d.data(),_id:d.id}}); window._RECALL_DAY_RELEASE=RECALL_DAY_RELEASE; if(window.renderRecallKalender) window.renderRecallKalender();
   });
@@ -5639,7 +5642,7 @@ window.exportRecalls = () => {
 // ── VOLLSTÄNDIGES BACKUP ───────────────────────────────────────────
 const BACKUP_COLLECTIONS = [
   'probanden','recalls','team','assignments','sperren',
-  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots','tel_slot_overrides','tel_presence','glp_probanden','glp_erinnerungen','glp_bookings','glp_extra_slots','glp_slot_overrides','aaa_slot_overrides','recall_day_release',
+  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots','tel_slot_overrides','tel_presence','glp_probanden','glp_erinnerungen','glp_bookings','glp_extra_slots','glp_slot_overrides','aaa_slot_overrides','recall_day_release','recall_slot_blocks',
   'training_logs','training_templates','recall_rooms',
   'sp_slots','sp_probands','sp_day_trainers',
   'bh_probanden','bh_t0_room','bh_t0_bookings','bh_t1_bookings','bh_t12_bookings','bh_weeks','bh_t0_dates','bh_intro_bookings','bh_intro_slots','bh_fam_slots','bh_fam_bookings','bh_notes','bh_blocks'
@@ -6898,6 +6901,42 @@ window.recallCalToday = function() {
   renderRecallKalender();
 };
 
+function recallSlotBlock(dateStr, time){ return (window._RECALL_SLOT_BLOCKS||{})[dateStr+'_'+time.replace(':','')] || null; }
+window.toggleRecallSlotBlock = function(dateStr, time){
+  if(!(window.canRecall && window.canRecall())){ window.toast&&toast('Keine Berechtigung',true); return; }
+  var id = dateStr+'_'+time.replace(':',''), ex = recallSlotBlock(dateStr,time);
+  if(ex){
+    if(!confirm('Slot '+time+' am '+dateStr+' wieder freigeben?')) return;
+    window.deleteDoc(window.doc(window.db,'recall_slot_blocks',id)).catch(function(e){ window.toast&&toast('Fehler: '+e.message,true); });
+    return;
+  }
+  window.bhPrompt({title:'Recall-Slot sperren — '+time+' Uhr', info:dateStr+' · beide Räume (BIA + RBANS). Bestehende Buchungen bleiben erhalten.', label:'Grund (optional)', placeholder:'z. B. VL Daniel im NuTraLab', onSave: async function(v){
+    try { await window.setDoc(window.doc(window.db,'recall_slot_blocks',id), {date:dateStr, time:time, reason:(v||'').trim(), created:Date.now()}); }
+    catch(e){ window.toast&&toast('Fehler: '+e.message,true); return false; }
+  }});
+};
+// Mehrere Slots eines Tages (von–bis) sperren oder wieder freigeben
+window.blockRecallRange = function(dateStr){
+  if(!(window.canRecall && window.canRecall())){ window.toast&&toast('Keine Berechtigung',true); return; }
+  window.bhPrompt({title:'Recall-Slots sperren — '+dateStr, info:'Alle 30-Min-Slots von–bis (einschließlich), beide Räume. Bestehende Buchungen bleiben erhalten.', label:'Von (HH:MM)', value:'13:30', input2:{label:'Bis (HH:MM)', value:'16:00'},
+    select:{label:'Aktion', options:[['lock:','Sperren'],['lock:VL im NuTraLab','Sperren (Grund: VL im NuTraLab)'],['lock:Urlaub','Sperren (Grund: Urlaub)'],['unlock','Wieder freigeben']]},
+    onSave: async function(v, sel, v2){
+      var norm = function(t){ var m=(t||'').trim().match(/^(\d{1,2})[:.](\d{2})$/); return m ? String(m[1]).padStart(2,'0')+':'+m[2] : null; };
+      var a = norm(v), b = norm(v2);
+      if(!a || !b || a>b){ window.toast&&toast('Bitte Uhrzeiten als HH:MM angeben (Von ≤ Bis)',true); return false; }
+      var act = (sel||'lock:').split(':'), n=0;
+      try {
+        for(var i=0;i<RECALL_GRID_TIMES.length;i++){
+          var t = RECALL_GRID_TIMES[i]; if(t<a || t>b) continue;
+          var id = dateStr+'_'+t.replace(':',''), ex = recallSlotBlock(dateStr,t);
+          if(act[0]==='unlock'){ if(ex){ await window.deleteDoc(window.doc(window.db,'recall_slot_blocks',id)); n++; } }
+          else if(!ex){ await window.setDoc(window.doc(window.db,'recall_slot_blocks',id), {date:dateStr, time:t, reason:act.slice(1).join(':'), created:Date.now()}); n++; }
+        }
+        window.toast&&toast(n+' Slot(s) '+(act[0]==='unlock'?'freigegeben':'gesperrt')+' ✓');
+      } catch(e){ window.toast&&toast('Fehler: '+e.message,true); return false; }
+    }});
+};
+
 function getRecallSlotBooking(dateStr, time, room) {
   const RECALLS = window._RECALLS || {};
   return Object.values(RECALLS).find(r => r.date===dateStr && r.time===time && r.room===room) || null;
@@ -6951,7 +6990,8 @@ window.renderRecallKalender = function() {
       '<label style="display:flex;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:400;color:' + (released?'#2E7D32':'var(--g4)') + ';margin-top:2px;cursor:pointer">'
       + '<input type="checkbox" ' + (released?'checked':'') + ' onchange="toggleRecallDayRelease(' + _recallGridCW + ',\'' + day + '\',this.checked)" style="cursor:pointer">'
       + (released ? 'freigegeben' : 'freigeben') + '</label>';
-    html += '<div style="text-align:center;font-size:12px;font-weight:700;color:var(--g5);padding:6px 0">' + day + ' <span style="font-weight:400;color:var(--g4)">' + dStr + '</span>' + releaseToggle + '</div>';
+    var rangeBtn = (window.canRecall && window.canRecall()) ? '<div><button onclick="blockRecallRange(\'' + _localDate(d) + '\')" style="margin-top:3px;background:none;border:1px solid var(--g3);border-radius:10px;font-size:10px;color:var(--g5);cursor:pointer;padding:1px 7px">🔒 Slots sperren</button></div>' : '';
+    html += '<div style="text-align:center;font-size:12px;font-weight:700;color:var(--g5);padding:6px 0">' + day + ' <span style="font-weight:400;color:var(--g4)">' + dStr + '</span>' + releaseToggle + rangeBtn + '</div>';
   });
 
   // Zusatzzeile: Termine außerhalb des Rasters (vor 11 Uhr etc.), damit sie nicht untergehen
@@ -7005,6 +7045,11 @@ window.renderRecallKalender = function() {
             + (person ? '<div style="font-size:9.5px;color:#B85010;margin-top:2px">👤 ' + person.name + '</div>' : '<div style="font-size:9.5px;color:#D0A080;margin-top:2px;font-style:italic">keine Person zugewiesen</div>')
             + '</div>';
         }
+        var _sb = recallSlotBlock(dateStr, time);
+        if(_sb) {
+          return '<div onclick="toggleRecallSlotBlock(\'' + dateStr + '\',\'' + time + '\')" title="Gesperrt' + (_sb.reason ? ': ' + _sb.reason : '') + ' — klicken zum Freigeben" style="flex:1;background:#EEE;border:1px dashed #BBB;border-radius:6px;padding:5px 7px;font-size:10px;color:#888;min-height:38px;display:flex;flex-direction:column;justify-content:center;text-align:center;cursor:pointer">'
+            + '<div style="font-size:9px;font-weight:700;letter-spacing:.5px">' + room + '</div>🔒 ' + (_sb.reason ? _sb.reason : 'gesperrt') + '</div>';
+        }
         if(!dayReleased) {
           return '<div style="flex:1;background:#F5F5F5;border:1px dashed var(--g3);border-radius:6px;padding:5px 7px;font-size:10px;color:var(--g4);min-height:38px;display:flex;flex-direction:column;justify-content:center;text-align:center">'
             + '<div style="font-size:9px;font-weight:700;letter-spacing:.5px">' + room + '</div>🔒 nicht freigegeben</div>';
@@ -7020,7 +7065,8 @@ window.renderRecallKalender = function() {
           + '<button onclick="openEditRecall(\'' + lr._id + '\')" style="margin-left:auto;background:none;border:none;color:#4A90D9;cursor:pointer;font-size:11px" title="Bearbeiten">✎</button>'
           + '</div>';
       }).join('');
-      html += '<div>' + '<div style="display:flex;gap:4px">' + roomCells + '</div>' + legacyHtml + '</div>';
+      var _lockBtn = (window.canRecall && window.canRecall() && dayReleased && !recallSlotBlock(dateStr, time)) ? '<button onclick="toggleRecallSlotBlock(\'' + dateStr + '\',\'' + time + '\')" title="Diesen Slot (beide Räume) sperren" style="position:absolute;top:1px;right:2px;background:none;border:none;cursor:pointer;font-size:10px;opacity:.45;padding:0">🔒</button>' : '';
+      html += '<div style="position:relative">' + _lockBtn + '<div style="display:flex;gap:4px">' + roomCells + '</div>' + legacyHtml + '</div>';
     });
   });
   html += '</div>';
@@ -7544,6 +7590,18 @@ function _bhPersonRow(aKey, label, info, ds, time, defRoom, chipTxt){
     + '</div>';
 }
 function _bhAKey(){ return Array.prototype.join.call(arguments,'_').replace(/[^a-zA-Z0-9_]/g,'_'); }
+// Verantwortliche (bis zu 2 Personen) pro Tag — Namen immer sichtbar, Zuteilung per Klick
+function _bhRespRow2(baseKey, info, ds, time){
+  var can = window.isTrainer && window.isTrainer(), team = window._teamCache||{}, A = window._ASSIGN||{};
+  var keys = [baseKey, baseKey+'_2'];
+  var cells = keys.map(function(k,i){
+    var a = A[k], nm = a && a.person ? ((team[a.person]||{}).name || a.person) : '';
+    var label = 'Verantwortlich '+(i+1);
+    if(can) return '<button onclick="openAssignModal(\''+k+'\',\'Verantwortlich '+(i+1)+'\',\''+info+'\',\''+ds+'\',\''+time+'\')" title="Verantwortliche Person '+(i+1)+' zuteilen" style="flex:1;min-width:0;background:'+(nm?'#DDF0E2':'#fff')+';border:1px '+(nm?'solid #7DB890':'dashed var(--g3)')+';border-radius:6px;padding:3px 6px;font-size:11px;color:'+(nm?'#1F5A33':'var(--g4)')+';font-weight:'+(nm?'700':'400')+';cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(nm?'👤 '+_bhEsc(nm):'+ Person '+(i+1))+'</button>';
+    return nm ? '<span style="flex:1;background:#DDF0E2;border:1px solid #7DB890;border-radius:6px;padding:3px 6px;font-size:11px;color:#1F5A33;font-weight:700">👤 '+_bhEsc(nm)+'</span>' : '';
+  }).join('');
+  return '<div style="margin:3px 0 5px"><div style="font-size:9.5px;font-weight:700;color:#1F5A33;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">Verantwortlich</div><div style="display:flex;gap:4px">'+cells+'</div></div>';
+}
 
 // ── Familiarisierung (Slots selbst eintragen, wie bei AAAging) ──
 function bhFamDoc(w,day){
@@ -7607,6 +7665,28 @@ window.bhRemoveT0Date = async function(ds, restore){
   catch(e){ window.toast&&toast('Fehler: '+e.message,true); }
 };
 
+// Einführung: mehrere Tage (von–bis) nur für den Bereich Einführung sperren/entsperren (Blutabnahme bleibt offen)
+window.bhBlockIntroRange = function(){
+  if(!_bhCan()) return;
+  function pd(v){ v=(v||'').trim(); var m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/); if(m) return v; m=v.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/); if(!m) return null; var y=+m[3]; if(y<100) y+=2000; return y+'-'+_bhP2(m[2])+'-'+_bhP2(m[1]); }
+  window.bhPrompt({title:'Einführungsgespräche — Zeitraum sperren', info:'Sperrt nur den Bereich Einführung (Mo–Do). Die Blutabnahme bleibt offen. Bestehende Buchungen bleiben erhalten.', label:'Von (TT.MM.JJJJ)', placeholder:'z. B. 13.01.2027', input2:{label:'Bis (TT.MM.JJJJ)', placeholder:'leer = nur ein Tag'},
+    select:{label:'Aktion', options:[['lock:','Sperren'],['lock:Urlaub','Sperren (Grund: Urlaub)'],['lock:Vorlesung','Sperren (Grund: Vorlesung)'],['unlock','Wieder entsperren']]},
+    onSave: async function(v, sel, v2){
+      var a = pd(v), b = v2 && v2.trim() ? pd(v2) : a;
+      if(!a || !b || a>b){ window.toast&&toast('Bitte gültige Daten angeben (Von ≤ Bis)',true); return false; }
+      var fns = window._fbFns, act = (sel||'lock:').split(':'), n=0;
+      try {
+        for(var d=_bhDate(a); window._localDate(d)<=b; d.setDate(d.getDate()+1)){
+          var ds = window._localDate(d), dow = d.getDay();
+          if(dow<1 || dow>4) continue;
+          var key = 'da_intro_'+ds;
+          if(act[0]==='unlock'){ if(bhBlk(key)){ await fns.deleteDoc(fns.doc(window.db,'bh_blocks',key)); n++; } }
+          else if(!bhBlk(key)){ await fns.setDoc(fns.doc(window.db,'bh_blocks',key), {key:key, label:'Einführung '+_bhFull(ds), reason:act[1]||'', created:Date.now()}); n++; }
+        }
+        window.toast&&toast(n+' Tag(e) '+(act[0]==='unlock'?'entsperrt':'gesperrt')+' ✓');
+      } catch(e){ window.toast&&toast('Fehler: '+e.message,true); return false; }
+    }});
+};
 // ── Aktionen: Einführungsgespräch-Slots ──
 window.bhAddIntroSlot = function(ds){
   if(!_bhCan()) return;
@@ -7819,14 +7899,14 @@ function _bhRenderIntro(w){
   if(!days.length && !can) return '';
   var h = '<div style="margin-bottom:20px;background:#EEF7F0;border:1px solid #B9DCC2;border-radius:var(--r);padding:14px">';
   h += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px"><div style="font-weight:700;color:#1F5A33">💬 Einführungsgespräch — '+_bhRange(w,4)+'</div>'
-    + (can?'<div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-xs" onclick="bhToggleIntroDouble('+w+')" title="In dieser Woche zwei Termine gleichzeitig pro Slot erlauben" style="'+(bhIntroDouble(w)?'background:#1F5A33;color:#fff;border-color:#1F5A33':'')+'">👥 Doppelbelegung: '+(bhIntroDouble(w)?'AN':'aus')+'</button><button class="btn btn-xs" onclick="bhAddIntroDay()">+ Tag / Slot hinzufügen</button></div>':(bhIntroDouble(w)?'<span style="font-size:11px;color:#1F5A33;font-weight:700">👥 Doppelbelegung</span>':''))+'</div>';
-  h += '<div style="font-size:11px;color:var(--g5);margin-bottom:12px">Jeden Tag Mo–Do (unabhängig von der Blutabnahme) · 30-Min-Takt, 11:00–14:30 (letzter Slot) · weitere Slots mit „+ Slot“ · Durchführung/Raum pro Slot wählbar</div>';
+    + (can?'<div style="display:flex;gap:4px;flex-wrap:wrap">'+(bhIntroDouble(w)?'<button class="btn btn-xs" onclick="bhToggleIntroDouble('+w+')" title="Alte Doppelbelegung dieser Woche ausschalten (stattdessen z. B. Slots 11:00 und 11:01 anlegen)" style="background:#1F5A33;color:#fff;border-color:#1F5A33">👥 Doppelbelegung ausschalten</button>':'')+'<button class="btn btn-xs" onclick="bhBlockIntroRange()">🔒 Zeitraum</button><button class="btn btn-xs" onclick="bhAddIntroDay()">+ Tag / Slot hinzufügen</button></div>':(bhIntroDouble(w)?'<span style="font-size:11px;color:#1F5A33;font-weight:700">👥 Doppelbelegung</span>':''))+'</div>';
+  h += '<div style="font-size:11px;color:var(--g5);margin-bottom:12px">Jeden Tag Mo–Do (unabhängig von der Blutabnahme) · 30-Min-Takt, 11:00–14:30 (letzter Slot) · weitere Slots mit „+ Slot“ (für parallele Termine z. B. 11:01) · Durchführung/Raum pro Slot wählbar</div>';
   if(!days.length) h += '<div style="color:var(--g4);font-style:italic;font-size:12px">In dieser Woche sind keine Einführungsgespräche vorgesehen (außerhalb des Zeitraums). Mit „+ Tag / Slot hinzufügen“ kannst du welche eintragen.</div>';
   h += '<div style="display:grid;grid-template-columns:repeat('+Math.max(1,days.length)+',minmax(170px,1fr));gap:10px;overflow-x:auto">';
   days.forEach(function(ds){
     h += '<div><div style="text-align:center;font-size:12px;font-weight:700;color:#1F5A33;margin-bottom:4px">'+_bhWd(ds)+' '+_bhShort(ds)+_bhDate(ds).getFullYear()+(can?' '+_bhLockBtn('da_intro_'+ds,'Einführung '+_bhWd(ds)+' '+_bhFull(ds),'Einführung sperren'):'')+'</div>';
     h += _bhBanner(['wk_'+w,'d_'+ds,'da_intro_'+ds]);
-    h += _bhPersonRow(_bhAKey('BH_INTRO', ds, 'Verantwortlich'), 'Verantwortliche Person', 'Einführung '+_bhWd(ds)+' '+_bhFull(ds)+' (BH)', ds, '11:00', '', 'Verantwortlich');
+    h += _bhRespRow2(_bhAKey('BH_INTRO', ds, 'Verantwortlich'), 'Einführung '+_bhWd(ds)+' '+_bhFull(ds)+' (BH)', ds, '11:00');
     h += bhNoteHtml('intro_'+ds);
     bhIntroTimes(ds).forEach(function(time){
       var rs = bhIntroGetBookings(ds,time), dbl = bhIntroDouble(w), cap = dbl?2:1, nP = Math.max(cap, rs.length);
