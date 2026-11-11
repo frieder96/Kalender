@@ -3172,6 +3172,10 @@ function renderWeek() {
       </div>`;
     })() : '';
 
+    const _tDate = _localDate(date);
+    const abschlussHtml = (['T1','T2','T3'].includes(curTermin)) ? window.teamRowHtml(`ABSCHLUSS_${cW}_${d.label}`, 'Abschlussperson (Nachmittag)', 1, `${d.label} Nachmittag · KW ${kw(wMon(cW))}`, _tDate, '🏁', '#FFF4E5', '#E8C99A', '#8A4B00') : '';
+    const biaHtml = window.teamRowHtml(`BIA_${curTermin}_${cW}_${d.label}`, 'BIA', 3, `${d.label} · KW ${kw(wMon(cW))} (${curTermin})`, _tDate, '⚖️', '#EFF8F1', '#B7D9BF', '#1F5A33');
+
     return `<div class="dcol">
       <div class="dayhdr-top" style="background:${hdrColor};border-radius:var(--r) var(--r) 0 0">
         <div style="display:flex;align-items:center;justify-content:space-between">
@@ -3181,7 +3185,7 @@ function renderWeek() {
         <div class="drow"><span class="ddate">${fD(date)} · ${dayFilled}/${slots.length}</span><span class="dphase">${phaseLabel}</span></div>
         ${t12note}${dayBlockedNote}${absentNote}
         <div class="dfill"><div class="dfill-bar" style="width:${pct}%"></div></div>
-      </div>${koordHtml}${cardsHtml}
+      </div>${koordHtml}${abschlussHtml}${biaHtml}${cardsHtml}
     </div>`;
   }).join('')}</div>`;
 }
@@ -7273,21 +7277,35 @@ window.bhSetT0Room = async function(date, room){
   try { await window._fbFns.setDoc(window._fbFns.doc(window.db,'bh_t0_room',date), {date:date, room:room, updated:Date.now()}); }
   catch(e){ window.toast&&toast('Fehler: '+e.message,true); }
 };
+function _bhPickWithDups(list){
+  if(!list.length) return null;
+  list.sort(function(x,y){ return (x.created||0)-(y.created||0); });
+  list[0]._dups = list.slice(1);
+  return list[0];
+}
+function _bhDupHtml(bk, kind){
+  if(!bk || !bk._dups || !bk._dups.length) return '';
+  var can = _bhCan();
+  return bk._dups.map(function(d){
+    var l = bhProbandLabel(d.pid);
+    return '<div title="Dieser Slot wurde doppelt vergeben — bitte einen Termin verschieben" style="margin-top:2px;background:#FFE9E9;border:1px solid #E5A0A0;border-radius:6px;padding:2px 5px;font-size:10px;color:#A01818;display:flex;align-items:center;gap:3px">⚠️ doppelt: <strong>'+_bhEsc(l.pid)+'</strong>'+(l.lnr?'<span style="color:#b66">'+_bhEsc(l.lnr)+'</span>':'')+(can?'<span style="margin-left:auto">'+_bhBtnX('delBHBooking(\''+kind+'\',\''+d._id+'\')','#C8102E','✕')+'</span>':'')+'</div>';
+  }).join('');
+}
 function bhGetT0Booking(date,time,kind){
-  var src = window._BH_T0_BOOKINGS || {}, found = null;
-  Object.keys(src).forEach(function(k){ var b=src[k]; if(b.date===date && b.time===time && b.kind===kind) found=b; });
-  return found;
+  var src = window._BH_T0_BOOKINGS || {}, list = [];
+  Object.keys(src).forEach(function(k){ var b=src[k]; if(b.date===date && b.time===time && b.kind===kind) list.push(b); });
+  return _bhPickWithDups(list);
 }
 function _bhNormWeek(b){ var w = Number(b.week); return w<20 ? w+_bhAnchorWeek() : w; }  // Altdaten: Woche 0–6 → globale Woche
 function bhGetT1Booking(week,room,time){
-  var src = window._BH_T1_BOOKINGS || {}, found = null;
-  Object.keys(src).forEach(function(k){ var b=src[k]; if(_bhNormWeek(b)===week && b.room===room && b.time===time) found=b; });
-  return found;
+  var src = window._BH_T1_BOOKINGS || {}, list = [];
+  Object.keys(src).forEach(function(k){ var b=src[k]; if(_bhNormWeek(b)===week && b.room===room && b.time===time) list.push(b); });
+  return _bhPickWithDups(list);
 }
 function bhGetT12Booking(week,day,slot){
-  var src = window._BH_T12_BOOKINGS || {}, found = null;
-  Object.keys(src).forEach(function(k){ var b=src[k]; if(_bhNormWeek(b)===week && b.day===day && Number(b.slot)===Number(slot)) found=b; });
-  return found;
+  var src = window._BH_T12_BOOKINGS || {}, list = [];
+  Object.keys(src).forEach(function(k){ var b=src[k]; if(_bhNormWeek(b)===week && b.day===day && Number(b.slot)===Number(slot)) list.push(b); });
+  return _bhPickWithDups(list);
 }
 function bhProbandLabel(pid){
   var p = (window._BH_PROBANDEN || {})[pid];
@@ -7838,7 +7856,7 @@ function _bhRenderViewBar(){
   var v = window._bhView;
   return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px"><span style="font-size:11px;color:var(--g5);align-self:center">Anzeigen:</span>'
     + BH_VIEWS.map(function(x){ var on=x[0]===v; return '<button onclick="bhSetView(\''+x[0]+'\')" style="border:1px solid '+(on?'#5E35B1':'var(--g3)')+';background:'+(on?'#5E35B1':'#fff')+';color:'+(on?'#fff':'#3A2A5A')+';border-radius:14px;padding:3px 11px;font-size:11px;cursor:pointer">'+x[1]+'</button>'; }).join('')
-    + '</div>';
+    + '<button class="btn btn-xs" onclick="bhExportAppointments()" style="margin-left:auto" title="Alle Brain-Health-Termine als CSV für Excel">⬇ Termine exportieren</button></div>';
 }
 
 function _bhRenderOverview(cur){
@@ -7886,7 +7904,7 @@ function _bhRenderT0(ds){
   h += '<div style="font-size:11px;font-weight:700;color:#5E35B1;margin:6px 0">'+_t0c.takt+'-Min-Takt, '+_t0c.start+'–'+_t0c.end+(window._bhLockMode&&can?' <span style="color:#C8102E">· 🔒 Sperr-Modus aktiv: Klick auf freie Slots sperrt/entsperrt sie</span>':'')+'</div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:flex-start">';
   _t0t.forEach(function(time){
     var bk = bhGetT0Booking(ds, time, 'blut');
-    if(bk) h += _bhBookedPill(time, bhProbandLabel(bk.pid), 'openBHBook(\'t0blut\',\''+ds+'\',\''+time+'\',null,\''+bk._id+'\')', 'delBHBooking(\'t0blut\',\''+bk._id+'\')', '#EDE4FB', '#C7B3EE', '', bk.note);
+    if(bk) h += _bhBookedPill(time, bhProbandLabel(bk.pid), 'openBHBook(\'t0blut\',\''+ds+'\',\''+time+'\',null,\''+bk._id+'\')', 'delBHBooking(\'t0blut\',\''+bk._id+'\')', '#EDE4FB', '#C7B3EE', '', bk.note) + _bhDupHtml(bk,'t0blut');
     else if((bhBlockedFor('t0blut',ds,time)||{}).hidden) { /* Slot gelöscht */ }
     else if(bhBlockedFor('t0blut',ds,time)) h += _bhLockedCell(time, bhBlockedFor('t0blut',ds,time), 'bl_'+ds+'_'+time.replace(':',''), 'min-width:56px');
     else h += '<button onclick="'+(window._bhLockMode&&can?'bhQuickBlock(\'bl_'+ds+'_'+time.replace(':','')+'\',\'Blutabnahme '+_bhShort(ds)+' '+time+'\')':'openBHBook(\'t0blut\',\''+ds+'\',\''+time+'\')')+'" style="min-width:56px;background:#fff;border:1px dashed var(--g3);border-radius:6px;padding:3px 6px;font-size:10px;color:var(--g4);cursor:pointer">'+time+'</button>';
@@ -7995,7 +8013,7 @@ function _bhRenderWeekEntry(e){
     h += '<div style="display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:11px;font-family:monospace;color:var(--g5)">'+time+'</div>';
     BH_T1_ROOMS.forEach(function(room){
       var bk = bhGetT1Booking(w, room, time);
-      if(bk) h += _bhBookedPill('', bhProbandLabel(bk.pid), 'openBHBook(\'t1blut\','+w+',\''+room+'\',\''+time+'\',\''+bk._id+'\')', 'delBHBooking(\'t1blut\',\''+bk._id+'\')', '#DCEAFB', '#A9C6EE', '', bk.note);
+      if(bk) h += _bhBookedPill('', bhProbandLabel(bk.pid), 'openBHBook(\'t1blut\','+w+',\''+room+'\',\''+time+'\',\''+bk._id+'\')', 'delBHBooking(\'t1blut\',\''+bk._id+'\')', '#DCEAFB', '#A9C6EE', '', bk.note) + _bhDupHtml(bk,'t1blut');
       else if((bhBlockedFor('t1blut',w,room,time)||{}).hidden) { h += '<div></div>'; }
       else if(bhBlockedFor('t1blut',w,room,time)) h += _bhLockedCell('gesperrt', bhBlockedFor('t1blut',w,room,time), 'bl_'+mon+'_'+time.replace(':',''));
       else h += '<button onclick="'+(window._bhLockMode&&can?'bhQuickBlock(\'bl_'+mon+'_'+time.replace(':','')+'\',\'Blutabnahme '+_bhShort(mon)+' '+time+'\')':'openBHBook(\'t1blut\','+w+',\''+room+'\',\''+time+'\')')+'" style="width:100%;background:#fff;border:1px dashed var(--g3);border-radius:6px;padding:3px 6px;font-size:10px;color:var(--g4);cursor:pointer">+ Proband</button>';
@@ -8031,7 +8049,7 @@ function _bhRenderWeekEntry(e){
         h += '<div style="display:flex;align-items:center;gap:4px;margin-top:4px"><span style="font-weight:700">'+p.pid+'</span><span style="color:#999">'+p.lnr+'</span>'+(bk.note?'<span title="'+_bhEsc(bk.note)+'">📝</span>':'')
           + '<button onclick="openBHBook(\'t12\','+w+',\''+day+'\','+s.slot+',\''+bk._id+'\')" style="margin-left:auto;background:none;border:none;color:#4A90D9;cursor:pointer">✎</button>'
           + '<button onclick="delBHBooking(\'t12\',\''+bk._id+'\')" style="background:none;border:none;color:#C8102E;cursor:pointer">✕</button></div>'
-          + (bk.note?'<div style="font-size:10px;color:#555;background:#FFFBEA;border:1px solid #F1E3A6;border-radius:4px;padding:2px 5px;margin-top:2px;white-space:pre-wrap">'+_bhEsc(bk.note)+'</div>':'');
+          + (bk.note?'<div style="font-size:10px;color:#555;background:#FFFBEA;border:1px solid #F1E3A6;border-radius:4px;padding:2px 5px;margin-top:2px;white-space:pre-wrap">'+_bhEsc(bk.note)+'</div>':'') + _bhDupHtml(bk,'t12');
       } else if(bhBlockedFor('t12',w,day,s.slot)) {
         h += '<div style="margin-top:4px">'+_bhLockedCell('gesperrt', bhBlockedFor('t12',w,day,s.slot), null)+'</div>';
       } else {
@@ -8189,6 +8207,41 @@ window.delBHProband = async function(id){
   try { var fns = window._fbFns; await fns.deleteDoc(fns.doc(window.db,'bh_probanden',id)); toast('Gelöscht ✓'); }
   catch(e){ toast('Fehler: '+e.message, true); }
 };
+// Export aller Brain-Health-Termine (CSV für Excel) — jede Buchung eine Zeile, Doppelvergaben markiert
+window.bhExportAppointments = function(){
+  var P = window._BH_PROBANDEN||{}, rows = [], WD = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+  function add(typ, ds, time, room, b){
+    var p = P[b.pid] || {};
+    rows.push({typ:typ, ds:ds, time:time||'', room:room||'', pid:p.pid||'', lnr:p.lnr||'', note:b.note||'', created:b.created||0});
+  }
+  var t0=window._BH_T0_BOOKINGS||{}, ib=window._BH_INTRO_BOOKINGS||{}, t1=window._BH_T1_BOOKINGS||{}, t12=window._BH_T12_BOOKINGS||{}, fam=window._BH_FAM_BOOKINGS||{};
+  Object.keys(t0).forEach(function(k){ var b=t0[k]; add(b.kind==='einschluss'?'Einführung':'T0 Blutabnahme', b.date, b.time, b.kind==='einschluss'?'':bhGetT0Room(b.date), b); });
+  Object.keys(ib).forEach(function(k){ var b=ib[k]; add('Einführung', b.date, b.time, '', b); });
+  Object.keys(t1).forEach(function(k){ var b=t1[k], w=_bhNormWeek(b); add(bhTerminOfWeek(w)+' Blutabnahme', _bhWeekDs(w,0), b.time, b.room, b); });
+  Object.keys(t12).forEach(function(k){
+    var b=t12[k], w=_bhNormWeek(b), tm='';
+    BH_T12_TEMPLATE.forEach(function(x){ if(Number(x.slot)===Number(b.slot)) tm=x.blutStart; });
+    add(bhTerminOfWeek(w)+'.2', _bhWeekDs(w, BH_DAYOFF[b.day]||0), tm, '', b);
+  });
+  Object.keys(fam).forEach(function(k){ var b=fam[k], w=_bhNormWeek(b); add('Familiarisierung', _bhWeekDs(w, BH_DAYOFF[b.day]||0), b.time, '', b); });
+  var dFrom = window._bhPFrom||'', dTo = window._bhPTo||'';
+  rows = rows.filter(function(r){ return (!dFrom||r.ds>=dFrom) && (!dTo||r.ds<=dTo); });
+  var cnt = {}; rows.forEach(function(r){ var k=r.typ+'|'+r.ds+'|'+r.time+'|'+r.room; cnt[k]=(cnt[k]||0)+1; r._k=k; });
+  rows.sort(function(a,b){ return (a.ds+(a.time||'')+a.typ).localeCompare(b.ds+(b.time||'')+b.typ) || a.created-b.created; });
+  function q(v){ v=String(v==null?'':v); return /[";\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
+  var lines = [['Termin','Datum','Wochentag','Uhrzeit','Raum','Studien-ID','Laufnr.','Notiz','Hinweis']];
+  rows.forEach(function(r){
+    var d = _bhDate(r.ds), parts = r.ds.split('-');
+    lines.push([r.typ, parts[2]+'.'+parts[1]+'.'+parts[0], WD[d.getDay()], r.time, r.room, r.pid||'(noch keine ID)', r.lnr, r.note, cnt[r._k]>1?'DOPPELT VERGEBEN':'']);
+  });
+  var csv = '\ufeff' + lines.map(function(l){ return l.map(q).join(';'); }).join('\r\n');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  a.download = 'BrainHealth_Termine_'+_localDate(new Date())+'.csv';
+  document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  var nd = Object.keys(cnt).filter(function(k){ return cnt[k]>1; }).length;
+  window.toast&&toast(rows.length+' Termine exportiert'+(nd?' · '+nd+' doppelt vergebene Slots markiert':'')+' ✓');
+};
 window._bhProbVisible = function(){ var e=document.getElementById('bh-proband-list'); return !!(e && e.offsetParent!==null); };
 // Alle Termine je Proband (aus allen BH-Buchungssammlungen) → {pid: [{ds,time,label,kind}]}
 function bhAppointmentsByProband(){
@@ -8231,6 +8284,7 @@ window.renderBHProbanden = function(){
     + '<label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" '+(onlyFree?'checked ':'')+'onchange="window._bhPFree=this.checked;renderBHProbanden()"> nur ohne Studien-ID ('+nFree+')</label>'
     + '<span style="font-size:12px;display:flex;align-items:center;gap:5px">Termine von <input type="date" class="fi" value="'+dFrom+'" onchange="window._bhPFrom=this.value;renderBHProbanden()" style="width:auto"> bis <input type="date" class="fi" value="'+dTo+'" onchange="window._bhPTo=this.value;renderBHProbanden()" style="width:auto">'
     + ((dFrom||dTo)?' <button class="btn btn-xs" onclick="window._bhPFrom=\'\';window._bhPTo=\'\';renderBHProbanden()">✕ Datum zurücksetzen</button>':'')+'</span>'
+    + '<button class="btn btn-sm" onclick="bhExportAppointments()" title="Alle Termine (bei gesetztem Datumsfilter nur diesen Zeitraum) als CSV für Excel">⬇ Termine exportieren (CSV)</button>'
     + '<span style="font-size:11px;color:var(--g4)">'+ps.length+' von '+allPs.length+' Probanden</span></div>';
   if(!ps.length){
     el.innerHTML = bar + '<div style="padding:40px;text-align:center;color:#888;font-style:italic">'+(allPs.length?'Keine Treffer.':'Noch keine Brain-Health-Probanden angelegt.')+'</div>';
@@ -10609,6 +10663,18 @@ window.telWToday = function() {
   renderTelKalender();
 };
 
+// Team-Zeile mit 1..n Personen (z. B. Abschlussperson, BIA-Team) — Namen immer sichtbar, Zuweisung per Klick (Admin)
+window.teamRowHtml = function(baseKey, title, n, ctx, dateStr, icon, bg, bd, col){
+  var A = window._ASSIGN||{}, T = window._teamCache||{}, adm = window.isAdmin && window.isAdmin(), cells = '';
+  for(var i=1;i<=n;i++){
+    var k = n>1 ? baseKey+'_'+i : baseKey, a = A[k], nm = a && a.person ? ((T[a.person]||{}).name || '') : '';
+    var lab = n>1 ? title+' '+i : title;
+    if(adm) cells += '<button onclick="openAssignModal(\''+k+'\',\''+lab+'\',\''+String(ctx).replace(/'/g,"")+'\',\''+dateStr+'\',\'\')" style="background:'+(nm?'#fff':'transparent')+';border:1px '+(nm?'solid '+bd:'dashed #aaa')+';border-radius:99px;padding:1px 8px;font-size:10.5px;color:'+(nm?col:'#999')+';font-weight:'+(nm?'700':'400')+';cursor:pointer">'+(nm?nm:'+ Person'+(n>1?' '+i:''))+'</button>';
+    else if(nm) cells += '<span style="background:#fff;border:1px solid '+bd+';border-radius:99px;padding:1px 8px;font-size:10.5px;color:'+col+';font-weight:700">'+nm+'</span>';
+  }
+  if(!cells) cells = '<span style="color:#999;font-style:italic;font-size:10.5px">nicht zugewiesen</span>';
+  return '<div style="margin:0;padding:5px 10px;background:'+bg+';border-bottom:1px solid '+bd+';font-size:11px;display:flex;align-items:center;gap:5px;flex-wrap:wrap"><span style="font-weight:700;color:'+col+'">'+icon+' '+title+':</span>'+cells+'</div>';
+};
 window.setTelPresence = async function(dateStr, val, reach) {
   var fns = window._fbFns;
   try {
@@ -10818,6 +10884,7 @@ window.renderTelKalender = function() {
       + '</div>'
       + dayLockBtn
       + '</div>'
+      + (hd ? '' : window.teamRowHtml('TELBIA_' + _telCW + '_' + d.label, 'BIA', 3, d.label + ' · KW ' + (kwFn?kwFn(mo):'') + ' (Telomer)', dateStr, '⚖️', '#EFF8F1', '#B7D9BF', '#1F5A33'))
       + '<div style="background:#fff;border:1px solid var(--g2);border-top:none;border-radius:0 0 var(--r) var(--r);padding:6px;min-height:200px">';
 
     if(hd) {
