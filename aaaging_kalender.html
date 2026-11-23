@@ -1052,8 +1052,8 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
 
       <div class="sp-wrap">
         <div class="sp-sub-nav">
-          <button class="sp-snav-btn on" onclick="spSwitch('sp-probanden',this)">👥 Probanden</button>
-          <button class="sp-snav-btn"    onclick="spSwitch('sp-calendar',this)">📅 Buchungskalender</button>
+          <button class="sp-snav-btn on" onclick="spSwitch('sp-calendar',this)">📅 Buchungskalender</button>
+          <button class="sp-snav-btn"    onclick="spSwitch('sp-probanden',this)">👥 Probanden</button>
           <button class="sp-snav-btn"    onclick="spSwitch('sp-protokolle',this)">📋 Protokolle</button>
           <button class="sp-snav-btn"    onclick="spSwitch('sp-5rm',this)">💪 5RM Diagnostik</button>
           <button class="sp-snav-btn" id="sp-tmpl-btn" onclick="spOpenTemplateManager()" style="display:none">⚙️ Übungs-Templates</button>
@@ -1061,8 +1061,8 @@ body{background:var(--g1);color:var(--bk);font-family:'Source Sans 3',sans-serif
           <button class="sp-snav-btn" onclick="spOpenDeleteSeriesModal()" style="color:#C8102E;border-color:#E8C0C8">🗑 Termine löschen</button>
         </div>
 
-        <div id="sp-probanden"><div id="sp-pv-react-root"></div></div>
-        <div id="sp-calendar" style="display:none"><div id="sp-cal-react-root"></div></div>
+        <div id="sp-probanden" style="display:none"><div id="sp-pv-react-root"></div></div>
+        <div id="sp-calendar"><div id="sp-cal-react-root"></div></div>
         <div id="sp-protokolle" style="display:none"><div id="sp-proto-root"></div></div>
 
         <div id="sp-5rm" style="display:none">
@@ -7096,7 +7096,7 @@ function goTab(name,btn){
   if(name==='abwesenheit'){renderAbsentCal();}
   if(name==='backup'){renderRoomList();}
   if(name==='verlauf'){ renderVerlauf(true); }
-  if(name==='studio'){spRenderProbanden();}
+  if(name==='studio'){spRenderProbanden(); if(typeof spRenderCalendar==='function') spRenderCalendar();}
   if(name==='raumplan'){ _rpWeek=cW; rpRender(); }
   if(name==='fortschritt'){ if(window.spRenderFortschritt) window.spRenderFortschritt(); }
   if(name==='monatsübersicht'){ renderMonatsübersicht(); }
@@ -8642,6 +8642,7 @@ window.spToggleProbandFilter = () => {
 };
 function spRenderProbanden(){
   const root=document.getElementById('sp-pv-react-root'); if(!root) return;
+  if(spAccountPid){ root.innerHTML=spAccountHtml(); return; }
   let probands=spGetProbands().filter(p=>p.pid && p.pid.trim()!=='').map(p=>{
     const firstDate = window.spGetFirstTrainingDate ? window.spGetFirstTrainingDate(p.pid) : null;
     return {...p, _firstDate: firstDate};
@@ -8677,7 +8678,7 @@ function spRenderProbanden(){
         const isOverdue = endDate < new Date() && count < SP_TOTAL;
         startEndInfo = `<span style="font-size:10.5px;color:#999">🏁 Start: <strong style="color:#666">${fmtFull(startDate)}</strong> · Geplantes Ende (48 Wo.): <strong style="color:${isOverdue?'#C8102E':'#666'}">${fmtFull(endDate)}</strong>${isOverdue?' ⚠️':''}</span>`;
       }
-      return `<div class="proband-row">
+      return `<div class="proband-row" onclick="spOpenAccount('${p.pid.replace(/'/g,"\\'")}')" style="cursor:pointer" title="Konto öffnen">
         <div class="proband-avatar" style="font-size:10px">${p.pid}</div>
         <div class="proband-info">
           <div class="proband-name">${p.pid} <span style="font-size:12px;color:#6b7a99;font-family:monospace">${p.lnr||''}</span></div>
@@ -8690,7 +8691,7 @@ function spRenderProbanden(){
             <div class="label">/ ${SP_TOTAL} EIN.</div>
             <div class="mini-progress"><div class="mini-progress-fill" style="width:${pct*100}%;background:${color}"></div></div>
           </div>
-          <button class="btn btn-xs" style="background:#1A1A2E;color:#fff;border-color:#1A1A2E" onclick="spSwitch('sp-5rm',null);spSelectClient('${p._id}')">5RM →</button>
+          <button class="btn btn-xs" style="background:#1A1A2E;color:#fff;border-color:#1A1A2E" onclick="event.stopPropagation();spSwitch('sp-5rm',null);spSelectClient('${p._id}')">5RM →</button>
         </div>
       </div>`;
     }).join(''):'<div style="text-align:center;padding:3rem;color:#CCC;font-size:13px">Noch keine Probanden in der Probandenverwaltung.</div>'}</div>
@@ -9994,6 +9995,7 @@ function spAttendanceHtml(){
   const openHtml=open.length?'<div style="background:#FFF8E6;border:1px solid #F0D58A;border-radius:10px;padding:10px 12px;margin-bottom:14px"><div style="font-weight:700;color:#8A6A00;margin-bottom:6px">⚠️ '+open.length+' vergangene Termine ohne Anwesenheitsstatus</div><div style="max-height:220px;overflow:auto">'+open.slice(0,60).map(s=>'<div style="display:flex;align-items:center;gap:8px;padding:2px 0;font-size:12px"><span style="width:92px;color:#777">'+SP_DAY_SHORT[s.di]+' '+spFmtDate(s.date)+' '+s.h+':00</span><span style="flex:1">'+spEsc(s.pid)+' <span style="color:'+spStudio(s.sid).color+'">· '+spEsc(spStudio(s.sid).name)+'</span></span>'+(spCanTrain()?spAttBtns(s):'')+'</div>').join('')+(open.length>60?'<div style="color:#999;font-size:11px;margin-top:4px">… und '+(open.length-60)+' weitere (älteste zuerst nachtragen)</div>':'')+'</div></div>':'<div style="background:#f0faf4;border:1px solid #BFE3CF;border-radius:10px;padding:8px 12px;margin-bottom:14px;color:#2E7D52;font-size:12px">✔ Alle vergangenen Termine haben einen Anwesenheitsstatus.</div>';
   // Fehlzeiten
   const abs={}; all.filter(s=>s.att==='absent').forEach(s=>{ (abs[s.pid]=abs[s.pid]||[]).push(s); });
+  const fut=all.filter(s=>s.iso>todayIso);
   const futCnt={}; fut.forEach(s=>futCnt[s.pid]=(futCnt[s.pid]||0)+1);
   const absRows=Object.keys(abs).sort((a,b)=>abs[b].length-abs[a].length).map(pid=>'<tr><td style="padding:4px 8px"><b>'+spEsc(pid)+'</b></td><td style="padding:4px 8px;text-align:center;color:#C04A6A;font-weight:700">'+abs[pid].length+'</td><td style="padding:4px 8px;color:#777;font-size:11px">'+abs[pid].sort((a,b)=>a.iso.localeCompare(b.iso)).map(s=>spFmtDate(s.date)).join(', ')+'</td><td style="padding:4px 8px;text-align:center">'+(futCnt[pid]||0)+'</td></tr>').join('');
   const absHtml='<div style="background:#fff;border:1px solid #E8E4DE;border-radius:10px;padding:10px 12px"><b>Fehlzeiten & Nachholbedarf</b>'+(absRows?'<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:12px"><tr style="color:#999;text-align:left;font-size:10px;letter-spacing:1px"><th style="padding:4px 8px">PROBAND</th><th style="padding:4px 8px;text-align:center">FEHLT</th><th style="padding:4px 8px">DATEN</th><th style="padding:4px 8px;text-align:center">NOCH GEBUCHT</th></tr>'+absRows+'</table>':'<div style="color:#AAA;font-size:12px;margin-top:6px">Keine Fehlzeiten erfasst.</div>')+'</div>';
@@ -10067,6 +10069,110 @@ function spCalExtras(studio){
   #sp-cal-root button{box-shadow:none}
 }
 </style>
+
+<script>
+// ═══ PROBANDEN-KONTO: Trainings, Protokolle, 5RM, Studientermine, Recalls je Proband ═══
+let spAccountPid=null, spAccTab='uebersicht', spAccFilter='alle';
+window.spOpenAccount = pid => { spAccountPid=pid; spAccTab='uebersicht'; spAccFilter='alle'; spRenderProbanden(); window.scrollTo&&window.scrollTo({top:0}); };
+window.spCloseAccount = () => { spAccountPid=null; spRenderProbanden(); };
+window.spAccSetTab = t => { spAccTab=t; spRenderProbanden(); };
+window.spAccSetFilter = f => { spAccFilter=f; spRenderProbanden(); };
+const SP_STUDY_DAYS=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
+function spFmtFull(d){ return SP_WD_LONG[d.getDay()]+', '+spFmtDate(d)+'.'+d.getFullYear(); }
+function spAccStudyDate(w,day){ try{ const off=SP_STUDY_DAYS.indexOf(day); if(w===undefined||w===null||off<0||!window._wDay) return null; return window._wDay(w,off); }catch(e){ return null; } }
+function spAccData(pid){
+  const p=spGetProbands().find(x=>x.pid===pid); if(!p) return null;
+  const todayIso=_spISO(new Date());
+  const sessions=spAllSessions().filter(s=>s.pid===pid).sort((a,b)=>a.iso.localeCompare(b.iso)||a.h-b.h);
+  const logs=Object.values(SP_TRAINING_LOGS).filter(l=>l.proband===pid).map(l=>({...l,date:spDateOf(l.wo,l.di)})).sort((a,b)=>a.date-b.date);
+  const fiveRm=((SP_PROBANDS[p._id]||{}).sessions||[]).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const recalls=(window._RECALLS?Object.values(window._RECALLS):[]).filter(r=>r.pid===p._id).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const study=[];
+  const add=(label,w,day,slot)=>{ const d=spAccStudyDate(w,day); if(w!==undefined&&w!==null&&day) study.push({label,date:d,iso:d?_spISO(d):'',slot,w,day}); };
+  add('T0',p.t0week,p.t0day,p.t0slot);
+  add('T1.1',p.t1week11||p.t1week,p.t1day11,p.t1slot11);
+  add('T1.2',p.t1week12||p.t1week,p.t1day12,p.t1slot12);
+  if(p.t2date) study.push({label:'T2',date:new Date(p.t2date+'T12:00:00'),iso:p.t2date});
+  if(p.t3date) study.push({label:'T3',date:new Date(p.t3date+'T12:00:00'),iso:p.t3date});
+  const present=sessions.filter(s=>s.iso<=todayIso&&s.att==='present').length, absent=sessions.filter(s=>s.att==='absent').length;
+  const open=sessions.filter(s=>s.iso<todayIso&&s.att==='pending').length, future=sessions.filter(s=>s.iso>todayIso).length;
+  const next=sessions.find(s=>s.iso>=todayIso&&s.att!=='absent')||null;
+  return {p,sessions,logs,fiveRm,recalls,study,present,absent,open,future,next,todayIso};
+}
+function spAccAtt(att){ const c=SP_ATT_STYLE[att]||SP_ATT_STYLE.pending; return '<span title="'+c[4]+'" style="display:inline-block;min-width:22px;text-align:center;border:1px solid '+c[2]+';background:'+c[1]+';color:'+c[3]+';border-radius:6px;font-weight:700;padding:1px 5px">'+c[0]+'</span>'; }
+function spAccTraining(a){
+  const fil=spAccFilter, t=a.todayIso;
+  let rows=a.sessions.filter(s=>fil==='alle'||(fil==='vergangen'&&s.iso<=t)||(fil==='geplant'&&s.iso>t)||(fil==='gefehlt'&&s.att==='absent')||(fil==='offen'&&s.iso<t&&s.att==='pending'));
+  const chip=(k,l)=>'<button onclick="spAccSetFilter(\''+k+'\')" style="border:1px solid '+(fil===k?'#1A1A2E':'#DDD')+';background:'+(fil===k?'#1A1A2E':'#fff')+';color:'+(fil===k?'#fff':'#666')+';border-radius:99px;padding:3px 11px;font-size:12px;cursor:pointer">'+l+'</button>';
+  const hasLog=s=>Object.values(SP_TRAINING_LOGS).some(l=>l.proband===a.p.pid&&l.sid===s.sid&&l.di===s.di&&l.h===s.h&&l.wo===s.wo);
+  const body=rows.map(s=>{ const st=spStudio(s.sid), fut=s.iso>t, log=hasLog(s);
+    return '<tr style="border-top:1px solid #EEE;'+(fut?'':'')+'"><td style="padding:6px 8px;white-space:nowrap"><b>'+spFmtFull(s.date)+'</b></td><td style="padding:6px 8px">'+s.h+':00</td><td style="padding:6px 8px"><span style="color:'+st.color+'">● </span>'+spEsc(st.name)+'</td><td style="padding:6px 8px;color:#777">'+spEsc(s.trainer||'–')+'</td><td style="padding:6px 8px;text-align:center">'+(fut?'<span style="color:#7BA7D9;font-size:11px">geplant</span>':spAccAtt(s.att))+'</td><td style="padding:6px 8px;text-align:right;white-space:nowrap">'+(spCanTrain()?'<span style="margin-right:6px">'+spAttBtns(s)+'</span>':'')+'<button onclick="spOpenTrainingLog('+s.sid+','+s.di+','+s.h+','+s.wo+',\''+spJq(s.pid)+'\',this)" style="background:'+(log?'#003975':'#fff')+';border:1px solid #003975;border-radius:6px;color:'+(log?'#fff':'#003975')+';font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer" title="Trainingsprotokoll">'+(log?'📋 Protokoll':'＋ Protokoll')+'</button></td></tr>'; }).join('');
+  return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+chip('alle','Alle ('+a.sessions.length+')')+chip('vergangen','Vergangen')+chip('geplant','Geplant ('+a.future+')')+chip('gefehlt','Gefehlt ('+a.absent+')')+chip('offen','Ohne Status ('+a.open+')')+'</div>'+
+    '<div style="overflow-x:auto;background:#fff;border:1px solid #E8E4DE;border-radius:10px"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><tr style="background:#FAF8F4;color:#777;font-size:10px;letter-spacing:1px;text-align:left"><th style="padding:6px 8px">DATUM</th><th style="padding:6px 8px">UHR</th><th style="padding:6px 8px">STUDIO</th><th style="padding:6px 8px">TRAINER</th><th style="padding:6px 8px;text-align:center">STATUS</th><th style="padding:6px 8px;text-align:right">AKTION</th></tr>'+(body||'<tr><td colspan="6" style="padding:18px;text-align:center;color:#AAA">Keine Termine in dieser Auswahl.</td></tr>')+'</table></div>';
+}
+function spAccProtokolle(a){
+  if(!a.logs.length) return '<div style="padding:18px;background:#F8F5F0;border:1px dashed #DDD;border-radius:10px;text-align:center;color:#AAA">Noch keine Trainingsprotokolle.</div>';
+  return [...a.logs].reverse().map(l=>{
+    const st=spStudio(l.sid);
+    const ex=(l.exercises||[]).filter(e=>(e.sets||[]).some(x=>x.reps||x.weight)).map(e=>'<tr style="border-top:1px dashed #EEE"><td style="padding:3px 6px">'+spEsc(e.name)+'</td><td style="padding:3px 6px;font-family:monospace;color:#555">'+e.sets.map(x=>(x.reps||'–')+'×'+(x.weight||'–')+'kg').join(' · ')+'</td><td style="padding:3px 6px;color:#999">'+spEsc(e.note||'')+'</td></tr>').join('');
+    const w=l.wellness, lab4={1:'Super',2:'Gut',3:'Mäßig',4:'Schlecht'}, parts=[];
+    if(w){ if(w.rpe!=null) parts.push('RPE '+w.rpe); if(w.befinden) parts.push('Befinden '+(lab4[w.befinden]||w.befinden)); if(w.motivation) parts.push('Motivation '+(lab4[w.motivation]||w.motivation)); if(w.schlaf) parts.push('Schlaf '+(lab4[w.schlaf]||w.schlaf)); if(w.schlafdauer) parts.push(w.schlafdauer+' h Schlaf'); }
+    return '<div style="background:#fff;border:1px solid #E8E4DE;border-left:4px solid '+st.color+';border-radius:10px;padding:10px 12px;margin-bottom:8px"><div style="display:flex;gap:10px;align-items:center;margin-bottom:4px"><b>'+spFmtFull(l.date)+'</b><span style="color:'+st.color+';font-size:12px">'+spEsc(st.name)+' · '+l.h+':00</span><button onclick="spOpenTrainingLog('+l.sid+','+l.di+','+l.h+','+l.wo+',\''+spJq(a.p.pid)+'\',this)" style="margin-left:auto;font-size:11px;border:1px solid #003975;color:#003975;background:#fff;border-radius:6px;padding:2px 8px;cursor:pointer">✏ Öffnen</button></div>'+(ex?'<table style="width:100%;font-size:12px;border-collapse:collapse">'+ex+'</table>':'<div style="color:#AAA;font-size:12px">Keine Sätze erfasst.</div>')+(parts.length?'<div style="margin-top:6px;font-size:11px;color:#888">🩺 '+parts.join(' · ')+'</div>':'')+'</div>';
+  }).join('');
+}
+function spAcc5rm(a){
+  const head='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><b>5RM-Tests ('+a.fiveRm.length+')</b><button class="btn btn-sm" style="margin-left:auto;background:#1A1A2E;color:#fff;border-color:#1A1A2E" onclick="spSwitch(\'sp-5rm\',null);spSelectClient(\''+a.p._id+'\')">💪 Test erfassen / alle Details →</button></div>';
+  if(!a.fiveRm.length) return head+'<div style="padding:18px;background:#F8F5F0;border:1px dashed #DDD;border-radius:10px;text-align:center;color:#AAA">Noch keine 5RM-Tests gespeichert.</div>';
+  const exIds=[...new Set(a.fiveRm.flatMap(s=>Object.keys(s.results||{})))];
+  const cards=exIds.map(id=>{ const ex=SP_EXERCISES.find(e=>e.id===id)||{name:id,icon:''};
+    const pts=a.fiveRm.filter(s=>s.results&&s.results[id]).map(s=>({d:s.date,orm:sp5rmRound(s.results[id].orm)}));
+    if(!pts.length) return '';
+    const first=pts[0].orm,last=pts[pts.length-1].orm,diff=last-first,pct=first?(diff/first*100).toFixed(1):'0.0', col=diff>0.5?'#4caf7d':diff<-0.5?'#e05a4b':'#5fa8d3';
+    const W=180,H=44,mn=Math.min(...pts.map(p=>p.orm))*.92,mx=Math.max(...pts.map(p=>p.orm))*1.04, X=i=>pts.length===1?W/2:(i/(pts.length-1))*(W-16)+8, Y=v=>H-((v-mn)/((mx-mn)||1))*(H-10)-5;
+    return '<div style="background:#fff;border:1px solid #E8E4DE;border-radius:10px;padding:10px 12px"><div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:600"><span>'+ex.icon+' '+spEsc(ex.name)+'</span>'+(pts.length>1?'<span style="color:'+col+'">'+(diff>0?'▲':diff<0?'▼':'→')+' '+Math.abs(pct)+'%</span>':'')+'</div><svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:46px"><path d="'+pts.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+','+Y(p.orm).toFixed(1)).join(' ')+'" fill="none" stroke="'+col+'" stroke-width="2"/>'+pts.map((p,i)=>'<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(p.orm).toFixed(1)+'" r="3" fill="'+col+'"/>').join('')+'</svg><div style="display:flex;justify-content:space-between;font-size:11px;color:#777"><span>Start '+first.toFixed(1)+' kg</span><b style="color:#222">1RM ≈ '+last.toFixed(1)+' kg</b></div></div>'; }).join('');
+  const list=[...a.fiveRm].reverse().map(s=>'<div style="background:#fff;border:1px solid #E8E4DE;border-radius:10px;padding:8px 12px;margin-bottom:6px"><b>'+spFmtFull(new Date(s.date+'T12:00:00'))+'</b>'+(s.note?'<span style="color:#999;font-size:12px"> · '+spEsc(s.note)+'</span>':'')+'<div style="margin-top:4px;font-size:12px;color:#555;display:flex;gap:14px;flex-wrap:wrap">'+Object.entries(s.results||{}).map(([id,v])=>{ const ex=SP_EXERCISES.find(e=>e.id===id)||{name:id,icon:''}; return '<span>'+ex.icon+' '+spEsc(ex.name)+': '+v.weight+' kg × '+v.reps+' → <b>'+sp5rmRound(v.orm).toFixed(1)+' kg</b></span>'; }).join('')+'</div></div>').join('');
+  return head+'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-bottom:14px">'+cards+'</div>'+list;
+}
+function spAccStudy(a){
+  const rows=a.study.map(s=>'<tr style="border-top:1px solid #EEE"><td style="padding:6px 8px"><b>'+s.label+'</b></td><td style="padding:6px 8px">'+(s.date?spFmtFull(s.date):'Woche '+s.w+' · '+s.day)+'</td><td style="padding:6px 8px;color:#777">'+(s.slot?'Slot '+s.slot:'')+'</td><td style="padding:6px 8px;color:#777">'+(s.iso&&s.iso<a.todayIso?'vergangen':'anstehend')+'</td></tr>').join('');
+  const rec=a.recalls.map(r=>'<tr style="border-top:1px solid #EEE"><td style="padding:6px 8px"><b>Recall</b></td><td style="padding:6px 8px">'+(r.date?spFmtFull(new Date(r.date+'T12:00:00')):'–')+(r.time?' · '+spEsc(r.time):'')+'</td><td style="padding:6px 8px;color:#777">'+spEsc([r.room,r.mode==='phone'?'telefonisch':'vor Ort',r.person].filter(Boolean).join(' · '))+'</td><td style="padding:6px 8px;color:#777">'+(r.date&&r.date<a.todayIso?'vergangen':'anstehend')+'</td></tr>').join('');
+  const tbl=(t,b)=>'<div style="margin-bottom:14px"><div style="font-weight:700;margin-bottom:6px">'+t+'</div><div style="background:#fff;border:1px solid #E8E4DE;border-radius:10px;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:12.5px">'+(b||'<tr><td style="padding:14px;color:#AAA;text-align:center">Keine Einträge.</td></tr>')+'</table></div></div>';
+  return tbl('🧪 Untersuchungstermine (T0–T3)',rows)+tbl('📦 Recalls / Supplement-Ausgabe',rec);
+}
+function spAccOverview(a){
+  const ev=[];
+  a.sessions.forEach(s=>ev.push({iso:s.iso,date:s.date,t:s.h+':00',icon:'🏋️',title:'Training · '+spStudio(s.sid).name,st:s.iso>a.todayIso?'geplant':SP_ATT_STYLE[s.att][4],col:s.iso>a.todayIso?'#7BA7D9':SP_ATT_STYLE[s.att][3]}));
+  a.fiveRm.forEach(s=>ev.push({iso:s.date,date:new Date(s.date+'T12:00:00'),t:'',icon:'💪',title:'5RM-Test ('+Object.keys(s.results||{}).length+' Übungen)',st:'durchgeführt',col:'#1A4A2A'}));
+  a.recalls.forEach(r=>{ if(r.date) ev.push({iso:r.date,date:new Date(r.date+'T12:00:00'),t:r.time||'',icon:'📦',title:'Recall'+(r.sachets?' · '+r.sachets+' Sachets':''),st:r.date<a.todayIso?'vergangen':'anstehend',col:'#8A4B1A'}); });
+  a.study.forEach(s=>{ if(s.iso) ev.push({iso:s.iso,date:s.date,t:s.slot?'Slot '+s.slot:'',icon:'🧪',title:'Untersuchung '+s.label,st:s.iso<a.todayIso?'vergangen':'anstehend',col:'#5B3E9E'}); });
+  const up=ev.filter(e=>e.iso>=a.todayIso).sort((x,y)=>x.iso.localeCompare(y.iso)), past=ev.filter(e=>e.iso<a.todayIso).sort((x,y)=>y.iso.localeCompare(x.iso));
+  const line=e=>'<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;border-top:1px solid #EEE;font-size:12.5px"><span style="width:20px;text-align:center">'+e.icon+'</span><span style="width:130px;white-space:nowrap;color:#444"><b>'+spFmtFull(e.date)+'</b></span><span style="width:62px;color:#999;font-family:monospace;font-size:11px">'+spEsc(e.t)+'</span><span style="flex:1">'+spEsc(e.title)+'</span><span style="color:'+e.col+';font-size:11px;font-weight:600">'+spEsc(e.st)+'</span></div>';
+  const box=(t,l,empty)=>'<div style="margin-bottom:14px"><div style="font-weight:700;margin-bottom:6px">'+t+'</div><div style="background:#fff;border:1px solid #E8E4DE;border-radius:10px;max-height:340px;overflow:auto">'+(l.length?l.map(line).join(''):'<div style="padding:14px;color:#AAA;text-align:center;font-size:12px">'+empty+'</div>')+'</div></div>';
+  return box('Anstehend ('+up.length+')',up,'Keine anstehenden Termine.')+box('Verlauf ('+past.length+')',past,'Noch nichts vorhanden.');
+}
+function spAccountHtml(){
+  const a=spAccData(spAccountPid);
+  if(!a) return '<div class="pv-wrap"><button class="btn btn-sm" onclick="spCloseAccount()">← Zur Liste</button><div style="padding:30px;color:#AAA">Proband nicht gefunden.</div></div>';
+  const p=a.p, quote=(a.present+a.absent)?Math.round(a.present/(a.present+a.absent)*100):null, first=spGetFirstTrainingDate(p.pid);
+  const kpi=(l,v,c,sub)=>'<div style="flex:1;min-width:140px;background:#fff;border:1px solid #E8E4DE;border-radius:10px;padding:10px 14px"><div style="font-size:10px;color:#999;letter-spacing:1.5px">'+l+'</div><div style="font-size:20px;font-weight:700;color:'+(c||'#222')+'">'+v+'</div>'+(sub?'<div style="font-size:11px;color:#888">'+sub+'</div>':'')+'</div>';
+  const pct=Math.min(100,Math.round(a.present/SP_TOTAL*100)), col=spPColor(a.present,SP_TOTAL);
+  let startEnd='–', endSub='';
+  if(first){ const end=new Date(first); end.setDate(first.getDate()+48*7); startEnd=spFmtDate(first)+'.'+first.getFullYear(); endSub='geplantes Ende (48 Wo.): '+spFmtDate(end)+'.'+end.getFullYear(); }
+  const last5=a.fiveRm.length?a.fiveRm[a.fiveRm.length-1].date:null;
+  const tabs=[['uebersicht','📍 Übersicht'],['training','🏋️ Trainings ('+a.sessions.length+')'],['proto','📋 Protokolle ('+a.logs.length+')'],['5rm','💪 5RM ('+a.fiveRm.length+')'],['study','🧪 Studientermine']];
+  const body=spAccTab==='training'?spAccTraining(a):spAccTab==='proto'?spAccProtokolle(a):spAccTab==='5rm'?spAcc5rm(a):spAccTab==='study'?spAccStudy(a):spAccOverview(a);
+  const chips=[p.t0week!==undefined?'T0 ✓':'',p.t1week!==undefined||p.t1week11!==undefined?'T1 ✓':'',p.t2date?'T2 ✓':'',p.t3date?'T3 ✓':''].filter(Boolean).map(c=>'<span style="background:#EEF3F9;color:#003975;border-radius:99px;padding:2px 9px;font-size:11px;font-weight:600">'+c+'</span>').join(' ');
+  return '<div class="pv-wrap"><div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap"><button class="btn btn-sm" onclick="spCloseAccount()">← Alle Probanden</button><div class="proband-avatar" style="font-size:11px">'+spEsc(p.pid)+'</div><div><div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800">'+spEsc(p.pid)+' <span style="font-size:13px;color:#6b7a99;font-family:monospace;font-weight:400">'+spEsc(p.lnr||'')+'</span></div><div style="font-size:12px;color:#888">'+(p.notiz?spEsc(p.notiz)+' · ':'')+chips+'</div></div><button class="btn btn-sm" style="margin-left:auto" onclick="spCalTab=\'calendar\';spSwitch(\'sp-calendar\',document.querySelector(\'.sp-snav-btn\'))">📅 Zum Kalender</button></div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">'+
+      '<div style="flex:2;min-width:220px;background:#fff;border:1px solid #E8E4DE;border-radius:10px;padding:10px 14px"><div style="font-size:10px;color:#999;letter-spacing:1.5px">TRAININGSFORTSCHRITT</div><div style="font-size:20px;font-weight:700;color:'+col+'">'+a.present+' <span style="font-size:13px;color:#999;font-weight:400">/ '+SP_TOTAL+' Einheiten</span></div><div style="height:7px;background:#EEE;border-radius:4px;overflow:hidden;margin-top:4px"><div style="width:'+pct+'%;height:100%;background:'+col+'"></div></div></div>'+
+      kpi('ANWESENHEIT',quote==null?'–':quote+' %',quote!=null&&quote<80?'#C8873A':'#2E9E7A',a.absent+' gefehlt · '+a.open+' ohne Status')+
+      kpi('NÄCHSTER TERMIN',a.next?spFmtDate(a.next.date)+' · '+a.next.h+':00':'–','#003975',a.next?spEsc(spStudio(a.next.sid).name):'nichts gebucht')+
+      kpi('START',startEnd,'#222',endSub)+
+      kpi('LETZTER 5RM',last5?spFmtDate(new Date(last5+'T12:00:00')):'–','#1A4A2A',a.fiveRm.length+' Test(s)')+
+    '</div>'+
+    '<div style="display:flex;gap:4px;border-bottom:2px solid #EEE;margin-bottom:14px;flex-wrap:wrap">'+tabs.map(t=>'<button onclick="spAccSetTab(\''+t[0]+'\')" style="border:none;background:none;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;color:'+(spAccTab===t[0]?'#1A1A2E':'#999')+';border-bottom:3px solid '+(spAccTab===t[0]?'#E87127':'transparent')+';margin-bottom:-2px">'+t[1]+'</button>').join('')+'</div>'+body+'</div>';
+}
+</script>
 
 <!-- 5RM Diagnostik -->
 <script>
