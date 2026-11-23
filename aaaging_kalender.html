@@ -8741,7 +8741,7 @@ function spRenderCalendar(){
         <div style="font-size:9px;color:#BBB;letter-spacing:2px">${SP_DAY_SHORT[dn]}</div>
         <div style="font-size:15px;font-weight:500;color:${isToday?studio.color:'#2A2A2A'};margin-top:2px">${spFmtDate(date)}</div>
         ${isAvail&&window.spCanTrain()?`<button onclick="spOpenDayTrainerModal(${dn})" style="margin-top:5px;width:100%;padding:3px 6px;border-radius:6px;border:1px solid ${dayTrainer?studio.color:'#DDD'};background:${dayTrainer?studio.color+'18':'#F8F5F0'};color:${dayTrainer?studio.color:'#AAA'};font-size:9px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dayTrainer?`🏋️ ${dayTrainer}`:'+ Trainer'}</button>`
-        :dayTrainer?`<div style="margin-top:4px;font-size:9px;color:${studio.color};font-weight:600">🏋️ ${dayTrainer}</div>`:(isAvail&&SP_TRAINER_DEF['s'+spActiveStudio+'_d'+dn]?`<div style="margin-top:4px;font-size:9px;color:${studio.color};font-weight:600;opacity:.75">🏋️ ${spEsc(SP_TRAINER_DEF['s'+spActiveStudio+'_d'+dn].name)} <span style="font-weight:400">(Standard)</span></div>`:'')}
+        :dayTrainer?`<div style="margin-top:4px;font-size:9px;color:${studio.color};font-weight:600">🏋️ ${dayTrainer}</div>`:''}
         ${SP_BLOCKS['s'+spActiveStudio+'_d'+dn+'_w'+spWeekOff]?`<div style="margin-top:4px;font-size:9px;color:#8B1A1A;font-weight:700">🔒 ${(SP_BLOCKS['s'+spActiveStudio+'_d'+dn+'_w'+spWeekOff].reason||'gesperrt').replace(/</g,'&lt;')}</div>`:''}
         ${isAvail&&window.spCanLock&&window.spCanLock()?`<button onclick="spToggleDayBlock(${dn})" title="Ganzen Tag sperren/freigeben" style="margin-top:4px;background:none;border:none;font-size:11px;cursor:pointer;opacity:.5">${SP_BLOCKS['s'+spActiveStudio+'_d'+dn+'_w'+spWeekOff]?'🔓 freigeben':'🔒 sperren'}</button>`:''}
       </div>`;
@@ -10206,7 +10206,8 @@ function spDayTrainerName(sid,di,wo){ return (SP_DAY_TRAINERS['s'+sid+'_d'+di+'_
 function spEffTrainer(sid,di,h,wo){
   const d=spGetSD(sid,di,h,wo); if(d.trainer) return {name:d.trainer,src:'slot'};
   const dt=spDayTrainerName(sid,di,wo); if(dt) return {name:dt,src:'tag'};
-  const df=(SP_TRAINER_DEF['s'+sid+'_d'+di]||{}).name; if(df) return {name:df,src:'standard'};
+  const df=SP_TRAINER_DEF['s'+sid+'_d'+di+'_h'+h]; const nm=df&&(df.names||(df.name?[df.name]:[])).filter(Boolean);
+  if(nm&&nm.length) return {name:nm.join(', '),names:nm,src:'standard'};
   return {name:'',src:''};
 }
 // ── Trainerplan-Modal ──
@@ -10215,28 +10216,39 @@ window.spOpenTrainerPlan=()=>{
   let ov=document.getElementById('sp-tplan-overlay');
   if(!ov){ ov=document.createElement('div'); ov.id='sp-tplan-overlay'; ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:760;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);padding:12px'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); }; document.body.appendChild(ov); }
   const team=Object.values((typeof TEAM!=='undefined'&&Object.keys(TEAM).length)?TEAM:(window._teamCache||{})).map(m=>m.name).filter(Boolean).sort();
-  const rows=SP_STUDIOS.map(st=>'<tr><td style="padding:8px 6px;font-weight:700;color:'+st.color+';white-space:nowrap">'+spEsc(st.name)+'</td>'+[1,2,3,4].map(di=>{
-    if(!st.days.includes(di)) return '<td style="padding:6px"><div style="height:34px;background:#F0EDE8;border-radius:8px"></div></td>';
-    return '<td style="padding:6px"><input class="sp-tp-in" data-sid="'+st.id+'" data-di="'+di+'" list="sp-tp-team" value="'+spEsc((SP_TRAINER_DEF['s'+st.id+'_d'+di]||{}).name||'')+'" placeholder="–" style="width:100%;min-width:110px;padding:8px;border:1px solid #DDD;border-radius:8px;font-size:12.5px;box-sizing:border-box"></td>';
-  }).join('')+'</tr>').join('');
-  ov.innerHTML='<div style="background:#fff;border-radius:16px;padding:22px;max-width:760px;width:100%;max-height:90vh;overflow:auto"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800">👨‍🏫 Standard-Trainerplan</div><button onclick="document.getElementById(\'sp-tplan-overlay\').remove()" style="background:none;border:none;font-size:22px;color:#BBB;cursor:pointer">×</button></div>'
-   +'<div style="font-size:12px;color:#888;margin-bottom:12px">Einmal eintragen: Dieser Trainer gilt automatisch für alle Slots des Studios an diesem Wochentag. Abweichungen pro Tag/Slot (z. B. Vertretung) überschreiben den Standard. Mehrere Namen mit Komma trennen.</div>'
-   +'<datalist id="sp-tp-team">'+team.map(n=>'<option value="'+spEsc(n)+'">').join('')+'</datalist>'
-   +'<table style="width:100%;border-collapse:collapse"><tr><th></th>'+[1,2,3,4].map(di=>'<th style="font-size:11px;color:#999;letter-spacing:1.5px;padding:4px">'+SP_DAY_SHORT[di]+'</th>').join('')+'</tr>'+rows+'</table>'
-   +'<div style="display:flex;gap:8px;margin-top:16px"><button onclick="document.getElementById(\'sp-tplan-overlay\').remove()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#888;cursor:pointer">Abbrechen</button><button onclick="spSaveTrainerPlan()" style="flex:2;padding:11px;border-radius:8px;border:none;background:#003975;color:#fff;font-weight:700;cursor:pointer">💾 Speichern</button></div></div>';
+  const inp=(sid,di,h,k,v)=>'<input class="sp-tp-in" data-sid="'+sid+'" data-di="'+di+'" data-h="'+h+'" data-k="'+k+'" list="sp-tp-team" value="'+spEsc(v||'')+'" placeholder="Trainer '+(k+1)+'" style="width:100%;padding:4px 6px;border:1px solid #DDD;border-radius:6px;font-size:11.5px;box-sizing:border-box;margin-bottom:2px">';
+  const sections=SP_STUDIOS.map(st=>{
+    const head='<tr><th></th>'+st.days.map(di=>'<th style="font-size:11px;color:#999;letter-spacing:1.5px;padding:4px">'+SP_DAY_SHORT[di]+' <button onclick="spTpCopyDay('+st.id+','+di+')" title="Trainer der 1. Einheit auf alle Einheiten dieses Tages kopieren" style="border:1px solid #DDD;background:#fff;border-radius:5px;font-size:10px;cursor:pointer;color:#666">⤓ alle</button></th>').join('')+'</tr>';
+    const rows=SP_HOURS.map(h=>'<tr><td style="padding:4px 6px;font-size:12px;font-weight:700;color:#666;white-space:nowrap;vertical-align:top">'+h+':00</td>'+st.days.map(di=>{
+      const d=SP_TRAINER_DEF['s'+st.id+'_d'+di+'_h'+h], nm=(d&&(d.names||(d.name?[d.name]:[])))||[];
+      return '<td style="padding:4px;vertical-align:top;min-width:120px">'+[0,1,2].map(k=>inp(st.id,di,h,k,nm[k])).join('')+'</td>';
+    }).join('')+'</tr>').join('');
+    return '<div style="margin-bottom:18px"><div style="font-family:Syne,sans-serif;font-weight:800;color:'+st.color+';margin-bottom:4px">'+spEsc(st.name.toUpperCase())+'</div><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'+head+rows+'</table></div></div>';
+  }).join('');
+  ov.innerHTML='<div style="background:#fff;border-radius:16px;padding:22px;max-width:900px;width:100%;max-height:92vh;overflow:auto"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800">👨‍🏫 Standard-Trainerplan</div><button onclick="document.getElementById(\'sp-tplan-overlay\').remove()" style="background:none;border:none;font-size:22px;color:#BBB;cursor:pointer">×</button></div>'
+   +'<div style="font-size:12px;color:#888;margin-bottom:12px">Pro Studio, Wochentag und Einheit bis zu 3 Trainer – einmal eintragen, gilt dann jede Woche. Vertretungen pro Tag/Slot überschreiben den Standard.</div>'
+   +'<datalist id="sp-tp-team">'+team.map(n=>'<option value="'+spEsc(n)+'">').join('')+'</datalist>'+sections
+   +'<div style="display:flex;gap:8px;margin-top:8px"><button onclick="document.getElementById(\'sp-tplan-overlay\').remove()" style="flex:1;padding:11px;border-radius:8px;border:1px solid #DDD;background:#fff;color:#888;cursor:pointer">Abbrechen</button><button onclick="spSaveTrainerPlan()" style="flex:2;padding:11px;border-radius:8px;border:none;background:#003975;color:#fff;font-weight:700;cursor:pointer">💾 Speichern</button></div></div>';
+};
+window.spTpCopyDay=(sid,di)=>{
+  const q=(h,k)=>document.querySelector('.sp-tp-in[data-sid="'+sid+'"][data-di="'+di+'"][data-h="'+h+'"][data-k="'+k+'"]');
+  const src=[0,1,2].map(k=>q(SP_HOURS[0],k).value);
+  SP_HOURS.slice(1).forEach(h=>[0,1,2].forEach(k=>{ q(h,k).value=src[k]; }));
 };
 window.spSaveTrainerPlan=async()=>{
-  const ins=[...document.querySelectorAll('.sp-tp-in')]; let n=0;
+  const g={};
+  document.querySelectorAll('.sp-tp-in').forEach(el=>{ const id='s'+el.dataset.sid+'_d'+el.dataset.di+'_h'+el.dataset.h; (g[id]=g[id]||{sid:+el.dataset.sid,di:+el.dataset.di,h:+el.dataset.h,names:[]}); const v=el.value.trim(); if(v&&!g[id].names.includes(v)) g[id].names.push(v); });
+  let n=0;
   try{
-    for(const el of ins){
-      const sid=+el.dataset.sid, di=+el.dataset.di, id='s'+sid+'_d'+di, name=el.value.trim(), old=(SP_TRAINER_DEF[id]||{}).name||'';
-      if(name===old) continue;
-      if(name){ await window._setDoc(window._doc(window.db,'sp_trainer_defaults',id),{sid,di,name,updated:Date.now()}); SP_TRAINER_DEF[id]={sid,di,name,_id:id}; }
-      else { await window._deleteDoc(window._doc(window.db,'sp_trainer_defaults',id)); delete SP_TRAINER_DEF[id]; }
+    for(const id of Object.keys(g)){
+      const e=g[id], o=SP_TRAINER_DEF[id], old=((o&&(o.names||(o.name?[o.name]:[])))||[]).join('|');
+      if(e.names.join('|')===old) continue;
+      if(e.names.length){ await window._setDoc(window._doc(window.db,'sp_trainer_defaults',id),{sid:e.sid,di:e.di,h:e.h,names:e.names,updated:Date.now()}); SP_TRAINER_DEF[id]={...e,_id:id}; }
+      else if(o){ await window._deleteDoc(window._doc(window.db,'sp_trainer_defaults',id)); delete SP_TRAINER_DEF[id]; }
       n++;
     }
     document.getElementById('sp-tplan-overlay')?.remove();
-    toast(n?('Trainerplan gespeichert ✓ ('+n+' Änderungen)'):'Keine Änderungen');
+    toast(n?('Trainerplan gespeichert ✓ ('+n+' Einheiten)'):'Keine Änderungen');
     spRenderCalendar();
   }catch(e){ toast('Fehler: '+e.message,true); }
 };
@@ -10283,13 +10295,13 @@ function spWarnings(){
       const ref={sid:st.id,di,h,wo};
       if(d.members.length>0&&!eff.name) grp('notr','',st,date,iso,h,ref,d.members.length,'');
       if(eff.name){
-        const tl=eff.name.toLowerCase();
+        const tls=(eff.names||[eff.name]);
         absList.forEach(ab=>{
           const an=(ab.name||(ab.email?ab.email.split('@')[0]:'')||'').toLowerCase().trim(); if(!an) return;
-          if(!(tl.includes(an)||an.split(' ')[0]&&tl.includes(an.split(' ')[0]))) return;
+          const hit=tls.filter(t=>{ const tl=t.toLowerCase(); return tl.includes(an)||(an.split(' ')[0]&&tl.includes(an.split(' ')[0])); }); if(!hit.length) return;
           if(iso<ab.from||iso>(ab.to||ab.from)) return;
           if(ab.timeFrom&&!(ab.timeFrom<pad(h+1)+':00'&&(ab.timeTo||'23:59')>pad(h)+':00')) return;
-          grp('abs',eff.name,st,date,iso,h,ref,d.members.length,ab.timeFrom?' · Abwesenheit '+ab.timeFrom+'–'+ab.timeTo:'');
+          grp('abs',hit.join(', '),st,date,iso,h,ref,d.members.length,ab.timeFrom?' · Abwesenheit '+ab.timeFrom+'–'+ab.timeTo:'');
         });
       }
     });
