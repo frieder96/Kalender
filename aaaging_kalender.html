@@ -8851,7 +8851,7 @@ window.spOpenSlotModal=(di,h)=>{
     const attCfg={pending:{icon:'○',bg:'#F8F5F0',border:'#E0DDD8',color:'#AAA'},present:{icon:'✔',bg:'#f0faf4',border:'#2E9E7A',color:'#2E9E7A'},absent:{icon:'✘',bg:'#fff5f5',border:'#C04A6A',color:'#C04A6A'}}[att];
     const hasLog = !!spGetTrainLog(spActiveStudio,di,h,spWeekOff,name);
     return `<div style="background:${attCfg.bg};border-radius:8px;border:1px solid ${attCfg.border};padding:9px 12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-      <span style="font-size:13px">${i+1}. ${name}</span>
+      <span style="font-size:13px">${i+1}. <a onclick="spGoAccount('${name.replace(/'/g,"\\'")}')" title="Probanden-Konto öffnen" style="cursor:pointer;color:#003975;text-decoration:underline dotted;text-underline-offset:3px">${name}</a></span>
       <div style="display:flex;gap:6px;align-items:center">
         <button onclick="spOpenTrainingLog(${spActiveStudio},${di},${h},${spWeekOff},'${name.replace(/'/g,"\\'")}',this)" style="background:${hasLog?'#003975':'#fff'};border:1px solid #003975;border-radius:6px;color:${hasLog?'#fff':'#003975'};font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer" title="Trainingsprotokoll">📋</button>
         <button onclick="spOpen5rmFromSlot('${name.replace(/'/g,"\\'")}')" style="background:#fff;border:1px solid #1A4A2A;border-radius:6px;color:#1A4A2A;font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer" title="5RM Diagnostik">💪</button>
@@ -9986,7 +9986,7 @@ function spAttendanceHtml(){
   const gHtml=Object.keys(groups).sort((a,b)=>{const x=spParseKey(a),y=spParseKey(b);return x.h-y.h||x.sid-y.sid;}).map(k=>{
     const p=spParseKey(k), st=spStudio(p.sid), list=groups[k];
     return '<div style="background:#fff;border:1px solid #E8E4DE;border-left:4px solid '+st.color+';border-radius:10px;padding:10px 12px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:13px">'+p.h+':00</b><span style="font-size:11px;color:'+st.color+';font-weight:600">'+spEsc(st.name)+'</span>'+(list[0].trainer?'<span style="font-size:11px;color:#777">🏋️ '+spEsc(list[0].trainer)+'</span>':'')+(spCanTrain()?'<button onclick="spSetAttAll(\''+k+'\',\'present\')" style="margin-left:auto;font-size:11px;border:1px solid #2E9E7A;color:#2E9E7A;background:#fff;border-radius:6px;padding:2px 8px;cursor:pointer">✔ alle anwesend</button>':'')+'</div>'+
-      list.map(s=>'<div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-top:1px dashed #EEE"><span style="flex:1;font-size:13px">'+spEsc(s.pid)+'</span><span style="font-size:10px;color:#999;font-family:monospace">'+spCountAll(s.pid)+'/'+SP_TOTAL+'</span>'+(spCanTrain()?spAttBtns(s):'<span style="color:'+SP_ATT_STYLE[s.att][3]+'">'+SP_ATT_STYLE[s.att][0]+'</span>')+'</div>').join('')+'</div>';
+      list.map(s=>'<div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-top:1px dashed #EEE"><a onclick="spGoAccount(\''+spJq(s.pid)+'\')" title="Probanden-Konto öffnen" style="flex:1;font-size:13px;cursor:pointer;color:#003975;text-decoration:underline dotted;text-underline-offset:3px">'+spEsc(s.pid)+'</a><span style="font-size:10px;color:#999;font-family:monospace">'+spCountAll(s.pid)+'/'+SP_TOTAL+'</span>'+(spCanTrain()?spAttBtns(s):'<span style="color:'+SP_ATT_STYLE[s.att][3]+'">'+SP_ATT_STYLE[s.att][0]+'</span>')+'</div>').join('')+'</div>';
   }).join('') || '<div style="padding:18px;background:#F8F5F0;border:1px dashed #DDD;border-radius:10px;text-align:center;color:#AAA">Keine Trainings an diesem Tag.</div>';
   const cnt={present:0,absent:0,pending:0}; dayS.forEach(s=>cnt[s.att]++);
   const nav='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="week-btn" onclick="spAttShift(-1)">←</button><div style="font-weight:700;font-size:15px;min-width:170px;text-align:center">'+SP_WD_LONG[dd.getDay()]+', '+spFmtDate(dd)+'.'+dd.getFullYear()+'</div><button class="week-btn" onclick="spAttShift(1)">→</button><input type="date" value="'+spAttDate+'" onchange="spAttSet(this.value)" style="padding:5px 8px;border:1px solid #DDD;border-radius:8px"><button class="week-btn" onclick="spAttToday()" style="font-size:11px">HEUTE</button><span style="margin-left:auto;font-size:12px;color:#666">✔ '+cnt.present+' · ✘ '+cnt.absent+' · ○ '+cnt.pending+'</span></div>';
@@ -10073,6 +10073,7 @@ function spCalExtras(studio){
 <script>
 // ═══ PROBANDEN-KONTO: Trainings, Protokolle, 5RM, Studientermine, Recalls je Proband ═══
 let spAccountPid=null, spAccTab='uebersicht', spAccFilter='alle';
+window.spGoAccount = pid => { try{ spCloseSlot(); }catch(e){} const btn=document.querySelectorAll('.sp-snav-btn')[1]; spSwitch('sp-probanden',btn); spOpenAccount(pid); };
 window.spOpenAccount = pid => { spAccountPid=pid; spAccTab='uebersicht'; spAccFilter='alle'; spRenderProbanden(); window.scrollTo&&window.scrollTo({top:0}); };
 window.spCloseAccount = () => { spAccountPid=null; spRenderProbanden(); };
 window.spAccSetTab = t => { spAccTab=t; spRenderProbanden(); };
