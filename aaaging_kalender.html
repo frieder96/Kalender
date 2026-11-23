@@ -5646,7 +5646,7 @@ window.exportRecalls = () => {
 // ── VOLLSTÄNDIGES BACKUP ───────────────────────────────────────────
 const BACKUP_COLLECTIONS = [
   'probanden','recalls','team','assignments','sperren',
-  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots','tel_slot_overrides','tel_presence','glp_probanden','glp_erinnerungen','glp_bookings','glp_extra_slots','glp_slot_overrides','aaa_slot_overrides','recall_day_release','recall_slot_blocks',
+  'abwesenheiten','eeg_bookings','mrt_bookings','mrt_slots','tel_extra_slots','tel_slot_overrides','tel_presence','sp_blocks','glp_probanden','glp_erinnerungen','glp_bookings','glp_extra_slots','glp_slot_overrides','aaa_slot_overrides','recall_day_release','recall_slot_blocks',
   'training_logs','training_templates','recall_rooms',
   'sp_slots','sp_probands','sp_day_trainers',
   'bh_probanden','bh_t0_room','bh_t0_bookings','bh_t1_bookings','bh_t12_bookings','bh_weeks','bh_t0_dates','bh_intro_bookings','bh_intro_slots','bh_fam_slots','bh_fam_bookings','bh_notes','bh_blocks'
@@ -8337,7 +8337,7 @@ const SP_HOURS = [11,12,13,14,15];
 const SP_MAX = 5;
 const SP_TOTAL = 96;
 
-let SP_PROBANDS = {}, SP_SLOTS_DATA = {}, SP_TRAINING_LOGS = {}, SP_TRAINING_TEMPLATES = {}, SP_DAY_TRAINERS = {};
+let SP_PROBANDS = {}, SP_SLOTS_DATA = {}, SP_TRAINING_LOGS = {}, SP_TRAINING_TEMPLATES = {}, SP_DAY_TRAINERS = {}, SP_BLOCKS = {};
 let sp_listeners = [];
 function spEmit(){ sp_listeners.forEach(fn=>fn()); }
 // Training: Anwesenheit/Protokolle dürfen alle angemeldeten Nutzer bearbeiten (nicht nur Trainer/Admin)
@@ -8366,6 +8366,11 @@ function spStartListeners(){
   window._onSnap(window._col(_db,'training_templates'), snap=>{
     SP_TRAINING_TEMPLATES={};
     snap.forEach(d=>{SP_TRAINING_TEMPLATES[d.id]={...d.data(),_id:d.id};});
+    spEmit();
+  });
+  window._onSnap(window._col(_db,'sp_blocks'), snap=>{
+    SP_BLOCKS={};
+    snap.forEach(d=>{SP_BLOCKS[d.id]={...d.data(),_id:d.id};});
     spEmit();
   });
   window._onSnap(window._col(_db,'sp_day_trainers'), snap=>{
@@ -8708,7 +8713,7 @@ function spRenderCalendar(){
     style="${spActiveStudio===s.id?`background:${s.color};color:#fff;border-color:${s.color}`:''}">
     ${s.name.toUpperCase()}</button>`).join('');
 
-  const calSubTabs=[['calendar','📅 Kalender'],['alle','🏢 Alle Studios'],['probanden','👥 Probanden']].map(([k,l])=>
+  const calSubTabs=[['calendar','📅 Woche'],['monat','🗓 Monat'],['alle','🏢 Alle Studios'],['heute','✅ Anwesenheit'],['auswertung','📊 Auswertung'],['probanden','👥 Fortschritt']].map(([k,l])=>
     `<button class="cal-subtab${spCalTab===k?' active':''}"
       onclick="spCalTab='${k}';spRenderCalendar()"
       style="${spCalTab===k?`background:${k==='alle'?'#555':studio.color};color:#fff`:''}">
@@ -8725,21 +8730,23 @@ function spRenderCalendar(){
         <div style="font-size:15px;font-weight:500;color:${isToday?studio.color:'#2A2A2A'};margin-top:2px">${spFmtDate(date)}</div>
         ${isAvail&&window.spCanTrain()?`<button onclick="spOpenDayTrainerModal(${dn})" style="margin-top:5px;width:100%;padding:3px 6px;border-radius:6px;border:1px solid ${dayTrainer?studio.color:'#DDD'};background:${dayTrainer?studio.color+'18':'#F8F5F0'};color:${dayTrainer?studio.color:'#AAA'};font-size:9px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dayTrainer?`🏋️ ${dayTrainer}`:'+ Trainer'}</button>`
         :dayTrainer?`<div style="margin-top:4px;font-size:9px;color:${studio.color};font-weight:600">🏋️ ${dayTrainer}</div>`:''}
+        ${SP_BLOCKS['s'+spActiveStudio+'_d'+dn+'_w'+spWeekOff]?`<div style="margin-top:4px;font-size:9px;color:#8B1A1A;font-weight:700">🔒 ${(SP_BLOCKS['s'+spActiveStudio+'_d'+dn+'_w'+spWeekOff].reason||'gesperrt').replace(/</g,'&lt;')}</div>`:''}
+        ${isAvail&&window.spCanLock&&window.spCanLock()?`<button onclick="spToggleDayBlock(${dn})" title="Ganzen Tag sperren/freigeben" style="margin-top:4px;background:none;border:none;font-size:11px;cursor:pointer;opacity:.5">${SP_BLOCKS['s'+spActiveStudio+'_d'+dn+'_w'+spWeekOff]?'🔓 freigeben':'🔒 sperren'}</button>`:''}
       </div>`;
     }).join('');
 
     const hourRows=SP_HOURS.map(hour=>{
       const cells=[1,2,3,4].map(di=>{
         if(!studio.days.includes(di)) return `<div style="height:76px;background:#F0EDE8;border-radius:10px;border:1px solid #EAE7E2;display:flex;align-items:center;justify-content:center"><div style="width:16px;height:1px;background:#DDD"></div></div>`;
-        const data=spGetSD(spActiveStudio,di,hour,spWeekOff),mc=data.members.length,isFull=mc>=SP_MAX;
+        const data=spGetSD(spActiveStudio,di,hour,spWeekOff),mc=data.members.length,isFull=mc>=SP_MAX,_blk=spIsBlocked(spActiveStudio,di,hour,spWeekOff);
         const dots=Array.from({length:SP_MAX}).map((_,i)=>{
           const att=data.attendance&&data.attendance[i];
           const c=i>=mc?'#E5E2DD':att==='present'?'#2E9E7A':att==='absent'?'#C04A6A':studio.color;
           return `<div style="width:6px;height:6px;border-radius:50%;background:${c}"></div>`;
         }).join('');
-        return `<button onclick="spOpenSlotModal(${di},${hour})" style="height:76px;border-radius:10px;border:1px solid ${isFull?studio.color+'88':mc>0?studio.color+'44':'#E8E4DE'};background:${mc>0?`linear-gradient(to top,${studio.color}18 0%,#fff 100%)`:'#fff'};padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;cursor:pointer;width:100%">
+        return `<button data-members="${data.members.join('|').replace(/"/g,'')}" data-blocked="${_blk?1:0}" title="${_blk?('Gesperrt'+(_blk.reason?': '+_blk.reason.replace(/"/g,''):'')):''}" onclick="spOpenSlotModal(${di},${hour})" style="height:76px;border-radius:10px;border:1px solid ${isFull?studio.color+'88':mc>0?studio.color+'44':'#E8E4DE'};background:${mc>0?`linear-gradient(to top,${studio.color}18 0%,#fff 100%)`:'#fff'};padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;cursor:pointer;width:100%">
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
-            <span style="font-size:10px;color:${isFull?studio.color:'#CCC'};font-family:monospace">${mc}/${SP_MAX}</span>
+            <span style="font-size:10px;color:${isFull?studio.color:'#CCC'};font-family:monospace">${_blk?'🔒 ':''}${mc}/${SP_MAX}</span>
             ${data.trainer?`<span style="font-size:8px;background:${studio.color};color:#fff;padding:2px 5px;border-radius:3px;font-weight:700">T</span>`:''}
           </div>
           ${mc>0?`<div style="font-size:9px;color:#999;line-height:1.4">${data.members.join(', ')}</div>`:''}
@@ -8753,6 +8760,7 @@ function spRenderCalendar(){
     }).join('');
 
     content=`<div style="overflow-x:auto;padding:16px 20px">
+      ${spCalExtras(studio)}${spLoadBar(studio)}
       <div style="min-width:580px">
         <div style="display:grid;grid-template-columns:64px repeat(4,1fr);gap:6px;margin-bottom:6px">
           <div></div>${dayHeaders}
@@ -8778,7 +8786,7 @@ function spRenderCalendar(){
             if(!s.days.includes(di)) return `<div style="height:48px;background:#F5F2ED;border-radius:8px;border:1px solid #EAE7E2"></div>`;
             const data=SP_SLOTS_DATA[spSKey(s.id,di,hour,spWeekOff)]||{members:[],trainer:null};
             const mc=data.members.length,isFull=mc>=SP_MAX;
-            return `<div style="min-height:48px;border-radius:8px;position:relative;overflow:hidden;border:1px solid ${isFull?s.color+'88':mc>0?s.color+'44':'#E8E4DE'};background:${mc>0?`linear-gradient(to top,${s.color}18 0%,#fff 100%)`:'#fff'};padding:5px 8px;font-size:9px;color:#888;line-height:1.5">${mc>0?data.members.join('<br>'):''}</div>`;
+            return `<div data-members="${data.members.join('|').replace(/"/g,'')}" data-blocked="${spIsBlocked(s.id,di,hour,spWeekOff)?1:0}" style="min-height:48px;border-radius:8px;position:relative;overflow:hidden;border:1px solid ${isFull?s.color+'88':mc>0?s.color+'44':'#E8E4DE'};background:${mc>0?`linear-gradient(to top,${s.color}18 0%,#fff 100%)`:'#fff'};padding:5px 8px;font-size:9px;color:#888;line-height:1.5">${mc>0?data.members.join('<br>'):''}</div>`;
           }).join('');
           return `<div style="display:grid;grid-template-columns:56px repeat(4,1fr);gap:5px;margin-bottom:5px">
             <div style="display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#CCC;font-size:10px;font-family:monospace">${hour}:00</div>${cells}</div>`;
@@ -8792,6 +8800,9 @@ function spRenderCalendar(){
           ${hrs}
         </div>`;
       }).join('')+`</div></div>`;
+  } else if(spCalTab==='monat'){ content=spMonthHtml();
+  } else if(spCalTab==='heute'){ content=spAttendanceHtml();
+  } else if(spCalTab==='auswertung'){ content=spStatsHtml();
   } else {
     const all=spGetProbands().map(p=>({...p,count:spCountAll(p.pid)})).sort((a,b)=>b.count-a.count);
     content=`<div style="padding:20px">
@@ -8811,7 +8822,7 @@ function spRenderCalendar(){
     <div class="cal-toolbar">
       <div class="cal-subtabs">${calSubTabs}</div>
       ${spCalTab==='calendar'?`<div class="studio-tabs">${studioTabs}</div>`:''}
-      ${spCalTab!=='probanden'?`<div class="week-nav">
+      ${(spCalTab==='calendar'||spCalTab==='alle')?`<div class="week-nav">
         <button class="week-btn" onclick="spWeekOff--;spRenderCalendar()">←</button>
         <div style="text-align:center;min-width:72px">
           <div style="font-size:10px;color:#BBB;letter-spacing:2px">WOCHE</div>
@@ -8822,6 +8833,7 @@ function spRenderCalendar(){
       </div>`:''}
     </div>
     ${content}`;
+  if(spCalTab==='calendar'||spCalTab==='alle') spApplySearch();
 }
 
 // ── SLOT MODAL ─────────────────────────────
@@ -8852,7 +8864,9 @@ window.spOpenSlotModal=(di,h)=>{
 
   const acOptions=probands.filter(p=>!data.members.includes(p.pid)).map(p=>`<option value="${p.pid}">${p.pid} · ${p.lnr||''}</option>`).join('');
 
+  const _slotBlk=spIsBlocked(spActiveStudio,di,h,spWeekOff);
   document.getElementById('sp-slot-modal').innerHTML=`
+    ${_slotBlk?`<div style="background:#FDEBEB;border:1px solid #E5A0A0;color:#8B1A1A;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px">🔒 Gesperrt${_slotBlk.reason?': '+_slotBlk.reason.replace(/</g,'&lt;'):''} — keine neuen Buchungen möglich.</div>`:''}
     <div style="margin-bottom:18px">
       <div style="font-size:9px;color:${studio.color};letter-spacing:3px;margin-bottom:4px;font-weight:600">${studio.name.toUpperCase()} / ${SP_DAY_NAMES[di].toUpperCase()}</div>
       <h2 style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800">${h}:00 – ${h+1}:00</h2>
@@ -8895,7 +8909,7 @@ window.spOpenSlotModal=(di,h)=>{
       </div>
     </div>`:''}
 
-    <div style="text-align:right;margin-top:12px"><button onclick="spCloseSlot()" style="background:none;border:1px solid #DDD;border-radius:8px;padding:8px 16px;font-family:sans-serif;font-size:13px;color:#999;cursor:pointer">Schließen</button></div>`;
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">${window.spCanLock&&window.spCanLock()?`<button onclick="spToggleSlotBlock()" style="background:none;border:1px solid #DDD;border-radius:8px;padding:8px 12px;font-size:12px;color:#8B1A1A;cursor:pointer">${SP_BLOCKS[spSKey(spActiveStudio,di,h,spWeekOff)]?'🔓 Slot freigeben':'🔒 Slot sperren'}</button>`:'<span></span>'}<button onclick="spCloseSlot()" style="background:none;border:1px solid #DDD;border-radius:8px;padding:8px 16px;font-family:sans-serif;font-size:13px;color:#999;cursor:pointer">Schließen</button></div>`;
 
   document.getElementById('sp-slot-overlay').style.display='flex';
 };
@@ -9334,6 +9348,7 @@ window.spAddBooking=async()=>{
     if(data.trainer){toast('Bereits ein Trainer eingetragen',true);return;}
     newData={...data,trainer:name};
   } else {
+    if(spIsBlocked(spActiveStudio,spSlotDi,spSlotH,spWeekOff)){toast('Slot/Tag ist gesperrt',true);return;}
     if(data.members.length>=SP_MAX){toast('Slot voll',true);return;}
     if(data.members.includes(name)){toast('Bereits eingetragen',true);return;}
     newData={...data,members:[...data.members,name],attendance:[...(data.attendance||data.members.map(()=>'pending')),'pending']};
@@ -9798,6 +9813,7 @@ window.spSaveSeriesBooking = async () => {
         const key = spSKey(sid,di,h,wo);
         const data = spGetSD(sid,di,h,wo);
         if(data.members.includes(name)){skipped++;continue;}
+        if(spIsBlocked(sid,di,h,wo)){skipped++;continue;}
         if(data.members.length>=SP_MAX){skipped++;continue;}
         const newData = {...data,
           members:[...data.members,name],
@@ -9839,6 +9855,218 @@ window.spOnChange(()=>{
   spSetSync(true);
 });
 </script>
+
+<script>
+// ═══ STUDIO & TRAINING — ERWEITERUNGEN: Monat, Anwesenheit, Auswertung, Sperren, Suche, Druck ═══
+let spSearch='', spMonthY=null, spMonthM=null, spAttDate=null, spStatSort='done', spStatDir=-1, spStatQ='';
+const SP_MONTHS=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const SP_WD_LONG=['So','Mo','Di','Mi','Do','Fr','Sa'];
+function spEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function spJq(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function spDateOf(wo,di){ const a=new Date('2026-03-30T12:00:00'); a.setDate(a.getDate()+wo*7+(di-1)); return a; }
+function spWoDi(date){ const a=new Date('2026-03-30T12:00:00'); const d=new Date(date); d.setHours(12,0,0,0); const day=d.getDay()||7; const mon=new Date(d); mon.setDate(d.getDate()-day+1); return {wo:Math.round((mon-a)/(7*86400000)), di:day}; }
+function spParseKey(k){ const m=k.match(/^s(\d+)_d(\d+)_h(\d+)_w(-?\d+)$/); return m?{sid:+m[1],di:+m[2],h:+m[3],wo:+m[4]}:null; }
+function spStudio(id){ return SP_STUDIOS.find(s=>s.id===id)||{name:'Studio '+id,color:'#888',days:[]}; }
+function spIsBlocked(sid,di,h,wo){ return SP_BLOCKS['s'+sid+'_d'+di+'_w'+wo] || SP_BLOCKS[spSKey(sid,di,h,wo)] || null; }
+window.spCanLock = () => !!(window.isTrainer && window.isTrainer());
+
+// ── Alle Buchungen als flache Liste (eine Zeile je Proband und Termin) ──
+function spAllSessions(){
+  const out=[];
+  Object.keys(SP_SLOTS_DATA).forEach(k=>{
+    const p=spParseKey(k); if(!p) return; const d=SP_SLOTS_DATA[k]; if(!d.members||!d.members.length) return;
+    const date=spDateOf(p.wo,p.di);
+    d.members.forEach((pid,i)=>out.push({key:k,idx:i,pid,sid:p.sid,di:p.di,h:p.h,wo:p.wo,date,iso:_spISO(date),att:(d.attendance&&d.attendance[i])||'pending',trainer:d.trainer||''}));
+  });
+  return out;
+}
+
+// ── Sperren (Tag oder einzelner Slot) ──
+async function spAskReason(title, cb){
+  if(window.bhPrompt) window.bhPrompt({title:title, info:'Bestehende Buchungen bleiben erhalten, es sind nur keine neuen Buchungen möglich.', label:'Grund (optional)', placeholder:'z. B. Studio geschlossen', onSave:async v=>{ await cb((v||'').trim()); }});
+  else { const r=prompt(title+' — Grund (optional):'); if(r!==null) await cb(r.trim()); }
+}
+window.spToggleDayBlock = async (dn) => {
+  if(!spCanLock()) return;
+  const key='s'+spActiveStudio+'_d'+dn+'_w'+spWeekOff;
+  if(SP_BLOCKS[key]){ if(!confirm('Tag wieder freigeben?')) return; try{ await window._deleteDoc(window._doc(window.db,'sp_blocks',key)); toast('Tag freigegeben ✓'); }catch(e){ toast('Fehler: '+e.message,true);} return; }
+  await spAskReason('Tag sperren — '+spStudio(spActiveStudio).name+' · '+SP_DAY_NAMES[dn]+' '+spFmtDate(spDateOf(spWeekOff,dn)), async reason=>{
+    try{ await window._setDoc(window._doc(window.db,'sp_blocks',key),{key,sid:spActiveStudio,di:dn,wo:spWeekOff,reason,created:Date.now()}); toast('Tag gesperrt ✓'); }catch(e){ toast('Fehler: '+e.message,true); return false; }
+  });
+};
+window.spToggleSlotBlock = async () => {
+  if(!spCanLock()) return;
+  const key=spSKey(spActiveStudio,spSlotDi,spSlotH,spWeekOff);
+  if(SP_BLOCKS[key]){ try{ await window._deleteDoc(window._doc(window.db,'sp_blocks',key)); toast('Slot freigegeben ✓'); spOpenSlotModal(spSlotDi,spSlotH);}catch(e){ toast('Fehler: '+e.message,true);} return; }
+  await spAskReason('Slot sperren — '+spSlotH+':00 Uhr', async reason=>{
+    try{ await window._setDoc(window._doc(window.db,'sp_blocks',key),{key,sid:spActiveStudio,di:spSlotDi,h:spSlotH,wo:spWeekOff,reason,created:Date.now()}); toast('Slot gesperrt ✓'); spOpenSlotModal(spSlotDi,spSlotH);}catch(e){ toast('Fehler: '+e.message,true); return false; }
+  });
+};
+
+// ── Suche / Hervorhebung, Datum-Sprung, Druck ──
+window.spSetSearch = v => { spSearch=(v||'').trim().toLowerCase(); spApplySearch(); };
+function spApplySearch(){
+  const root=document.getElementById('sp-cal-root'); if(!root) return;
+  let hits=0;
+  root.querySelectorAll('[data-members]').forEach(el=>{
+    const ms=(el.getAttribute('data-members')||'').toLowerCase();
+    if(el.getAttribute('data-blocked')==='1') el.style.backgroundImage='repeating-linear-gradient(45deg,rgba(0,0,0,.05) 0 6px,transparent 6px 12px)';
+    if(!spSearch){ el.style.opacity=''; el.style.outline=''; return; }
+    const m=ms.includes(spSearch);
+    if(m) hits++;
+    el.style.opacity=m?'1':'.28'; el.style.outline=m?'2px solid #E87127':'';
+  });
+  const c=document.getElementById('sp-search-count'); if(c) c.textContent=spSearch?(hits+' Treffer'):'';
+}
+window.spJumpDate = iso => { if(!iso) return; const w=spWoDi(new Date(iso+'T12:00:00')); spWeekOff=w.wo; spCalTab='calendar'; spRenderCalendar(); };
+window.spPrint = () => window.print();
+
+// ── Monatsansicht ──
+function spMonthHtml(){
+  const now=new Date(); if(spMonthY===null){ spMonthY=now.getFullYear(); spMonthM=now.getMonth(); }
+  const first=new Date(spMonthY,spMonthM,1,12), last=new Date(spMonthY,spMonthM+1,0,12);
+  let cur=new Date(first); const dow=cur.getDay()||7; cur.setDate(cur.getDate()-dow+1);
+  const today=new Date().toDateString();
+  const cap=h=>SP_HOURS.length*SP_MAX;
+  let rows='';
+  while(cur<=last){
+    let cells='';
+    for(let di=1;di<=4;di++){
+      const d=new Date(cur); d.setDate(cur.getDate()+di-1);
+      const inMonth=d.getMonth()===spMonthM, w=spWoDi(d), hol=(typeof isAustrianHoliday==='function')?isAustrianHoliday(d):null;
+      const chips=SP_STUDIOS.filter(s=>s.days.includes(di)).map(s=>{
+        let n=0, blocked=!!SP_BLOCKS['s'+s.id+'_d'+di+'_w'+w.wo];
+        SP_HOURS.forEach(h=>{ n+=spGetSD(s.id,di,h,w.wo).members.length; });
+        const pct=Math.round(n/cap()*100);
+        return '<div title="'+spEsc(s.name)+': '+n+' von '+cap()+' Plätzen'+(blocked?' (gesperrt)':'')+'" style="display:flex;align-items:center;gap:4px;margin-top:3px"><span style="width:7px;height:7px;border-radius:50%;background:'+s.color+';flex:none"></span><div style="flex:1;height:5px;background:#EEE;border-radius:3px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+s.color+'"></div></div><span style="font-size:9.5px;color:#777;font-family:monospace;min-width:34px;text-align:right">'+(blocked?'🔒':n+'/'+cap())+'</span></div>';
+      }).join('');
+      cells+='<button onclick="spWeekOff='+w.wo+';spCalTab=\'calendar\';spRenderCalendar()" style="text-align:left;background:'+(d.toDateString()===today?'#FFF6EE':'#fff')+';border:1px solid '+(d.toDateString()===today?'#E87127':'#E8E4DE')+';border-radius:10px;padding:8px 9px;min-height:86px;cursor:pointer;opacity:'+(inMonth?1:.35)+'"><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:#333"><span>'+SP_DAY_SHORT[di]+' '+spFmtDate(d)+'</span>'+(hol?'<span title="'+spEsc(hol.name)+'">🎉</span>':'')+'</div>'+chips+'</button>';
+    }
+    rows+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px">'+cells+'</div>';
+    cur.setDate(cur.getDate()+7);
+  }
+  const nav='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><button class="week-btn" onclick="spMonthShift(-1)">←</button><div style="font-size:16px;font-weight:700;min-width:150px;text-align:center">'+SP_MONTHS[spMonthM]+' '+spMonthY+'</div><button class="week-btn" onclick="spMonthShift(1)">→</button><button class="week-btn" onclick="spMonthY=null;spRenderCalendar()" style="font-size:11px">HEUTE</button><span style="margin-left:auto;font-size:11px;color:#999">Klick auf einen Tag öffnet die Woche · Balken = belegte Plätze je Studio</span></div>';
+  const leg='<div style="display:flex;gap:14px;margin-top:8px;font-size:11px;color:#666;flex-wrap:wrap">'+SP_STUDIOS.map(s=>'<span><span style="color:'+s.color+'">●</span> '+s.name+'</span>').join('')+'</div>';
+  return '<div style="padding:16px 20px"><div style="max-width:980px">'+nav+rows+leg+'</div></div>';
+}
+window.spMonthShift = n => { spMonthM+=n; if(spMonthM<0){spMonthM=11;spMonthY--;} if(spMonthM>11){spMonthM=0;spMonthY++;} spRenderCalendar(); };
+
+// ── Anwesenheit / Check-in / Erinnerungen ──
+window.spSetAtt = async (key, idx, status) => {
+  if(!spCanTrain()){ toast('Keine Berechtigung',true); return; }
+  const d=SP_SLOTS_DATA[key]; if(!d) return;
+  const att=[...(d.attendance||d.members.map(()=>'pending'))]; while(att.length<d.members.length) att.push('pending');
+  att[idx]=status;
+  const {_id,...rest}=d;
+  try{ await window._setDoc(window._doc(window.db,'sp_slots',key),{...rest,key,attendance:att,updated:Date.now()}); }catch(e){ toast('Fehler: '+e.message,true); }
+};
+window.spSetAttAll = async (key, status) => {
+  if(!spCanTrain()){ toast('Keine Berechtigung',true); return; }
+  const d=SP_SLOTS_DATA[key]; if(!d) return; const {_id,...rest}=d;
+  try{ await window._setDoc(window._doc(window.db,'sp_slots',key),{...rest,key,attendance:d.members.map(()=>status),updated:Date.now()}); toast('Alle: '+(status==='present'?'anwesend':'abwesend')+' ✓'); }catch(e){ toast('Fehler: '+e.message,true); }
+};
+window.spAttShift = n => { const d=new Date(spAttDate+'T12:00:00'); do { d.setDate(d.getDate()+n); } while((d.getDay()===0||d.getDay()>4)); spAttDate=_spISO(d); spRenderCalendar(); };
+window.spAttSet = iso => { if(iso){ spAttDate=iso; spRenderCalendar(); } };
+window.spAttToday = () => { spAttDate=null; spRenderCalendar(); };
+const SP_ATT_STYLE={pending:['○','#F8F5F0','#E0DDD8','#AAA','offen'],present:['✔','#f0faf4','#2E9E7A','#2E9E7A','anwesend'],absent:['✘','#fff5f5','#C04A6A','#C04A6A','nicht erschienen']};
+function spAttBtns(s){
+  return ['present','absent','pending'].map(st=>{ const c=SP_ATT_STYLE[st], on=s.att===st;
+    return '<button title="'+c[4]+'" onclick="spSetAtt(\''+s.key+'\','+s.idx+',\''+st+'\')" style="border:1px solid '+c[2]+';background:'+(on?c[2]:'#fff')+';color:'+(on?'#fff':c[3])+';border-radius:6px;width:28px;height:26px;font-weight:700;cursor:pointer">'+c[0]+'</button>'; }).join('');
+}
+window.spCopyText = t => { (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Kopiert ✓')).catch(()=>{ const a=document.createElement('textarea'); a.value=t; document.body.appendChild(a); a.select(); try{document.execCommand('copy');toast('Kopiert ✓');}catch(e){toast('Kopieren nicht möglich',true);} a.remove(); }); };
+function spAttendanceHtml(){
+  const all=spAllSessions();
+  const todayIso=_spISO(new Date());
+  if(!spAttDate){ const d=new Date(); d.setHours(12,0,0,0); while(d.getDay()===0||d.getDay()>4) d.setDate(d.getDate()+1); spAttDate=_spISO(d); }
+  const dayS=all.filter(s=>s.iso===spAttDate).sort((a,b)=>a.h-b.h||a.sid-b.sid);
+  const dd=new Date(spAttDate+'T12:00:00');
+  // Tagesliste gruppiert nach Studio+Stunde
+  const groups={}; dayS.forEach(s=>{ (groups[s.key]=groups[s.key]||[]).push(s); });
+  const gHtml=Object.keys(groups).sort((a,b)=>{const x=spParseKey(a),y=spParseKey(b);return x.h-y.h||x.sid-y.sid;}).map(k=>{
+    const p=spParseKey(k), st=spStudio(p.sid), list=groups[k];
+    return '<div style="background:#fff;border:1px solid #E8E4DE;border-left:4px solid '+st.color+';border-radius:10px;padding:10px 12px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:13px">'+p.h+':00</b><span style="font-size:11px;color:'+st.color+';font-weight:600">'+spEsc(st.name)+'</span>'+(list[0].trainer?'<span style="font-size:11px;color:#777">🏋️ '+spEsc(list[0].trainer)+'</span>':'')+(spCanTrain()?'<button onclick="spSetAttAll(\''+k+'\',\'present\')" style="margin-left:auto;font-size:11px;border:1px solid #2E9E7A;color:#2E9E7A;background:#fff;border-radius:6px;padding:2px 8px;cursor:pointer">✔ alle anwesend</button>':'')+'</div>'+
+      list.map(s=>'<div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-top:1px dashed #EEE"><span style="flex:1;font-size:13px">'+spEsc(s.pid)+'</span><span style="font-size:10px;color:#999;font-family:monospace">'+spCountAll(s.pid)+'/'+SP_TOTAL+'</span>'+(spCanTrain()?spAttBtns(s):'<span style="color:'+SP_ATT_STYLE[s.att][3]+'">'+SP_ATT_STYLE[s.att][0]+'</span>')+'</div>').join('')+'</div>';
+  }).join('') || '<div style="padding:18px;background:#F8F5F0;border:1px dashed #DDD;border-radius:10px;text-align:center;color:#AAA">Keine Trainings an diesem Tag.</div>';
+  const cnt={present:0,absent:0,pending:0}; dayS.forEach(s=>cnt[s.att]++);
+  const nav='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="week-btn" onclick="spAttShift(-1)">←</button><div style="font-weight:700;font-size:15px;min-width:170px;text-align:center">'+SP_WD_LONG[dd.getDay()]+', '+spFmtDate(dd)+'.'+dd.getFullYear()+'</div><button class="week-btn" onclick="spAttShift(1)">→</button><input type="date" value="'+spAttDate+'" onchange="spAttSet(this.value)" style="padding:5px 8px;border:1px solid #DDD;border-radius:8px"><button class="week-btn" onclick="spAttToday()" style="font-size:11px">HEUTE</button><span style="margin-left:auto;font-size:12px;color:#666">✔ '+cnt.present+' · ✘ '+cnt.absent+' · ○ '+cnt.pending+'</span></div>';
+  // Offene Dokumentation (Vergangenheit ohne Status)
+  const open=all.filter(s=>s.iso<todayIso&&s.att==='pending').sort((a,b)=>b.iso.localeCompare(a.iso)||a.h-b.h);
+  const openHtml=open.length?'<div style="background:#FFF8E6;border:1px solid #F0D58A;border-radius:10px;padding:10px 12px;margin-bottom:14px"><div style="font-weight:700;color:#8A6A00;margin-bottom:6px">⚠️ '+open.length+' vergangene Termine ohne Anwesenheitsstatus</div><div style="max-height:220px;overflow:auto">'+open.slice(0,60).map(s=>'<div style="display:flex;align-items:center;gap:8px;padding:2px 0;font-size:12px"><span style="width:92px;color:#777">'+SP_DAY_SHORT[s.di]+' '+spFmtDate(s.date)+' '+s.h+':00</span><span style="flex:1">'+spEsc(s.pid)+' <span style="color:'+spStudio(s.sid).color+'">· '+spEsc(spStudio(s.sid).name)+'</span></span>'+(spCanTrain()?spAttBtns(s):'')+'</div>').join('')+(open.length>60?'<div style="color:#999;font-size:11px;margin-top:4px">… und '+(open.length-60)+' weitere (älteste zuerst nachtragen)</div>':'')+'</div></div>':'<div style="background:#f0faf4;border:1px solid #BFE3CF;border-radius:10px;padding:8px 12px;margin-bottom:14px;color:#2E7D52;font-size:12px">✔ Alle vergangenen Termine haben einen Anwesenheitsstatus.</div>';
+  // Fehlzeiten
+  const abs={}; all.filter(s=>s.att==='absent').forEach(s=>{ (abs[s.pid]=abs[s.pid]||[]).push(s); });
+  const futCnt={}; fut.forEach(s=>futCnt[s.pid]=(futCnt[s.pid]||0)+1);
+  const absRows=Object.keys(abs).sort((a,b)=>abs[b].length-abs[a].length).map(pid=>'<tr><td style="padding:4px 8px"><b>'+spEsc(pid)+'</b></td><td style="padding:4px 8px;text-align:center;color:#C04A6A;font-weight:700">'+abs[pid].length+'</td><td style="padding:4px 8px;color:#777;font-size:11px">'+abs[pid].sort((a,b)=>a.iso.localeCompare(b.iso)).map(s=>spFmtDate(s.date)).join(', ')+'</td><td style="padding:4px 8px;text-align:center">'+(futCnt[pid]||0)+'</td></tr>').join('');
+  const absHtml='<div style="background:#fff;border:1px solid #E8E4DE;border-radius:10px;padding:10px 12px"><b>Fehlzeiten & Nachholbedarf</b>'+(absRows?'<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:12px"><tr style="color:#999;text-align:left;font-size:10px;letter-spacing:1px"><th style="padding:4px 8px">PROBAND</th><th style="padding:4px 8px;text-align:center">FEHLT</th><th style="padding:4px 8px">DATEN</th><th style="padding:4px 8px;text-align:center">NOCH GEBUCHT</th></tr>'+absRows+'</table>':'<div style="color:#AAA;font-size:12px;margin-top:6px">Keine Fehlzeiten erfasst.</div>')+'</div>';
+  return '<div style="padding:16px 20px;max-width:900px">'+nav+gHtml+'<div style="height:10px"></div>'+openHtml+absHtml+'</div>';
+}
+
+// ── Auswertung: Soll/Ist je Woche, Compliance ──
+function spStatsData(){
+  const all=spAllSessions(), todayIso=_spISO(new Date()), per={};
+  spGetProbands().forEach(p=>{ per[p.pid]={pid:p.pid,lnr:p.lnr||'',present:0,absent:0,pendingPast:0,future:0,weeks:{},first:null,last:null}; });
+  all.forEach(s=>{ const r=per[s.pid]||(per[s.pid]={pid:s.pid,lnr:'',present:0,absent:0,pendingPast:0,future:0,weeks:{},first:null,last:null});
+    const w=r.weeks[s.wo]||(r.weeks[s.wo]={present:0,absent:0,open:0,future:0});
+    if(s.iso>todayIso){ r.future++; w.future++; } else if(s.att==='present'){ r.present++; w.present++; } else if(s.att==='absent'){ r.absent++; w.absent++; } else { r.pendingPast++; w.open++; }
+    if(!r.first||s.iso<r.first) r.first=s.iso; if(!r.last||s.iso>r.last) r.last=s.iso; });
+  return Object.values(per).filter(r=>r.first).map(r=>{ const done=r.present+r.pendingPast; const marked=r.present+r.absent;
+    r.done=r.present; r.quote=marked?Math.round(r.present/marked*100):null; r.remaining=Math.max(0,SP_TOTAL-r.present-r.future); r.pct=Math.round(r.present/SP_TOTAL*100);
+    const wk=Object.keys(r.weeks).map(Number); r.wMin=Math.min(...wk); r.wMax=Math.max(...wk); r.nWeeks=r.wMax-r.wMin+1; r.avgWeek=r.nWeeks?+((r.present+r.absent+r.pendingPast+r.future)/r.nWeeks).toFixed(1):0; return r; });
+}
+window.spStatSortBy = k => { if(spStatSort===k) spStatDir*=-1; else { spStatSort=k; spStatDir=(k==='pid'?1:-1); } spRenderCalendar(); };
+window.spStatSearch = v => { spStatQ=(v||'').trim().toLowerCase(); spRenderCalendar(); setTimeout(()=>{ const el=document.getElementById('sp-stat-q'); if(el){ el.focus(); el.setSelectionRange(el.value.length,el.value.length);} },0); };
+window.spStatsExport = () => {
+  const rows=spStatsData().sort((a,b)=>a.pid.localeCompare(b.pid));
+  const q=v=>{ v=String(v==null?'':v); return /[";\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
+  const lines=[['Proband','Laufnr.','Anwesend','Nicht erschienen','Ohne Status (vergangen)','Noch gebucht','Soll gesamt','Fortschritt %','Anwesenheitsquote %','Erster Termin','Letzter Termin','Ø Termine/Woche']];
+  rows.forEach(r=>lines.push([r.pid,r.lnr,r.present,r.absent,r.pendingPast,r.future,SP_TOTAL,r.pct,r.quote==null?'':r.quote,r.first,r.last,String(r.avgWeek).replace('.',',')]));
+  const csv='﻿'+lines.map(l=>l.map(q).join(';')).join('\r\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})); a.download='Training_Auswertung_'+_spISO(new Date())+'.csv'; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+};
+function spStatsHtml(){
+  let rows=spStatsData();
+  const nAll=rows.length, nAnw=rows.reduce((s,r)=>s+r.present,0), nAbs=rows.reduce((s,r)=>s+r.absent,0), nFut=rows.reduce((s,r)=>s+r.future,0), nOpen=rows.reduce((s,r)=>s+r.pendingPast,0);
+  const quote=(nAnw+nAbs)?Math.round(nAnw/(nAnw+nAbs)*100):null;
+  if(spStatQ) rows=rows.filter(r=>(r.pid+' '+r.lnr).toLowerCase().includes(spStatQ));
+  const k=spStatSort, dir=spStatDir;
+  rows.sort((a,b)=>{ const x=k==='pid'?a.pid:(k==='quote'?(a.quote==null?-1:a.quote):a[k]), y=k==='pid'?b.pid:(k==='quote'?(b.quote==null?-1:b.quote):b[k]); return (x>y?1:x<y?-1:0)*dir; });
+  const kpi=(l,v,c)=>'<div style="flex:1;min-width:130px;background:#fff;border:1px solid #E8E4DE;border-radius:10px;padding:10px 14px"><div style="font-size:10px;color:#999;letter-spacing:1.5px">'+l+'</div><div style="font-size:22px;font-weight:700;color:'+(c||'#222')+'">'+v+'</div></div>';
+  const kpis='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">'+kpi('PROBANDEN MIT TERMINEN',nAll)+kpi('ANWESEND GESAMT',nAnw,'#2E9E7A')+kpi('ANWESENHEITSQUOTE',quote==null?'–':quote+' %',quote!=null&&quote<80?'#C8873A':'#2E9E7A')+kpi('NICHT ERSCHIENEN',nAbs,'#C04A6A')+kpi('NOCH GEBUCHT',nFut,'#003975')+kpi('OHNE STATUS',nOpen,nOpen?'#C8873A':'#2E9E7A')+'</div>';
+  const th=(key,l,al)=>'<th onclick="spStatSortBy(\''+key+'\')" style="padding:6px 8px;text-align:'+(al||'left')+';font-size:10px;letter-spacing:1px;color:#777;cursor:pointer;white-space:nowrap">'+l+(spStatSort===key?(spStatDir>0?' ▲':' ▼'):'')+'</th>';
+  const cur=spCurrentWeekOff();
+  const body=rows.map(r=>{
+    const strip=[]; for(let w=r.wMin; w<=r.wMax; w++){ const c=r.weeks[w]; let bg='#EEE', t='keine Termine';
+      if(c){ const n=c.present+c.absent+c.open+c.future; bg=c.absent?'#C04A6A':c.open?'#E8B04A':c.present?'#2E9E7A':'#7BA7D9'; t='Woche ab '+spFmtDate(spDateOf(w,1))+': '+c.present+' anwesend, '+c.absent+' gefehlt, '+c.open+' ohne Status, '+c.future+' geplant'; }
+      strip.push('<span title="'+spEsc(t)+'" style="display:inline-block;width:9px;height:14px;border-radius:2px;margin-right:1px;background:'+bg+(w===cur?';outline:1px solid #222':'')+'"></span>'); }
+    return '<tr style="border-top:1px solid #EEE"><td style="padding:6px 8px"><b>'+spEsc(r.pid)+'</b> <span style="color:#AAA;font-family:monospace;font-size:11px">'+spEsc(r.lnr)+'</span></td>'+
+      '<td style="padding:6px 8px;min-width:150px"><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:7px;background:#EEE;border-radius:4px;overflow:hidden"><div style="width:'+Math.min(100,r.pct)+'%;height:100%;background:'+spPColor(r.present,SP_TOTAL)+'"></div></div><span style="font-family:monospace;font-size:11px;color:#555">'+r.present+'/'+SP_TOTAL+'</span></div></td>'+
+      '<td style="padding:6px 8px;text-align:center;color:#C04A6A">'+r.absent+'</td><td style="padding:6px 8px;text-align:center;color:'+(r.pendingPast?'#C8873A':'#AAA')+'">'+r.pendingPast+'</td><td style="padding:6px 8px;text-align:center;color:#003975">'+r.future+'</td>'+
+      '<td style="padding:6px 8px;text-align:center;font-weight:700;color:'+(r.quote==null?'#AAA':r.quote<80?'#C8873A':'#2E9E7A')+'">'+(r.quote==null?'–':r.quote+'%')+'</td><td style="padding:6px 8px;text-align:center">'+r.avgWeek+'</td>'+
+      '<td style="padding:6px 8px;text-align:center;color:'+(r.remaining>r.future?'#C8873A':'#777')+'" title="Soll '+SP_TOTAL+' − anwesend − noch gebucht">'+r.remaining+'</td><td style="padding:6px 8px;white-space:nowrap;max-width:360px;overflow-x:auto">'+strip.join('')+'</td></tr>';
+  }).join('');
+  const ctrl='<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap"><input id="sp-stat-q" value="'+spEsc(spStatQ)+'" placeholder="Proband suchen…" oninput="spStatSearch(this.value)" style="padding:7px 10px;border:1px solid #DDD;border-radius:8px;min-width:180px"><button class="btn btn-sm" onclick="spStatsExport()">⬇ Auswertung exportieren (CSV)</button><span style="margin-left:auto;font-size:11px;color:#888">Wochenstreifen: <span style="color:#2E9E7A">■</span> anwesend <span style="color:#C04A6A">■</span> gefehlt <span style="color:#E8B04A">■</span> ohne Status <span style="color:#7BA7D9">■</span> geplant · Umrandung = aktuelle Woche</span></div>';
+  return '<div style="padding:16px 20px">'+kpis+ctrl+'<div style="overflow-x:auto;background:#fff;border:1px solid #E8E4DE;border-radius:10px"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><tr style="background:#FAF8F4">'+th('pid','PROBAND')+th('present','FORTSCHRITT')+th('absent','GEFEHLT','center')+th('pendingPast','OHNE STATUS','center')+th('future','GEBUCHT','center')+th('quote','QUOTE','center')+th('avgWeek','Ø/WOCHE','center')+th('remaining','NOCH OFFEN','center')+'<th style="padding:6px 8px;font-size:10px;letter-spacing:1px;color:#777;text-align:left">WOCHEN</th></tr>'+(body||'<tr><td colspan="9" style="padding:20px;text-align:center;color:#AAA">Keine Daten.</td></tr>')+'</table></div></div>';
+}
+
+// ── Auslastungsleiste im Wochenkalender ──
+function spLoadBar(studio){
+  let n=0,cap=0,tr=0,trCap=0,locked=0;
+  studio.days.forEach(di=>SP_HOURS.forEach(h=>{ const d=spGetSD(studio.id,di,h,spWeekOff); const b=spIsBlocked(studio.id,di,h,spWeekOff); n+=d.members.length; if(b) locked++; else cap+=SP_MAX; trCap++; if(d.trainer) tr++; }));
+  const pct=cap?Math.round(n/cap*100):0;
+  return '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap;font-size:12px;color:#666"><span><b style="color:'+studio.color+'">Auslastung Woche:</b> '+n+'/'+cap+' Plätze ('+pct+'%)</span><div style="width:140px;height:7px;background:#EEE;border-radius:4px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+studio.color+'"></div></div><span>Trainer eingeteilt: '+tr+'/'+trCap+'</span>'+(locked?'<span>🔒 '+locked+' gesperrt</span>':'')+'</div>';
+}
+function spCalExtras(studio){
+  const iso=_spISO(spDateOf(spWeekOff,1));
+  return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap"><input value="'+spEsc(spSearch)+'" oninput="spSetSearch(this.value)" placeholder="🔍 Proband im Kalender suchen…" style="padding:6px 10px;border:1px solid #DDD;border-radius:8px;min-width:210px"><span id="sp-search-count" style="font-size:11px;color:#E87127;min-width:60px"></span><label style="font-size:11px;color:#888">Springe zu <input type="date" value="'+iso+'" onchange="spJumpDate(this.value)" style="padding:5px 8px;border:1px solid #DDD;border-radius:8px"></label><button class="week-btn" onclick="spPrint()" style="font-size:11px;margin-left:auto" title="Wochenplan drucken">🖨 Drucken</button></div>';
+}
+</script>
+<style>
+@media print{
+  body *{visibility:hidden}
+  #sp-cal-root, #sp-cal-root *{visibility:visible}
+  #sp-cal-root{position:absolute;left:0;top:0;width:100%}
+  #sp-cal-root button{box-shadow:none}
+}
+</style>
 
 <!-- 5RM Diagnostik -->
 <script>
