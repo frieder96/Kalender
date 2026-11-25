@@ -8646,7 +8646,7 @@ window.spDelProband=async(id)=>{
 };
 
 // ── PROBAND LIST ───────────────────────────
-let spProbandFilterMode = 'all'; // 'all' | 'withDates'
+let spProbandFilterMode = 'withDates'; // 'all' | 'withDates'
 window.spToggleProbandFilter = () => {
   spProbandFilterMode = spProbandFilterMode==='all' ? 'withDates' : 'all';
   spRenderProbanden();
@@ -8669,7 +8669,7 @@ function spRenderProbanden(){
     </div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
       <button onclick="spToggleProbandFilter()" style="padding:6px 14px;border-radius:8px;border:1px solid ${filterActive?'#1A1A2E':'#DDD'};background:${filterActive?'#1A1A2E':'#fff'};color:${filterActive?'#fff':'#888'};font-size:12px;font-weight:600;cursor:pointer">
-        ${filterActive?'✓ Nur mit Terminen · nach Start sortiert':'Nur Probanden mit Terminen anzeigen'}
+        ${filterActive?'✓ Nur Trainierende (mit Terminen) · nach Start sortiert – Klick: alle zeigen':'Nur Trainierende (mit Terminen) anzeigen'}
       </button>
     </div>
     <input class="pv-search" placeholder="P-ID oder Laufnummer suchen…" oninput="spFilterP(this.value)">
@@ -8819,7 +8819,7 @@ function spRenderCalendar(){
   } else if(spCalTab==='fuenfrm'){ content=spFiveRmHtml();
 
   } else {
-    const all=spGetProbands().map(p=>({...p,count:spCountAll(p.pid)})).sort((a,b)=>b.count-a.count);
+    const all=spGetProbands().map(p=>({...p,count:spCountAll(p.pid)})).filter(p=>spProbandFilterMode!=='withDates'||p.count>0).sort((a,b)=>b.count-a.count);
     content=`<div style="padding:20px">
       <h3 style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;margin-bottom:16px">Kalenderfortschritt</h3>
       ${all.map((p,i)=>{
@@ -10452,8 +10452,9 @@ function spTestWeekLabel(pid,wo){ const a=spTestWeeks(pid)[wo]; return a?[...new
 // ══ 5RM-Messung in der Woche nach T2 (am ersten Termin der Woche) ══
 let spFiveOff=0;
 function spFiveRmRows(wo){
-  const rows=[];
+  const rows=[], trains=new Set(spAllSessions().map(s=>s.pid));
   spGetProbands().forEach(p=>{
+    if(!trains.has(p.pid)) return;
     const t2l=spT2Last(p); if(!t2l) return;
     const wk=spWoDi(new Date(t2l+'T12:00:00')).wo+1; if(wk!==wo) return;
     const ss=spAllSessions().filter(s=>s.pid===p.pid&&s.wo===wk&&s.att!=='absent').sort((a,b)=>a.iso.localeCompare(b.iso)||a.h-b.h);
@@ -10474,7 +10475,7 @@ function spFiveRmHtml(){
   const nav='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><button class="btn btn-sm" onclick="spFiveNav(-1)">◀</button><b>'+spFmtDate(mon)+' – '+spFmtDate(sun)+'.'+sun.getFullYear()+'</b><button class="btn btn-sm" onclick="spFiveNav(1)">▶</button>'+(spFiveOff?'<button class="btn btn-sm" onclick="spFiveNav(0)">Diese Woche</button>':'<span style="font-size:11px;color:#2E9E7A">aktuelle Woche</span>')+'</div>';
   const body=rows.map(r=>{ const f=r.first, st=f?spStudio(f.sid):null, tr=f?spEffTrainer(f.sid,f.di,f.h,f.wo).name:'';
     return '<tr style="border-top:1px solid #EEE"><td style="padding:7px 8px"><a onclick="spGoAccount(\''+spJq(r.p.pid)+'\')" style="cursor:pointer;color:#003975;font-weight:700">'+spEsc(r.p.pid)+'</a></td><td style="padding:7px 8px;white-space:nowrap">'+spFmtDate(new Date(r.t2+'T12:00:00'))+'</td><td style="padding:7px 8px;white-space:nowrap">'+(f?'<b>'+spFmtFull(new Date(f.iso+'T12:00:00'))+'</b> · '+f.h+':00':'<span style="color:#C04A6A;font-weight:600">⚠ kein Termin gebucht</span>')+'</td><td style="padding:7px 8px;color:'+(st?st.color:'#999')+'">'+(st?spEsc(st.name):'')+'</td><td style="padding:7px 8px;color:#555">'+(tr?spEsc(tr):(f?'<span style="color:#C8873A">kein Trainer</span>':''))+'</td><td style="padding:7px 8px;white-space:nowrap">'+(r.done?'<span style="color:#2E9E7A;font-weight:600">✓ erfasst</span>':'<span style="color:#C8873A;font-weight:600">offen</span>')+'</td><td style="padding:7px 8px;white-space:nowrap"><button class="btn btn-sm" onclick="spOpen5rmFromSlot(\''+spJq(r.p.pid)+'\')">💪 5RM</button> '+(f?'<button class="btn btn-sm" onclick="spWarnJump('+f.sid+','+f.di+','+f.h+','+f.wo+')">→ Slot</button>':'')+'</td></tr>'; }).join('');
-  return '<div style="padding:16px"><div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;margin-bottom:4px">💪 5RM-Messung nach T2</div><div style="font-size:11.5px;color:#888;margin-bottom:10px">In der Woche nach T2 findet am <b>ersten Trainingstermin</b> der Woche die 5RM-Messung statt. Angezeigt: Probanden, deren „Woche nach T2" in der gewählten Woche liegt.</div>'+nav
+  return '<div style="padding:16px"><div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;margin-bottom:4px">💪 5RM-Messung nach T2</div><div style="font-size:11.5px;color:#888;margin-bottom:10px">In der Woche nach T2 findet am <b>ersten Trainingstermin</b> der Woche die 5RM-Messung statt. Angezeigt: nur trainierende Probanden (mit Trainingsterminen), deren „Woche nach T2" in der gewählten Woche liegt.</div>'+nav
    +(rows.length?'<div style="overflow-x:auto;background:#fff;border:1px solid #E8E4DE;border-radius:10px"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><tr style="text-align:left;color:#999;font-size:11px;letter-spacing:1px"><th style="padding:8px">PROBAND</th><th style="padding:8px">T2</th><th style="padding:8px">1. TERMIN (5RM)</th><th style="padding:8px">STUDIO</th><th style="padding:8px">TRAINER</th><th style="padding:8px">5RM</th><th></th></tr>'+body+'</table></div>':'<div style="padding:26px;text-align:center;color:#AAA;background:#fff;border:1px solid #E8E4DE;border-radius:10px">In dieser Woche ist bei keinem Probanden die 5RM-Messung nach T2 fällig.</div>')+'</div>';
 }
 </script>
