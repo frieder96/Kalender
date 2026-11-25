@@ -10352,48 +10352,31 @@ window.spEditNote=pid=>{
 </script>
 
 <script>
-// ══ Abgleich Labortestung (T0–T3) ↔ Trainingskalender ═════════════════════════
-let spCmpFilter='auffaellig';
+// ══ Abgleich Testwoche (T1/T2/T3) ↔ Training: in der Testwoche soll nicht trainiert werden ══
 function spCompareRows(){
   const todayIso=_spISO(new Date()), rows=[];
   spGetProbands().forEach(p=>{
     const a=spAccData(p.pid); if(!a) return;
-    const tests=a.study.filter(s=>s.iso).sort((x,y)=>x.iso.localeCompare(y.iso));
-    const sess=a.sessions.filter(s=>s.att!=='absent'||s.iso>todayIso);
-    const doneS=a.sessions.filter(s=>s.iso<=todayIso&&s.att==='present');
-    const pastTests=tests.filter(t=>t.iso<=todayIso);
-    const t0=tests.find(t=>t.label==='T0'), lastPast=pastTests[pastTests.length-1];
-    const flags=[];
-    if(pastTests.length&&!a.sessions.length) flags.push({k:'kein',t:'Getestet, aber nie Training gebucht'});
-    else if(pastTests.length&&!doneS.length&&a.sessions.some(s=>s.iso<=todayIso)) flags.push({k:'keinpres',t:'Getestet, aber bei keinem Training anwesend'});
-    if(t0&&sess.some(s=>s.iso<t0.iso)) flags.push({k:'vor',t:'Training vor T0 ('+sess.filter(s=>s.iso<t0.iso).length+'×)'});
-    if(!t0&&a.sessions.length) flags.push({k:'noT0',t:'Training gebucht, aber kein T0 eingetragen'});
-    const same=[]; tests.forEach(t=>a.sessions.forEach(s=>{ if(s.iso===t.iso&&s.att!=='absent') same.push(t.label); }));
-    if(same.length) flags.push({k:'same',t:'Training am selben Tag wie '+[...new Set(same)].join(', ')});
-    let between=null;
-    if(t0&&lastPast&&lastPast!==t0) between=doneS.filter(s=>s.iso>t0.iso&&s.iso<=lastPast.iso).length;
-    rows.push({pid:p.pid,tests,pastTests,total:a.sessions.length,done:doneS.length,first:a.sessions[0],last:doneS[doneS.length-1],between,lastPast,flags,t0});
+    a.study.filter(t=>t.iso&&t.label!=='T0').forEach(t=>{
+      const wk=spWoDi(new Date(t.iso+'T12:00:00')).wo;
+      const ss=a.sessions.filter(s=>s.wo===wk&&s.att!=='absent');
+      if(ss.length) rows.push({pid:p.pid,label:t.label,iso:t.iso,wk,sessions:ss,past:t.iso<=todayIso,trained:ss.filter(s=>s.iso<=todayIso&&s.att==='present').length,planned:ss.filter(s=>s.iso>todayIso||s.att==='pending').length});
+    });
   });
-  return rows;
+  return rows.sort((x,y)=>x.iso.localeCompare(y.iso)||x.pid.localeCompare(y.pid));
 }
-window.spCmpSet=f=>{ spCmpFilter=f; spRenderCalendar(); };
 window.spCmpExport=()=>{
-  const rows=spCompareRows(), L=['T0','T1.1','T1.2','T2','T3'], q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
-  const lines=[['Proband',...L,'Trainings gebucht','Trainings anwesend','Erstes Training','Letztes Training (anwesend)','Trainings zwischen T0 und letzter Testung','Auffälligkeiten'].map(q).join(';')];
-  rows.forEach(r=>lines.push([r.pid,...L.map(l=>(r.tests.find(t=>t.label===l)||{}).iso||''),r.total,r.done,r.first?r.first.iso:'',r.last?r.last.iso:'',r.between==null?'':r.between,r.flags.map(f=>f.t).join(' | ')].map(q).join(';')));
-  const b=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}), a=document.createElement('a');
-  a.href=URL.createObjectURL(b); a.download='abgleich_testung_training_'+_spISO(new Date())+'.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"', L=[['Proband','Test','Testdatum','Training in Testwoche (Datum, Uhrzeit, Studio, Status)'].map(q).join(';')];
+  spCompareRows().forEach(r=>L.push([r.pid,r.label,r.iso,r.sessions.map(s=>s.iso+' '+s.h+':00 '+spStudio(s.sid).name+' ['+SP_ATT_STYLE[s.att][4]+']').join(' | ')].map(q).join(';')));
+  const b=new Blob(['﻿'+L.join('\r\n')],{type:'text/csv;charset=utf-8'}), a=document.createElement('a');
+  a.href=URL.createObjectURL(b); a.download='training_in_testwoche_'+_spISO(new Date())+'.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 };
 function spCompareHtml(){
-  const todayIso=_spISO(new Date()), all=spCompareRows(), L=['T0','T1.1','T1.2','T2','T3'];
-  const f=spCmpFilter, rows=all.filter(r=>f==='alle'||(f==='auffaellig'&&r.flags.length)||(f==='keins'&&r.flags.some(x=>x.k==='kein'||x.k==='keinpres')));
-  const chip=(k,l,n)=>'<button onclick="spCmpSet(\''+k+'\')" style="border:1px solid '+(f===k?'#1A1A2E':'#DDD')+';background:'+(f===k?'#1A1A2E':'#fff')+';color:'+(f===k?'#fff':'#555')+';border-radius:99px;padding:4px 12px;font-size:12px;cursor:pointer">'+l+' ('+n+')</button>';
-  const nA=all.filter(r=>r.flags.length).length, nK=all.filter(r=>r.flags.some(x=>x.k==='kein'||x.k==='keinpres')).length;
-  const cell=(r,l)=>{ const t=r.tests.find(x=>x.label===l); if(!t) return '<td style="padding:6px 8px;color:#CCC">–</td>'; const past=t.iso<=todayIso; return '<td style="padding:6px 8px;white-space:nowrap;color:'+(past?'#222':'#999')+'">'+spFmtDate(new Date(t.iso+'T12:00:00'))+(past?' ✓':'')+'</td>'; };
-  const body=rows.map(r=>'<tr style="border-top:1px solid #EEE"><td style="padding:6px 8px;white-space:nowrap"><a onclick="spGoAccount(\''+spJq(r.pid)+'\')" style="cursor:pointer;color:#003975;font-weight:700">'+spEsc(r.pid)+'</a></td>'+L.map(l=>cell(r,l)).join('')+'<td style="padding:6px 8px;text-align:center">'+r.done+'/'+r.total+'</td><td style="padding:6px 8px;text-align:center;color:#666">'+(r.between==null?'–':r.between)+'</td><td style="padding:6px 8px;font-size:11.5px">'+(r.flags.length?r.flags.map(x=>'<div style="color:#C04A6A">⚠ '+spEsc(x.t)+'</div>').join(''):'<span style="color:#2E9E7A">✓ unauffällig</span>')+'</td></tr>').join('');
-  return '<div style="padding:16px"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px">'+chip('auffaellig','Auffällig',nA)+chip('keins','Getestet ohne Training',nK)+chip('alle','Alle',all.length)+'<button class="btn btn-sm" style="margin-left:auto" onclick="spCmpExport()">⬇ CSV-Export</button></div>'
-   +'<div style="font-size:11.5px;color:#888;margin-bottom:10px">✓ = Testtermin liegt in der Vergangenheit (laut Kalender, nicht bestätigt durchgeführt). „Trainings" = anwesend/gebucht (ohne Fehltermine). Quelle der Testtermine: T0–T3 im AAAging-Kalender.</div>'
-   +'<div style="overflow-x:auto;background:#fff;border:1px solid #E8E4DE;border-radius:10px"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><tr style="text-align:left;color:#999;font-size:11px;letter-spacing:1px"><th style="padding:8px">PROBAND</th>'+L.map(l=>'<th style="padding:8px">'+l+'</th>').join('')+'<th style="padding:8px">TRAININGS</th><th style="padding:8px" title="anwesende Trainings zwischen T0 und der letzten vergangenen Testung">T0→LETZTE</th><th style="padding:8px">AUFFÄLLIGKEITEN</th></tr>'+(body||'<tr><td colspan="9" style="padding:20px;text-align:center;color:#AAA">Keine Einträge.</td></tr>')+'</table></div></div>';
+  const rows=spCompareRows(), nT=rows.filter(r=>r.trained).length;
+  const body=rows.map(r=>'<tr style="border-top:1px solid #EEE"><td style="padding:6px 8px"><a onclick="spGoAccount(\''+spJq(r.pid)+'\')" style="cursor:pointer;color:#003975;font-weight:700">'+spEsc(r.pid)+'</a></td><td style="padding:6px 8px"><b>'+r.label+'</b></td><td style="padding:6px 8px;white-space:nowrap">'+spFmtFull(new Date(r.iso+'T12:00:00'))+(r.past?'':' <span style="color:#999">(geplant)</span>')+'</td><td style="padding:6px 8px;font-size:12px">'+r.sessions.map(s=>'<div style="color:'+(s.iso<=_spISO(new Date())&&s.att==='present'?'#C04A6A':'#C8873A')+'">'+spFmtFull(new Date(s.iso+'T12:00:00'))+' · '+s.h+':00 · '+spEsc(spStudio(s.sid).name)+' – <b>'+(s.iso<=_spISO(new Date())&&s.att==='present'?'trainiert':s.iso>_spISO(new Date())?'gebucht':'offen')+'</b></div>').join('')+'</td></tr>').join('');
+  return '<div style="padding:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800">🔍 Training in der Testwoche (T1 / T2 / T3)</div><button class="btn btn-sm" style="margin-left:auto" onclick="spCmpExport()">⬇ CSV-Export</button></div>'
+   +'<div style="font-size:11.5px;color:#888;margin-bottom:10px">In der Woche (Mo–So) eines Testtermins soll nicht trainiert werden. Angezeigt werden nur Probanden mit Training in einer solchen Woche: <b>'+rows.length+'</b> Fall/Fälle, davon bereits trainiert: <b>'+nT+'</b>. „gebucht" = in der Zukunft gebucht → ggf. verschieben. Fehltermine zählen nicht.</div>'
+   +(rows.length?'<div style="overflow-x:auto;background:#fff;border:1px solid #E8E4DE;border-radius:10px"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><tr style="text-align:left;color:#999;font-size:11px;letter-spacing:1px"><th style="padding:8px">PROBAND</th><th style="padding:8px">TEST</th><th style="padding:8px">TESTDATUM</th><th style="padding:8px">TRAINING IN DIESER WOCHE</th></tr>'+body+'</table></div>':'<div style="padding:26px;text-align:center;color:#2E9E7A;background:#fff;border:1px solid #E8E4DE;border-radius:10px">✅ Kein Proband hat in einer Testwoche (T1/T2/T3) Training gebucht oder absolviert.</div>')+'</div>';
 }
 </script>
 
