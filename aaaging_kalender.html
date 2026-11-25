@@ -8725,7 +8725,7 @@ function spRenderCalendar(){
     style="${spActiveStudio===s.id?`background:${s.color};color:#fff;border-color:${s.color}`:''}">
     ${s.name.toUpperCase()}</button>`).join('');
 
-  const calSubTabs=[['calendar','📅 Woche'],['monat','🗓 Monat'],['alle','🏢 Alle Studios'],['heute','✅ Anwesenheit'],['auswertung','📊 Auswertung'],['abgleich','🔍 Testung-Abgleich'],['hinweise','⚠ Hinweise'+(spWarnCount()?' ('+spWarnCount()+')':'')],['probanden','👥 Fortschritt']].map(([k,l])=>
+  const calSubTabs=[['calendar','📅 Woche'],['monat','🗓 Monat'],['alle','🏢 Alle Studios'],['heute','✅ Anwesenheit'],['auswertung','📊 Auswertung'],['hinweise','⚠ Hinweise'+(spWarnCount()?' ('+spWarnCount()+')':'')],['probanden','👥 Fortschritt']].map(([k,l])=>
     `<button class="cal-subtab${spCalTab===k?' active':''}"
       onclick="spCalTab='${k}';spRenderCalendar()"
       style="${spCalTab===k?`background:${k==='alle'?'#555':studio.color};color:#fff`:''}">
@@ -8813,10 +8813,10 @@ function spRenderCalendar(){
         </div>`;
       }).join('')+`</div></div>`;
   } else if(spCalTab==='monat'){ content=spMonthHtml();
-  } else if(spCalTab==='heute'){ content=spAttendanceHtml();
+  } else if(spCalTab==='heute'){ content=spAttendanceHtml()+'<div style="padding:4px 16px 0;margin-top:8px;border-top:2px solid #E8E4DE"><div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;margin-top:14px">🔍 Abgleich Labortestung ↔ Training</div></div>'+spCompareHtml()+spVolHtml();
   } else if(spCalTab==='auswertung'){ content=spStatsHtml();
   } else if(spCalTab==='hinweise'){ content=spWarningsHtml();
-  } else if(spCalTab==='abgleich'){ content=spCompareHtml();
+
   } else {
     const all=spGetProbands().map(p=>({...p,count:spCountAll(p.pid)})).sort((a,b)=>b.count-a.count);
     content=`<div style="padding:20px">
@@ -10394,6 +10394,52 @@ function spCompareHtml(){
   return '<div style="padding:16px"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px">'+chip('auffaellig','Auffällig',nA)+chip('keins','Getestet ohne Training',nK)+chip('alle','Alle',all.length)+'<button class="btn btn-sm" style="margin-left:auto" onclick="spCmpExport()">⬇ CSV-Export</button></div>'
    +'<div style="font-size:11.5px;color:#888;margin-bottom:10px">✓ = Testtermin liegt in der Vergangenheit (laut Kalender, nicht bestätigt durchgeführt). „Trainings" = anwesend/gebucht (ohne Fehltermine). Quelle der Testtermine: T0–T3 im AAAging-Kalender.</div>'
    +'<div style="overflow-x:auto;background:#fff;border:1px solid #E8E4DE;border-radius:10px"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><tr style="text-align:left;color:#999;font-size:11px;letter-spacing:1px"><th style="padding:8px">PROBAND</th>'+L.map(l=>'<th style="padding:8px">'+l+'</th>').join('')+'<th style="padding:8px">TRAININGS</th><th style="padding:8px" title="anwesende Trainings zwischen T0 und der letzten vergangenen Testung">T0→LETZTE</th><th style="padding:8px">AUFFÄLLIGKEITEN</th></tr>'+(body||'<tr><td colspan="9" style="padding:20px;text-align:center;color:#AAA">Keine Einträge.</td></tr>')+'</table></div></div>';
+}
+</script>
+
+<script>
+// ══ Protokoll-Vollständigkeit (Übungen ↔ Fragen/Wellness) ════════════════════
+let spVolFilter='fragen';
+const SP_WELL_LBL={rpe:'RPE',befinden:'Befinden',motivation:'Motivation',schlaf:'Schlafqualität',schlafdauer:'Schlafdauer',durchgeschlafen:'Durchgeschlafen'};
+function spVolRows(){
+  const todayIso=_spISO(new Date()), logs={};
+  Object.values(SP_TRAINING_LOGS).forEach(l=>{ logs[[l.proband,l.sid,l.di,l.h,l.wo].join('|')]=l; });
+  const rows=[];
+  spAllSessions().forEach(s=>{
+    if(s.iso>todayIso) return;
+    const l=logs[[s.pid,s.sid,s.di,s.h,s.wo].join('|')];
+    if(!l&&s.att!=='present') return;
+    if(!l){ rows.push({s,state:'keins',exOk:0,exN:0,miss:[]}); return; }
+    const ex=l.exercises||[], exOk=ex.filter(e=>(e.sets||[]).some(x=>(x.reps!==''&&x.reps!=null)||(x.weight!==''&&x.weight!=null))).length;
+    const w=l.wellness||{}, miss=Object.keys(SP_WELL_LBL).filter(k=>w[k]===null||w[k]===undefined||w[k]==='');
+    const exFilled=exOk>0, wFilled=miss.length<Object.keys(SP_WELL_LBL).length;
+    let state='ok';
+    if(exFilled&&miss.length) state=wFilled?'fragenTeil':'fragen';
+    else if(!exFilled&&wFilled) state='uebungen';
+    else if(!exFilled&&!wFilled) state='leer';
+    rows.push({s,state,exOk,exN:ex.length,miss});
+  });
+  return rows.sort((a,b)=>b.s.iso.localeCompare(a.s.iso)||a.s.pid.localeCompare(b.s.pid));
+}
+window.spVolSet=f=>{ spVolFilter=f; spRenderCalendar(); };
+window.spVolExport=()=>{
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"', lbl={ok:'vollständig',fragen:'Übungen ja, Fragen fehlen',fragenTeil:'Übungen ja, Fragen teilweise',uebungen:'Fragen ja, Übungen fehlen',leer:'Protokoll leer',keins:'kein Protokoll'};
+  const L=[['Datum','Proband','Studio','Uhrzeit','Status','Übungen ausgefüllt','Fehlende Fragen'].map(q).join(';')];
+  spVolRows().forEach(r=>L.push([r.s.iso,r.s.pid,spStudio(r.s.sid).name,r.s.h+':00',lbl[r.state],r.exOk+'/'+r.exN,r.miss.map(k=>SP_WELL_LBL[k]).join(', ')].map(q).join(';')));
+  const b=new Blob(['﻿'+L.join('\r\n')],{type:'text/csv;charset=utf-8'}), a=document.createElement('a');
+  a.href=URL.createObjectURL(b); a.download='protokoll_vollstaendigkeit_'+_spISO(new Date())+'.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+};
+function spVolHtml(){
+  const all=spVolRows(), f=spVolFilter;
+  const cnt=k=>all.filter(r=>k==='alle'?true:k==='fragen'?(r.state==='fragen'||r.state==='fragenTeil'):r.state===k).length;
+  const rows=all.filter(r=>f==='alle'||(f==='fragen'&&(r.state==='fragen'||r.state==='fragenTeil'))||r.state===f);
+  const chip=(k,l)=>'<button onclick="spVolSet(\''+k+'\')" style="border:1px solid '+(f===k?'#1A1A2E':'#DDD')+';background:'+(f===k?'#1A1A2E':'#fff')+';color:'+(f===k?'#fff':'#555')+';border-radius:99px;padding:4px 12px;font-size:12px;cursor:pointer">'+l+' ('+cnt(k)+')</button>';
+  const st={ok:['✓ vollständig','#2E9E7A'],fragen:['Fragen fehlen','#C04A6A'],fragenTeil:['Fragen teilweise','#C8873A'],uebungen:['Übungen fehlen','#C04A6A'],leer:['Protokoll leer','#C04A6A'],keins:['kein Protokoll','#888']};
+  const body=rows.map(r=>{ const s=r.s, sc=spStudio(s.sid), t=st[r.state];
+    return '<tr style="border-top:1px solid #EEE"><td style="padding:6px 8px;white-space:nowrap"><b>'+spFmtDate(new Date(s.iso+'T12:00:00'))+'</b> '+s.h+':00</td><td style="padding:6px 8px"><a onclick="spGoAccount(\''+spJq(s.pid)+'\')" style="cursor:pointer;color:#003975;font-weight:700">'+spEsc(s.pid)+'</a></td><td style="padding:6px 8px;color:'+sc.color+'">'+spEsc(sc.name)+'</td><td style="padding:6px 8px;color:'+t[1]+';font-weight:600;white-space:nowrap">'+t[0]+'</td><td style="padding:6px 8px;text-align:center">'+(r.state==='keins'?'–':r.exOk+'/'+r.exN)+'</td><td style="padding:6px 8px;font-size:11.5px;color:#777">'+(r.miss.length&&r.state!=='keins'?r.miss.map(k=>SP_WELL_LBL[k]).join(', '):'')+'</td><td style="padding:6px 8px"><button class="btn btn-sm" onclick="spOpenTrainingLog('+s.sid+','+s.di+','+s.h+','+s.wo+',\''+spJq(s.pid)+'\',this)">Öffnen</button></td></tr>'; }).join('');
+  return '<div style="padding:16px"><div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;margin:6px 0 8px">📋 Protokoll-Vollständigkeit</div><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">'+chip('fragen','Übungen ja, Fragen fehlen')+chip('uebungen','Fragen ja, Übungen fehlen')+chip('keins','Kein Protokoll')+chip('leer','Leer')+chip('alle','Alle')+'<button class="btn btn-sm" style="margin-left:auto" onclick="spVolExport()">⬇ CSV-Export</button></div>'
+   +'<div style="font-size:11.5px;color:#888;margin-bottom:10px">Gezählt werden vergangene Trainings mit Anwesenheit oder vorhandenem Protokoll. „Fragen" = RPE, Befinden, Motivation, Schlafqualität, Schlafdauer, Durchgeschlafen.</div>'
+   +'<div style="overflow-x:auto;background:#fff;border:1px solid #E8E4DE;border-radius:10px"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><tr style="text-align:left;color:#999;font-size:11px;letter-spacing:1px"><th style="padding:8px">TERMIN</th><th style="padding:8px">PROBAND</th><th style="padding:8px">STUDIO</th><th style="padding:8px">STATUS</th><th style="padding:8px">ÜBUNGEN</th><th style="padding:8px">FEHLENDE FRAGEN</th><th></th></tr>'+(body||'<tr><td colspan="7" style="padding:20px;text-align:center;color:#AAA">Keine Einträge.</td></tr>')+'</table></div></div>';
 }
 </script>
 
