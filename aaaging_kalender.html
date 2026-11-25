@@ -8725,7 +8725,7 @@ function spRenderCalendar(){
     style="${spActiveStudio===s.id?`background:${s.color};color:#fff;border-color:${s.color}`:''}">
     ${s.name.toUpperCase()}</button>`).join('');
 
-  const calSubTabs=[['calendar','📅 Woche'],['monat','🗓 Monat'],['alle','🏢 Alle Studios'],['heute','✅ Anwesenheit'],['auswertung','📊 Auswertung'],['hinweise','⚠ Hinweise'+(spWarnCount()?' ('+spWarnCount()+')':'')],['probanden','👥 Fortschritt']].map(([k,l])=>
+  const calSubTabs=[['calendar','📅 Woche'],['monat','🗓 Monat'],['alle','🏢 Alle Studios'],['heute','✅ Anwesenheit'],['auswertung','📊 Auswertung'],['fuenfrm','💪 5RM nach T2'+(spFiveRmCount()?' ('+spFiveRmCount()+')':'')],['hinweise','⚠ Hinweise'+(spWarnCount()?' ('+spWarnCount()+')':'')],['probanden','👥 Fortschritt']].map(([k,l])=>
     `<button class="cal-subtab${spCalTab===k?' active':''}"
       onclick="spCalTab='${k}';spRenderCalendar()"
       style="${spCalTab===k?`background:${k==='alle'?'#555':studio.color};color:#fff`:''}">
@@ -8753,7 +8753,7 @@ function spRenderCalendar(){
         const data=spGetSD(spActiveStudio,di,hour,spWeekOff),mc=data.members.length,isFull=mc>=SP_MAX,_blk=spIsBlocked(spActiveStudio,di,hour,spWeekOff);
         const dots=Array.from({length:SP_MAX}).map((_,i)=>{
           const att=data.attendance&&data.attendance[i];
-          const c=i>=mc?'#E5E2DD':att==='present'?'#2E9E7A':att==='absent'?'#C04A6A':studio.color;
+          const c=i>=mc?'#E5E2DD':spTestWeekLabel(data.members[i],spWeekOff)?'#E8C9A0':att==='present'?'#2E9E7A':att==='absent'?'#C04A6A':studio.color;
           return `<div style="width:6px;height:6px;border-radius:50%;background:${c}"></div>`;
         }).join('');
         return `<button data-members="${data.members.join('|').replace(/"/g,'')}" data-blocked="${_blk?1:0}" title="${_blk?('Gesperrt'+(_blk.reason?': '+_blk.reason.replace(/"/g,''):'')):''}" onclick="spOpenSlotModal(${di},${hour})" style="height:76px;border-radius:10px;border:1px solid ${isFull?studio.color+'88':mc>0?studio.color+'44':'#E8E4DE'};background:${mc>0?`linear-gradient(to top,${studio.color}18 0%,#fff 100%)`:'#fff'};padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;cursor:pointer;width:100%">
@@ -8761,7 +8761,7 @@ function spRenderCalendar(){
             <span style="font-size:10px;color:${isFull?studio.color:'#CCC'};font-family:monospace">${_blk?'🔒 ':''}${mc}/${SP_MAX}</span>
             ${(()=>{const _e=spEffTrainer(spActiveStudio,di,hour,spWeekOff);return _e.name?`<span title="${spEsc(_e.name)}${_e.src==='standard'?' (Standard)':''}" style="font-size:8px;background:${studio.color};color:#fff;padding:2px 5px;border-radius:3px;font-weight:700;opacity:${_e.src==='standard'?.6:1}">T</span>`:''})()}
           </div>
-          ${mc>0?`<div style="font-size:9px;color:#999;line-height:1.4">${data.members.join(', ')}</div>`:''}
+          ${mc>0?`<div style="font-size:9px;color:#999;line-height:1.4">${data.members.map(n=>{const _tw=spTestWeekLabel(n,spWeekOff);return _tw?`<s title="${_tw}-Woche: Training entfällt" style="color:#C8873A">${spEsc(n)}</s>🧪`:spEsc(n);}).join(', ')}</div>`:''}
           <div style="display:flex;gap:3px">${dots}</div>
         </button>`;
       }).join('');
@@ -8816,6 +8816,7 @@ function spRenderCalendar(){
   } else if(spCalTab==='heute'){ content=spAttendanceHtml()+'<div style="padding:4px 16px 0;margin-top:8px;border-top:2px solid #E8E4DE"><div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;margin-top:14px">🔍 Abgleich Labortestung ↔ Training</div></div>'+spCompareHtml()+spVolHtml();
   } else if(spCalTab==='auswertung'){ content=spStatsHtml();
   } else if(spCalTab==='hinweise'){ content=spWarningsHtml();
+  } else if(spCalTab==='fuenfrm'){ content=spFiveRmHtml();
 
   } else {
     const all=spGetProbands().map(p=>({...p,count:spCountAll(p.pid)})).sort((a,b)=>b.count-a.count);
@@ -8864,7 +8865,7 @@ window.spOpenSlotModal=(di,h)=>{
     const attCfg={pending:{icon:'○',bg:'#F8F5F0',border:'#E0DDD8',color:'#AAA'},present:{icon:'✔',bg:'#f0faf4',border:'#2E9E7A',color:'#2E9E7A'},absent:{icon:'✘',bg:'#fff5f5',border:'#C04A6A',color:'#C04A6A'}}[att];
     const hasLog = !!spGetTrainLog(spActiveStudio,di,h,spWeekOff,name);
     return `<div style="background:${attCfg.bg};border-radius:8px;border:1px solid ${attCfg.border};padding:9px 12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-      <span style="font-size:13px">${i+1}. <a onclick="spGoAccount('${name.replace(/'/g,"\\'")}')" title="Probanden-Konto öffnen" style="cursor:pointer;color:#003975;text-decoration:underline dotted;text-underline-offset:3px">${name}</a>${SP_NOTES[name]&&SP_NOTES[name].text?` <span title="${spEsc(SP_NOTES[name].text)}" style="cursor:help">📝</span>`:''}</span>
+      <span style="font-size:13px">${i+1}. <a onclick="spGoAccount('${name.replace(/'/g,"\\'")}')" title="Probanden-Konto öffnen" style="cursor:pointer;color:#003975;text-decoration:underline dotted;text-underline-offset:3px">${name}</a>${SP_NOTES[name]&&SP_NOTES[name].text?` <span title="${spEsc(SP_NOTES[name].text)}" style="cursor:help">📝</span>`:''}${(()=>{ if(!spFiveRmFirst(name,spWeekOff)) return ''; const f=spAllSessions().filter(x=>x.pid===name&&x.wo===spWeekOff&&x.att!=='absent').sort((a,b)=>a.iso.localeCompare(b.iso)||a.h-b.h)[0]; return f&&f.sid===spActiveStudio&&f.di===di&&f.h===h?' <span title="Erster Termin in der Woche nach T2: 5RM-Messung" style="background:#E8F5E9;border:1px solid #9AC9A4;color:#1A4A2A;border-radius:99px;padding:1px 8px;font-size:10.5px;font-weight:600;white-space:nowrap">💪 5RM-Messung</span>':''; })()}${spTestWeekLabel(name,spWeekOff)?` <span title="In dieser Woche ist ${spTestWeekLabel(name,spWeekOff)} – das Training entfällt (Buchung bleibt bestehen)" style="background:#FFF1E6;border:1px solid #F2C9A4;color:#8A4B1A;border-radius:99px;padding:1px 8px;font-size:10.5px;font-weight:600;white-space:nowrap">🧪 ${spTestWeekLabel(name,spWeekOff)}-Woche · entfällt</span>`:''}</span>
       <div style="display:flex;gap:6px;align-items:center">
         <button onclick="spOpenTrainingLog(${spActiveStudio},${di},${h},${spWeekOff},'${name.replace(/'/g,"\\'")}',this)" style="background:${hasLog?'#003975':'#fff'};border:1px solid #003975;border-radius:6px;color:${hasLog?'#fff':'#003975'};font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer" title="Trainingsprotokoll">📋</button>
         <button onclick="spOpen5rmFromSlot('${name.replace(/'/g,"\\'")}')" style="background:#fff;border:1px solid #1A4A2A;border-radius:6px;color:#1A4A2A;font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer" title="5RM Diagnostik">💪</button>
@@ -10260,6 +10261,7 @@ function spConflicts(pid,sid,di,h,wo){
     if(s.h===h) hard.push(pid+' hat am '+spFmtDate(spDateOf(wo,di))+' um '+h+':00 bereits ein Training in '+spStudio(s.sid).name+'.');
     else soft.push('Am selben Tag hat '+pid+' schon ein Training um '+s.h+':00 ('+spStudio(s.sid).name+').');
   });
+  { const _tw=spTestWeekLabel(pid,wo); if(_tw) soft.push('In dieser Woche ist '+_tw+' – das Training soll entfallen.'); }
   try{ const a=spAccData(pid); if(a){ a.study.forEach(s=>{ if(s.iso===iso) soft.push('Untersuchungstermin '+s.label+' am selben Tag.'); }); a.recalls.forEach(r=>{ if(r.date===iso) soft.push('Recall/Ausgabe am selben Tag'+(r.time?' ('+r.time+')':'')+'.'); }); } }catch(e){}
   return {hard,soft};
 }
@@ -10423,6 +10425,57 @@ function spVolHtml(){
   return '<div style="padding:16px"><div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;margin:6px 0 8px">📋 Protokoll-Vollständigkeit</div><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">'+chip('fragen','Übungen ja, Fragen fehlen')+chip('uebungen','Fragen ja, Übungen fehlen')+chip('keins','Kein Protokoll')+chip('leer','Leer')+chip('alle','Alle')+'<button class="btn btn-sm" style="margin-left:auto" onclick="spVolExport()">⬇ CSV-Export</button></div>'
    +'<div style="font-size:11.5px;color:#888;margin-bottom:10px">Gezählt werden vergangene Trainings mit Anwesenheit oder vorhandenem Protokoll. „Fragen" = RPE, Befinden, Motivation, Schlafqualität, Schlafdauer, Durchgeschlafen.</div>'
    +'<div style="overflow-x:auto;background:#fff;border:1px solid #E8E4DE;border-radius:10px"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><tr style="text-align:left;color:#999;font-size:11px;letter-spacing:1px"><th style="padding:8px">TERMIN</th><th style="padding:8px">PROBAND</th><th style="padding:8px">STUDIO</th><th style="padding:8px">STATUS</th><th style="padding:8px">ÜBUNGEN</th><th style="padding:8px">FEHLENDE FRAGEN</th><th></th></tr>'+(body||'<tr><td colspan="7" style="padding:20px;text-align:center;color:#AAA">Keine Einträge.</td></tr>')+'</table></div></div>';
+}
+</script>
+
+<script>
+// ══ Testwoche: in der Woche von T1/T2/T3 entfällt das Training (Buchung bleibt sichtbar, wird nur markiert) ══
+let _spTWC={t:0,m:{}};
+function spTestWeeks(pid){
+  if(Date.now()-_spTWC.t>2000) _spTWC={t:Date.now(),m:{}};
+  if(_spTWC.m[pid]) return _spTWC.m[pid];
+  const out={}; let p=null;
+  try{ p=spGetProbands().find(x=>x.pid===pid); }catch(e){}
+  if(p){
+    const add=(label,iso)=>{ if(!iso) return; const wo=spWoDi(new Date(iso+'T12:00:00')).wo; (out[wo]=out[wo]||[]).push(label); };
+    const sd=(w,day)=>{ try{ const d=spAccStudyDate(w,day); return d?_spISO(d):''; }catch(e){ return ''; } };
+    add('T1.1',sd(p.t1week11||p.t1week,p.t1day11));
+    add('T1.2',sd(p.t1week12||p.t1week,p.t1day12));
+    add('T2',p.t2date); add('T3',p.t3date);
+  }
+  _spTWC.m[pid]=out; return out;
+}
+function spTestWeekLabel(pid,wo){ const a=spTestWeeks(pid)[wo]; return a?[...new Set(a)].join('/'):''; }
+</script>
+
+<script>
+// ══ 5RM-Messung in der Woche nach T2 (am ersten Termin der Woche) ══
+let spFiveOff=0;
+function spFiveRmRows(wo){
+  const rows=[];
+  spGetProbands().forEach(p=>{
+    if(!p.t2date) return;
+    const wk=spWoDi(new Date(p.t2date+'T12:00:00')).wo+1; if(wk!==wo) return;
+    const ss=spAllSessions().filter(s=>s.pid===p.pid&&s.wo===wk&&s.att!=='absent').sort((a,b)=>a.iso.localeCompare(b.iso)||a.h-b.h);
+    const from=_spISO(spDateOf(wk,1)), to=_spISO(spDateOf(wk,7));
+    const done=((SP_PROBANDS[p._id]||{}).sessions||[]).some(x=>x.date>=from&&x.date<=to);
+    rows.push({p,t2:p.t2date,first:ss[0]||null,n:ss.length,done});
+  });
+  return rows.sort((a,b)=>(a.first?a.first.iso+String(a.first.h).padStart(2,'0'):'9')<(b.first?b.first.iso+String(b.first.h).padStart(2,'0'):'9')?-1:1);
+}
+function spFiveRmFirst(pid,wo){ // true, wenn dieser Slot der erste Termin in der Woche nach T2 ist
+  const p=spGetProbands().find(x=>x.pid===pid); if(!p||!p.t2date) return false;
+  if(spWoDi(new Date(p.t2date+'T12:00:00')).wo+1!==wo) return false; return true;
+}
+window.spFiveNav=d=>{ spFiveOff=d===0?0:spFiveOff+d; spRenderCalendar(); };
+function spFiveRmCount(){ try{ return spFiveRmRows(spCurrentWeekOff()).filter(r=>!r.done).length; }catch(e){ return 0; } }
+function spFiveRmHtml(){
+  const wo=spCurrentWeekOff()+spFiveOff, mon=spDateOf(wo,1), sun=spDateOf(wo,7), rows=spFiveRmRows(wo);
+  const nav='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><button class="btn btn-sm" onclick="spFiveNav(-1)">◀</button><b>'+spFmtDate(mon)+' – '+spFmtDate(sun)+'.'+sun.getFullYear()+'</b><button class="btn btn-sm" onclick="spFiveNav(1)">▶</button>'+(spFiveOff?'<button class="btn btn-sm" onclick="spFiveNav(0)">Diese Woche</button>':'<span style="font-size:11px;color:#2E9E7A">aktuelle Woche</span>')+'</div>';
+  const body=rows.map(r=>{ const f=r.first, st=f?spStudio(f.sid):null, tr=f?spEffTrainer(f.sid,f.di,f.h,f.wo).name:'';
+    return '<tr style="border-top:1px solid #EEE"><td style="padding:7px 8px"><a onclick="spGoAccount(\''+spJq(r.p.pid)+'\')" style="cursor:pointer;color:#003975;font-weight:700">'+spEsc(r.p.pid)+'</a></td><td style="padding:7px 8px;white-space:nowrap">'+spFmtDate(new Date(r.t2+'T12:00:00'))+'</td><td style="padding:7px 8px;white-space:nowrap">'+(f?'<b>'+spFmtFull(new Date(f.iso+'T12:00:00'))+'</b> · '+f.h+':00':'<span style="color:#C04A6A;font-weight:600">⚠ kein Termin gebucht</span>')+'</td><td style="padding:7px 8px;color:'+(st?st.color:'#999')+'">'+(st?spEsc(st.name):'')+'</td><td style="padding:7px 8px;color:#555">'+(tr?spEsc(tr):(f?'<span style="color:#C8873A">kein Trainer</span>':''))+'</td><td style="padding:7px 8px;white-space:nowrap">'+(r.done?'<span style="color:#2E9E7A;font-weight:600">✓ erfasst</span>':'<span style="color:#C8873A;font-weight:600">offen</span>')+'</td><td style="padding:7px 8px;white-space:nowrap"><button class="btn btn-sm" onclick="spOpen5rmFromSlot(\''+spJq(r.p.pid)+'\')">💪 5RM</button> '+(f?'<button class="btn btn-sm" onclick="spWarnJump('+f.sid+','+f.di+','+f.h+','+f.wo+')">→ Slot</button>':'')+'</td></tr>'; }).join('');
+  return '<div style="padding:16px"><div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;margin-bottom:4px">💪 5RM-Messung nach T2</div><div style="font-size:11.5px;color:#888;margin-bottom:10px">In der Woche nach T2 findet am <b>ersten Trainingstermin</b> der Woche die 5RM-Messung statt. Angezeigt: Probanden, deren „Woche nach T2" in der gewählten Woche liegt.</div>'+nav
+   +(rows.length?'<div style="overflow-x:auto;background:#fff;border:1px solid #E8E4DE;border-radius:10px"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><tr style="text-align:left;color:#999;font-size:11px;letter-spacing:1px"><th style="padding:8px">PROBAND</th><th style="padding:8px">T2</th><th style="padding:8px">1. TERMIN (5RM)</th><th style="padding:8px">STUDIO</th><th style="padding:8px">TRAINER</th><th style="padding:8px">5RM</th><th></th></tr>'+body+'</table></div>':'<div style="padding:26px;text-align:center;color:#AAA;background:#fff;border:1px solid #E8E4DE;border-radius:10px">In dieser Woche ist bei keinem Probanden die 5RM-Messung nach T2 fällig.</div>')+'</div>';
 }
 </script>
 
